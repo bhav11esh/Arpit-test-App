@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap');
+@import "./theme.css";
+@import "./fonts.css";
+
+/* Mobile-specific styles */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Live Booking page specific styles - scoped to avoid affecting other pages */
+.live-booking-page {
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Mobile-first responsive design for live booking page only */
+@media (min-width: 480px) {
+  .live-booking-page {
+    max-width: 480px;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
