@@ -22,7 +22,7 @@ export function PaymentProcessing({ onComplete, onCancel, amount, venue }: Payme
     }
 
     // Get Razorpay key from environment
-    const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY;
+    const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     
     if (!razorpayKey) {
       setError('Razorpay key is not configured. Please check your environment variables.');

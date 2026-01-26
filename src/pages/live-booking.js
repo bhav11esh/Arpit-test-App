@@ -14,7 +14,6 @@ import { VenueInfoStrip } from '@/components/livebooking/VenueInfoStrip';
 import { MapEmbed } from '@/components/livebooking/MapEmbed';
 import { HowItWorksSection } from '@/components/livebooking/HowItWorksSection';
 import { WhatWeDoSection } from '@/components/livebooking/WhatWeDoSection';
-import { GalleryGrid } from '@/components/livebooking/GalleryGrid';
 import { PaymentProcessing } from '@/components/livebooking/PaymentProcessing';
 import { PaymentSuccess } from '@/components/livebooking/PaymentSuccess';
 import { PhotoCarousel } from '@/components/livebooking/PhotoCarousel';
@@ -46,6 +45,9 @@ export default function LiveBooking() {
   const [qrParams, setQrParams] = useState({});
   const [locationVerified, setLocationVerified] = useState(false);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [detectedVenue, setDetectedVenue] = useState(null);
+  const [selectedVenue, setSelectedVenue] = useState(null);
+  const [tableName, setTableName] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     howItWorks: false,
     whatWeDo: false,
@@ -53,8 +55,8 @@ export default function LiveBooking() {
     venueInstructions: false,
   });
 
-  // Extract venue from QR params or use default
-  const venue = qrScanned ? (qrParams.venue || qrParams.venueName || 'Hole in the Wall Cafe') : '';
+  // Extract venue from detected venue, QR params, selected venue, or use default
+  const venue = detectedVenue?.name || selectedVenue?.name || (qrScanned ? (qrParams.venue || qrParams.venueName || 'Hole in the Wall Cafe') : '');
 
   // Check for QR code parameters on mount
   useEffect(() => {
@@ -71,6 +73,16 @@ export default function LiveBooking() {
     // If any params exist, treat it as a QR scan
     if (params && typeof params === 'object' && Object.keys(params).length > 0) {
       setQrParams(params);
+      
+      // Check if tableName is present without venueName
+      const tableNameParam = params.tableName;
+      const venueNameParam = params.venueName || params.venue;
+      
+      // Store tableName separately if present
+      if (tableNameParam) {
+        setTableName(tableNameParam);
+      }
+      
       setQrScanned(true);
       // Show location prompt when QR is scanned
       setShowLocationPrompt(true);
@@ -86,11 +98,15 @@ export default function LiveBooking() {
 
   const handleGetThatPicClick = () => {
     // Open WhatsApp
-    const requestId = qrParams.requestId || `HITW_${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}${new Date().getHours()}${new Date().getMinutes()}_T04`;
+    // Use tableName in requestId if available, otherwise use default
+    const tableSuffix = tableName ? `_${tableName}` : '_T04';
+    const requestId = qrParams.requestId || `HITW_${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}${new Date().getHours()}${new Date().getMinutes()}${tableSuffix}`;
     const venueInfo = venue ? `\nVenue: ${venue}` : '';
+    const tableInfo = tableName ? `\nTable: ${tableName}` : '';
     const qrInfo = (qrParams && typeof qrParams === 'object' && Object.keys(qrParams).length > 0) ? `\nQR Params: ${JSON.stringify(qrParams)}` : '';
-    const message = `I want to try it out\nRequest ID: ${requestId}${venueInfo}${qrInfo}`;
-    const phoneNumber = qrParams.phoneNumber || qrParams.phone || '919876543210';
+    const message = `I want to try it out\nRequest ID: ${requestId}${venueInfo}${tableInfo}${qrInfo}`;
+    // Use detected venue phone, QR params phone, or default
+    const phoneNumber = detectedVenue?.phone || qrParams.phoneNumber || qrParams.phone || '919876543210';
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
     // Open WhatsApp in new window
@@ -162,8 +178,15 @@ export default function LiveBooking() {
                 <>
                   {/* Discovery Mode - No QR Scan */}
                   <HeroCarousel qrScanned={qrScanned} venue={venue} />
-                  <VenueInfoStrip qrScanned={qrScanned} venue={venue} />
-                  <MapEmbed />
+                  <VenueInfoStrip 
+                    qrScanned={qrScanned} 
+                    venue={venue}
+                    onVenueSelect={setSelectedVenue}
+                  />
+                  <MapEmbed 
+                    venue={selectedVenue?.name}
+                    coordinates={selectedVenue?.coordinates}
+                  />
                   
                   {/* Pricing Teaser */}
                   <div className="px-6 py-8 text-center">
@@ -181,8 +204,6 @@ export default function LiveBooking() {
                     expanded={expandedSections.whatWeDo}
                     onToggle={() => setExpandedSections(prev => ({ ...prev, whatWeDo: !prev.whatWeDo }))}
                   />
-                  
-                  <GalleryGrid qrScanned={qrScanned} />
                 </>
               ) : !locationVerified ? (
                 <>
@@ -248,9 +269,10 @@ export default function LiveBooking() {
               }}>
                 <DialogContent className="max-w-md mx-4 bg-white border-2 border-gray-200 shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
                   <DynamicGeoPermission
-                    venueName={venue}
+                    venueName={qrScanned && (qrParams.venue || qrParams.venueName) ? (qrParams.venue || qrParams.venueName) : undefined}
                     maxDistanceMeters={parseInt(process.env.NEXT_PUBLIC_VENUE_MAX_DISTANCE_METERS || '500', 10)}
-                    onVerified={() => {
+                    onVerified={(venueInfo) => {
+                      setDetectedVenue(venueInfo);
                       setLocationVerified(true);
                       setShowLocationPrompt(false);
                     }}

@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { MapPin, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
-import { isWithinRange } from '@/utils/livebooking/venueCoordinates';
+import { isWithinRange, getClosestVenue, getVenuesData, findVenueByName, calculateDistance, type VenueInfo } from '@/utils/livebooking/venueCoordinates';
 import { AvailableVenues } from './AvailableVenues';
 
 interface GeoPermissionProps {
-  onVerified: () => void;
+  onVerified: (venue: VenueInfo) => void; // Pass venue info
   onRetry: () => void;
   onFailed?: () => void;
-  venueName: string;
+  venueName?: string; // Optional - for QR code compatibility
   maxDistanceMeters?: number;
 }
 
@@ -19,15 +19,16 @@ export function GeoPermission({
   venueName,
   maxDistanceMeters 
 }: GeoPermissionProps) {
-  // Use environment variable for max distance if not provided, default to 500
-  const maxDistance = maxDistanceMeters || 
-    parseInt(process.env.NEXT_PUBLIC_VENUE_MAX_DISTANCE_METERS || '500', 10);
   const [status, setStatus] = useState<'prompt' | 'checking' | 'failed' | 'denied'>('prompt');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [detectedVenue, setDetectedVenue] = useState<VenueInfo | null>(null);
+  const [detectedDistance, setDetectedDistance] = useState<number | null>(null);
 
-  const handleAllowLocation = () => {
+  const handleAllowLocation = async () => {
     setStatus('checking');
     setErrorMessage('');
+    setDetectedVenue(null);
+    setDetectedDistance(null);
 
     if (!navigator.geolocation) {
       setStatus('failed');
@@ -36,23 +37,72 @@ export function GeoPermission({
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const userLat = position.coords.latitude;
         const userLng = position.coords.longitude;
 
-        // Check if user is within range of the venue
-        const withinRange = isWithinRange(
-          userLat,
-          userLng,
-          venueName,
-          maxDistance
-        );
+        try {
+          const venuesData = await getVenuesData();
+          const defaultMaxDistance = maxDistanceMeters ?? venuesData.defaultMaxDistanceMeters;
 
-        if (withinRange) {
-          onVerified();
-        } else {
+          // If venue name is provided (from QR code), verify user is at that specific venue
+          if (venueName) {
+            const withinRange = await isWithinRange(
+              userLat,
+              userLng,
+              venueName,
+              defaultMaxDistance
+            );
+
+            if (withinRange) {
+              // Find the venue info to pass to onVerified
+              const venue = await findVenueByName(venueName);
+              if (venue) {
+                const distance = calculateDistance(
+                  userLat,
+                  userLng,
+                  venue.coordinates.lat,
+                  venue.coordinates.lng
+                );
+                setDetectedVenue(venue);
+                setDetectedDistance(distance);
+                onVerified(venue);
+              } else {
+                setStatus('failed');
+                setErrorMessage(`Venue "${venueName}" not found in system.`);
+              }
+            } else {
+              setStatus('failed');
+              setErrorMessage(`You need to be within ${defaultMaxDistance}m of ${venueName} to proceed.`);
+            }
+          } else {
+            // Auto-detect closest venue
+            const closest = await getClosestVenue(userLat, userLng);
+            
+            if (!closest) {
+              setStatus('failed');
+              setErrorMessage('No venues found in system.');
+              return;
+            }
+
+            const venueMaxDistance = closest.venue.maxDistanceMeters ?? defaultMaxDistance;
+            
+            if (closest.distance <= venueMaxDistance) {
+              setDetectedVenue(closest.venue);
+              setDetectedDistance(closest.distance);
+              onVerified(closest.venue);
+            } else {
+              setStatus('failed');
+              setErrorMessage(
+                `You are ${Math.round(closest.distance)}m away from ${closest.venue.name}. ` +
+                `You need to be within ${venueMaxDistance}m to proceed.`
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error verifying location:', error);
           setStatus('failed');
-          setErrorMessage(`You need to be within ${maxDistance}m of ${venueName} to proceed.`);
+          setErrorMessage('An error occurred while verifying your location. Please try again.');
         }
       },
       (error) => {
@@ -83,6 +133,8 @@ export function GeoPermission({
   const handleRetry = () => {
     setStatus('prompt');
     setErrorMessage('');
+    setDetectedVenue(null);
+    setDetectedDistance(null);
     onRetry();
   };
 
@@ -101,7 +153,9 @@ export function GeoPermission({
           >
             <MapPin className="w-16 h-16 text-black" />
           </motion.div>
-          <p className="text-gray-600 font-medium">Verifying your location...</p>
+          <p className="text-gray-600 font-medium">
+            {venueName ? `Verifying your location at ${venueName}...` : 'Detecting nearest venue...'}
+          </p>
         </motion.div>
       </div>
     );
@@ -125,6 +179,11 @@ export function GeoPermission({
             <p className="text-gray-600 mb-4 text-sm">
               {errorMessage || 'Please stay within the venue premises to proceed with your booking.'}
             </p>
+            {detectedVenue && detectedDistance !== null && (
+              <p className="text-gray-500 mb-4 text-xs">
+                Detected: {detectedVenue.name} ({Math.round(detectedDistance)}m away)
+              </p>
+            )}
             <button
               onClick={handleRetry}
               className="w-full py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium mb-6"
@@ -157,7 +216,9 @@ export function GeoPermission({
         </div>
         <h2 className="text-xl font-semibold mb-2 text-gray-900">Confirm Your Location</h2>
         <p className="text-gray-600 mb-6 text-sm">
-          We need to verify that you're at the venue to proceed with your booking.
+          {venueName 
+            ? `We need to verify that you're at ${venueName} to proceed with your booking.`
+            : "We'll automatically detect the nearest venue to verify your location."}
         </p>
         <button
           onClick={handleAllowLocation}

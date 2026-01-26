@@ -1,20 +1,35 @@
-export function MapEmbed() {
+interface MapEmbedProps {
+  venue?: string;
+  coordinates?: { lat: number; lng: number };
+}
+
+export function MapEmbed({ venue, coordinates }: MapEmbedProps = {}) {
+  // Default to Hole in the Wall Cafe coordinates if not provided
+  const defaultCoordinates = { lat: 12.9352, lng: 77.6245 };
+  const defaultVenue = 'Hole in the Wall Cafe, Koramangala, Bangalore';
+  
+  // Build Google Maps embed URL
+  // Using coordinates is more precise, but fallback to venue name if coordinates not available
+  const mapQuery = coordinates 
+    ? `${coordinates.lat},${coordinates.lng}`
+    : venue || defaultVenue;
+  
+  const mapUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+
   return (
     <div className="px-6 py-6">
-      <div className="aspect-[16/9] bg-gray-200 rounded-lg relative overflow-hidden">
-        {/* Mock map - in production this would be Google Maps embed */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-4xl mb-2">📍</div>
-            <div className="text-sm text-gray-600">Hole in the Wall Cafe</div>
-            <div className="text-xs text-gray-500 mt-1">Koramangala, Bangalore</div>
-          </div>
-        </div>
-        
-        {/* Simulated map styling */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="h-full w-full bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]" />
-        </div>
+      <div className="aspect-[16/9] bg-gray-200 rounded-lg relative overflow-hidden rounded-lg">
+        <iframe
+          src={mapUrl}
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          className="w-full h-full"
+          title="Venue Location Map"
+        />
       </div>
     </div>
   );

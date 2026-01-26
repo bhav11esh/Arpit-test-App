@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Plus, Minus } from 'lucide-react';
 import { VenueInstructions } from './VenueInstructions';
+import { findVenueByName, type VenueInfo } from '@/utils/livebooking/venueCoordinates';
 
 interface SessionManagerProps {
   onPriceChange: (price: number) => void;
@@ -21,6 +22,7 @@ export function SessionManager({ onPriceChange, venue, expandedVenueInstructions
   const [hardcopyCount, setHardcopyCount] = useState(1); // Start with 1 hardcopy (base package)
   const [hardcopyFilenames, setHardcopyFilenames] = useState<string[]>(['']); // Array of filenames
   const [selectedFilenames, setSelectedFilenames] = useState<boolean[]>([false]); // Track which filenames are confirmed
+  const [venueInfo, setVenueInfo] = useState<VenueInfo | null>(null);
 
   // Calculate total price based on extensions
   const calculatePrice = (extensionMinutes: number) => {
@@ -54,8 +56,32 @@ export function SessionManager({ onPriceChange, venue, expandedVenueInstructions
     onPriceChange(getTotalPrice());
   }, [selectedExtension, hardcopyCount, onPriceChange]);
 
-  // Get valid codes from environment variables
+  // Load venue info when venue changes
+  useEffect(() => {
+    const loadVenueInfo = async () => {
+      if (venue && typeof venue === 'string') {
+        try {
+          const found = await findVenueByName(venue);
+          setVenueInfo(found);
+        } catch (error) {
+          console.error('Error loading venue info:', error);
+          setVenueInfo(null);
+        }
+      } else {
+        setVenueInfo(null);
+      }
+    };
+    loadVenueInfo();
+  }, [venue]);
+
+  // Get valid codes from venue-specific codes or fall back to environment variables
   const getValidCodes = (): string[] => {
+    // First, try to use venue-specific photographer codes
+    if (venueInfo?.photographerCode && venueInfo.photographerCode.length > 0) {
+      return venueInfo.photographerCode.map(code => code.trim()).filter(code => code.length > 0);
+    }
+    
+    // Fall back to environment variable if venue doesn't have codes
     return (process.env.NEXT_PUBLIC_PHOTOGRAPHER_CODES || '')
       .split(',')
       .map(code => code.trim())
