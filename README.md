@@ -1,4 +1,4 @@
-# Arpit Photoshoot Platform..
+# Arpit Photoshoot Platform
 
 This repo contains:
 
