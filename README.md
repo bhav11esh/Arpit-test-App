@@ -1,3 +1,12 @@
+# Arpit Photoshoot Platform
+
+This repo contains:
+
+- **Root** – Next.js app (photoshoot booking platform)
+- **[CRM](./CRM/)** – Delivery Operations app (React + Vite + Supabase). Run with: `cd CRM && npm install && npm run dev`
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
 
 ## Getting Started
