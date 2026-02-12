@@ -1,0 +1,30 @@
+--- BIMAL DEBUG LOG ---
+Mallikarjun: Mallikarjun [bc268775-f79f-4400-b10b-bea4ba1dc762]
+
+=== DELIVERY ===
+{
+  "id": "3091e7ca-ccde-4381-b58f-1f6f0d118dbf",
+  "date": "2026-02-07",
+  "showroom_code": "BIMAL_NEXA",
+  "cluster_code": "Whitefield-Indiranagar",
+  "showroom_type": "PRIMARY",
+  "timing": "21:05:00",
+  "delivery_name": "07-02-2026_BIMAL_NEXA_21_05",
+  "status": "UNASSIGNED",
+  "assigned_user_id": null,
+  "payment_type": "CUSTOMER_PAID",
+  "footage_link": null,
+  "created_at": "2026-02-07T15:19:11.752781+00:00",
+  "updated_at": "2026-02-07T15:30:47.959002+00:00",
+  "decision_state": null,
+  "rejected_by_all": false,
+  "rejected_by_all_timestamp": null,
+  "unassignment_reason": null,
+  "unassignment_timestamp": "2026-02-07T15:19:51.487+00:00",
+  "unassignment_by": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+  "creation_index": 3,
+  "reel_link": null
+}
+
+=== REJECTIONS ===
+null

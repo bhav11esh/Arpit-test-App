@@ -53,7 +53,7 @@ async function loadVenuesFromJSON(): Promise<VenuesData> {
         throw new Error(`Failed to load venues.json: ${response.statusText}`);
       }
       const data: VenuesData = await response.json();
-      
+
       // Validate data structure
       if (!data.venues || !Array.isArray(data.venues)) {
         throw new Error('Invalid venues.json structure: venues array is required');
@@ -70,7 +70,7 @@ async function loadVenuesFromJSON(): Promise<VenuesData> {
       // Return empty structure on error
       const fallback: VenuesData = {
         venues: [],
-        defaultMaxDistanceMeters: 500
+        defaultMaxDistanceMeters: 700
       };
       venuesDataCache = fallback;
       return fallback;
@@ -110,7 +110,7 @@ async function getVenueNameMap(): Promise<Record<string, VenueInfo>> {
   venues.forEach(venue => {
     // Map by canonical name
     map[venue.name] = venue;
-    
+
     // Map by aliases
     if (venue.aliases) {
       venue.aliases.forEach(alias => {
@@ -134,7 +134,7 @@ export async function findVenueByName(venueName: string): Promise<VenueInfo | nu
   const normalized = normalizeVenueName(venueName);
 
   // Try exact match (case-insensitive)
-  const exactMatch = Object.keys(nameMap).find(name => 
+  const exactMatch = Object.keys(nameMap).find(name =>
     normalizeVenueName(name) === normalized
   );
   if (exactMatch) {
@@ -165,17 +165,17 @@ export function calculateDistance(
   const R = 6371000; // Earth's radius in meters
   const dLat = toRadians(lat2 - lat1);
   const dLng = toRadians(lng2 - lng1);
-  
+
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  
+    Math.cos(toRadians(lat2)) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
-  
+
   return distance;
 }
 
@@ -189,7 +189,7 @@ export async function getClosestVenue(
   userLng: number
 ): Promise<VenueMatch | null> {
   const venues = await getAllVenues();
-  
+
   if (venues.length === 0) {
     return null;
   }
@@ -268,7 +268,7 @@ export async function isWithinRange(
   );
 
   // Use provided maxDistance or venue-specific or default
-  const maxDistance = maxDistanceMeters ?? venue.maxDistanceMeters ?? 500;
+  const maxDistance = maxDistanceMeters ?? venue.maxDistanceMeters ?? 700;
   return distance <= maxDistance;
 }
 
@@ -293,7 +293,7 @@ async function initializeVenueCoordinatesProxy() {
   try {
     const venues = await getAllVenues();
     const proxy: Record<string, VenueCoordinates> = {};
-    
+
     venues.forEach(venue => {
       proxy[venue.name] = venue.coordinates;
       // Also add aliases
@@ -361,7 +361,7 @@ async function getVenueNameMappings(): Promise<Record<string, string>> {
   venues.forEach(venue => {
     // Map canonical name (case-insensitive)
     mappings[venue.name.toLowerCase()] = venue.name;
-    
+
     // Map aliases to canonical name
     if (venue.aliases) {
       venue.aliases.forEach(alias => {

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 import {
   Select,
   SelectContent,
@@ -63,6 +64,7 @@ export function MappingsConfigScreen() {
   const [editingMapping, setEditingMapping] = useState<Mapping | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [mappingToDelete, setMappingToDelete] = useState<Mapping | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -70,13 +72,17 @@ export function MappingsConfigScreen() {
     dealershipId: '',
     photographerId: '',
     mappingType: 'PRIMARY' as MappingType,
+    latitude: '',
+    longitude: '',
   });
 
-  // Admin-only access guard
-  if (user?.role !== 'ADMIN') {
-    toast.error('Access denied. Admin privileges required.');
-    navigate('/');
-    return null;
+  // Admin-only access guard (Defensive: AppRoutes handles primary auth redirect)
+  if (!user || user.role !== 'ADMIN') {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Authenticating admin session...
+      </div>
+    );
   }
 
   const handleOpenDialog = (mapping?: Mapping) => {
@@ -87,6 +93,8 @@ export function MappingsConfigScreen() {
         dealershipId: mapping.dealershipId,
         photographerId: mapping.photographerId,
         mappingType: mapping.mappingType,
+        latitude: mapping.latitude.toString(),
+        longitude: mapping.longitude.toString(),
       });
     } else {
       setEditingMapping(null);
@@ -95,6 +103,8 @@ export function MappingsConfigScreen() {
         dealershipId: '',
         photographerId: '',
         mappingType: 'PRIMARY',
+        latitude: '',
+        longitude: '',
       });
     }
     setDialogOpen(true);
@@ -108,10 +118,12 @@ export function MappingsConfigScreen() {
       dealershipId: '',
       photographerId: '',
       mappingType: 'PRIMARY',
+      latitude: '',
+      longitude: '',
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validation
     if (!formData.clusterId) {
       toast.error('Please select a cluster');
@@ -121,7 +133,21 @@ export function MappingsConfigScreen() {
       toast.error('Please select a dealership');
       return;
     }
-    
+
+    // Coordinates validation
+    if (!formData.latitude || !formData.longitude) {
+      toast.error('Latitude and longitude are required for geofencing');
+      return;
+    }
+
+    const lat = parseFloat(formData.latitude);
+    const lng = parseFloat(formData.longitude);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      toast.error('Invalid coordinates');
+      return;
+    }
+
     // V1 BUSINESS RULE: PRIMARY showrooms REQUIRE photographer, SECONDARY showrooms NEVER have one
     if (formData.mappingType === 'PRIMARY' && !formData.photographerId) {
       toast.error('PRIMARY showrooms require a photographer assignment');
@@ -144,19 +170,19 @@ export function MappingsConfigScreen() {
     }
 
     // V1 ENFORCEMENT: SECONDARY showrooms NEVER have photographers assigned
-    const photographerIdToSave = formData.mappingType === 'SECONDARY' 
-      ? '' 
+    const photographerIdToSave = formData.mappingType === 'SECONDARY'
+      ? null
       : formData.photographerId;
 
     // V1 ENFORCEMENT: One photographer can only have ONE primary showroom
     if (formData.mappingType === 'PRIMARY' && photographerIdToSave) {
       const existingPrimaryMapping = mappings.find(
-        m => 
-          m.photographerId === photographerIdToSave && 
+        m =>
+          m.photographerId === photographerIdToSave &&
           m.mappingType === 'PRIMARY' &&
           m.id !== editingMapping?.id // Exclude current mapping when editing
       );
-      
+
       if (existingPrimaryMapping) {
         const existingDealershipName = getDealershipName(existingPrimaryMapping.dealershipId);
         const existingClusterName = getClusterName(existingPrimaryMapping.clusterId);
@@ -175,25 +201,36 @@ export function MappingsConfigScreen() {
       }
     }
 
-    if (editingMapping) {
-      updateMapping(editingMapping.id, {
-        clusterId: formData.clusterId,
-        dealershipId: formData.dealershipId,
-        photographerId: photographerIdToSave,
-        mappingType: formData.mappingType,
-      });
-      toast.success('Mapping updated successfully');
-    } else {
-      addMapping({
-        clusterId: formData.clusterId,
-        dealershipId: formData.dealershipId,
-        photographerId: photographerIdToSave,
-        mappingType: formData.mappingType,
-      });
-      toast.success('Mapping added successfully');
+    setSubmitting(true);
+    try {
+      if (editingMapping) {
+        await updateMapping(editingMapping.id, {
+          clusterId: formData.clusterId,
+          dealershipId: formData.dealershipId,
+          photographerId: photographerIdToSave,
+          mappingType: formData.mappingType,
+          latitude: lat,
+          longitude: lng,
+        });
+        toast.success('Mapping updated successfully');
+      } else {
+        await addMapping({
+          clusterId: formData.clusterId,
+          dealershipId: formData.dealershipId,
+          photographerId: photographerIdToSave,
+          mappingType: formData.mappingType,
+          latitude: lat,
+          longitude: lng,
+        });
+        toast.success('Mapping added successfully');
+      }
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Failed to save mapping:', error);
+      toast.error('Failed to save mapping. Please check your connection.');
+    } finally {
+      setSubmitting(false);
     }
-
-    handleCloseDialog();
   };
 
   const handleDeleteClick = (mapping: Mapping) => {
@@ -234,7 +271,7 @@ export function MappingsConfigScreen() {
           <div>
             <h1 className="text-2xl font-bold">Showroom Mappings</h1>
             <p className="text-sm text-gray-600">
-              Define dealership showroom locations across clusters (one dealership can have multiple showrooms)
+              Define dealership showroom locations (geofenced) across clusters
             </p>
           </div>
         </div>
@@ -267,12 +304,12 @@ export function MappingsConfigScreen() {
         {mappings.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
-              No mappings configured. Click "Add Mapping" to create one.
+              No mappings configured. Click "Add Showroom" to create one.
             </CardContent>
           </Card>
         ) : (
           mappings.map(mapping => {
-            const isPhotographerActive = mapping.photographerId 
+            const isPhotographerActive = mapping.photographerId
               ? getPhotographerActive(mapping.photographerId)
               : true; // No photographer assigned = no active check needed
 
@@ -314,11 +351,17 @@ export function MappingsConfigScreen() {
                               {getDealershipName(mapping.dealershipId)}
                             </span>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">📍 Geo:</span>
+                            <span className="font-medium">
+                              {(mapping.latitude || 0).toFixed(4)}, {(mapping.longitude || 0).toFixed(4)}
+                            </span>
+                          </div>
                           {mapping.mappingType === 'PRIMARY' && (
                             <div className="flex items-center gap-2">
                               <span className="text-gray-500">Photographer:</span>
                               <span className="font-medium">
-                                {mapping.photographerId 
+                                {mapping.photographerId
                                   ? getPhotographerName(mapping.photographerId)
                                   : 'Not Assigned'}
                               </span>
@@ -359,7 +402,7 @@ export function MappingsConfigScreen() {
               {editingMapping ? 'Edit Showroom Location' : 'Add Showroom Location'}
             </DialogTitle>
             <DialogDescription>
-              Each mapping represents one showroom location for a dealership in a specific cluster
+              A mapping represents a physical showroom location (latitude/longitude)
             </DialogDescription>
           </DialogHeader>
 
@@ -404,9 +447,31 @@ export function MappingsConfigScreen() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-1">
-                Same dealership can have showrooms in multiple clusters
-              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  type="number"
+                  step="0.000001"
+                  value={formData.latitude}
+                  onChange={e => setFormData({ ...formData, latitude: e.target.value })}
+                  placeholder="28.7041"
+                />
+              </div>
+              <div>
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  type="number"
+                  step="0.000001"
+                  value={formData.longitude}
+                  onChange={e => setFormData({ ...formData, longitude: e.target.value })}
+                  placeholder="77.1025"
+                />
+              </div>
             </div>
 
             <div>
@@ -435,10 +500,6 @@ export function MappingsConfigScreen() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-600 mt-1">
-                PRIMARY: Requires photographer assignment.<br />
-                SECONDARY: Uses accept/reject workflow only (no photographer).
-              </p>
             </div>
 
             {/* V1 RULE: Photographer field ONLY shown for PRIMARY mappings */}
@@ -465,19 +526,23 @@ export function MappingsConfigScreen() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Required for PRIMARY showrooms
-                </p>
               </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+            <Button variant="outline" onClick={handleCloseDialog} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingMapping ? 'Update' : 'Add'} Showroom
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Plus className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>{editingMapping ? 'Update' : 'Add'} Showroom</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,14 +1,5 @@
 import type { Delivery, GeofenceBreach } from '../types';
 
-// Mock showroom locations (latitude, longitude)
-const SHOWROOM_LOCATIONS: Record<string, { lat: number; lng: number }> = {
-  'KHTR_WH': { lat: 28.4595, lng: 77.0266 }, // Gurgaon
-  'DLF_PH3': { lat: 28.4989, lng: 77.0909 }, // DLF Phase 3
-  'MGF_MET': { lat: 28.4817, lng: 77.0873 }, // MGF Metropolitan
-  'VAS_MALL': { lat: 28.5494, lng: 77.2500 }, // Vasant Kunj
-  'SAK_CENT': { lat: 28.5355, lng: 77.2467 }, // Saket
-};
-
 const GEOFENCE_RADIUS_METERS = 500; // 500 meters radius
 
 // V1 SPEC: Track which delivery-time pairs have already been checked
@@ -66,25 +57,25 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
  */
 export async function checkGeofence(
   delivery: Delivery,
-  userId: string
+  userId: string,
+  targetLat: number,
+  targetLng: number
 ): Promise<{ inGeofence: boolean; breach: GeofenceBreach | null }> {
   try {
     const position = await getCurrentPosition();
     const userLat = position.coords.latitude;
     const userLng = position.coords.longitude;
 
-    const showroomLocation = SHOWROOM_LOCATIONS[delivery.showroom_code];
-    
-    if (!showroomLocation) {
-      console.warn(`No location found for showroom: ${delivery.showroom_code}`);
-      return { inGeofence: true, breach: null }; // Allow if no location configured
-    }
+    console.log(`📍 [Geofence] Checking distance for delivery ${delivery.delivery_name}`, {
+      user: { lat: userLat, lng: userLng },
+      target: { lat: targetLat, lng: targetLng }
+    });
 
     const distance = calculateDistance(
       userLat,
       userLng,
-      showroomLocation.lat,
-      showroomLocation.lng
+      targetLat,
+      targetLng
     );
 
     const inGeofence = distance <= GEOFENCE_RADIUS_METERS;
@@ -136,14 +127,13 @@ export function getTimeUntilGeofenceCheck(delivery: Delivery): number | null {
 /**
  * Schedule geofence check for a delivery
  * V1 SPEC: Geofence alert is scheduler-driven and idempotent per delivery-time pair
- * - Fires ONLY ONCE per (delivery_id + timing) combination
- * - Timing updates reset eligibility (cleanup removes from checked set)
- * - UI reflects scheduler result (not UI-driven)
  * Returns cleanup function to cancel the scheduled check
  */
 export function scheduleGeofenceCheck(
   delivery: Delivery,
   userId: string,
+  targetLat: number,
+  targetLng: number,
   onBreachDetected: (breach: GeofenceBreach) => void
 ): (() => void) | null {
   const timeUntilCheck = getTimeUntilGeofenceCheck(delivery);
@@ -153,18 +143,17 @@ export function scheduleGeofenceCheck(
   }
 
   // V1 SPEC: Only check each delivery-time pair once
-  // Key format: deliveryId_timing (e.g., "d1_14:30")
   const key = getDeliveryTimeKey(delivery.id, delivery.timing!);
   if (checkedDeliveries.has(key)) {
-    return null; // Already checked, don't schedule again
+    return null; // Already checked
   }
 
   // Mark as being checked to prevent duplicates
   checkedDeliveries.add(key);
 
   const timeoutId = setTimeout(async () => {
-    const { inGeofence, breach } = await checkGeofence(delivery, userId);
-    
+    const { inGeofence, breach } = await checkGeofence(delivery, userId, targetLat, targetLng);
+
     if (!inGeofence && breach) {
       onBreachDetected(breach);
     }
@@ -172,8 +161,6 @@ export function scheduleGeofenceCheck(
 
   return () => {
     clearTimeout(timeoutId);
-    // If canceled, remove from checked set so it can be rescheduled if needed
-    // This allows timing updates to reset eligibility
     checkedDeliveries.delete(key);
   };
 }

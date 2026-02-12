@@ -22,7 +22,7 @@ export function ClustersConfigScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { clusters, addCluster, updateCluster, deleteCluster, mappings } = useConfig();
-  
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCluster, setEditingCluster] = useState<Cluster | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -31,8 +31,6 @@ export function ClustersConfigScreen() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    latitude: '',
-    longitude: '',
   });
 
   // Admin-only access guard
@@ -47,12 +45,10 @@ export function ClustersConfigScreen() {
       setEditingCluster(cluster);
       setFormData({
         name: cluster.name,
-        latitude: cluster.latitude.toString(),
-        longitude: cluster.longitude.toString(),
       });
     } else {
       setEditingCluster(null);
-      setFormData({ name: '', latitude: '', longitude: '' });
+      setFormData({ name: '' });
     }
     setDialogOpen(true);
   };
@@ -60,7 +56,7 @@ export function ClustersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingCluster(null);
-    setFormData({ name: '', latitude: '', longitude: '' });
+    setFormData({ name: '' });
   };
 
   const handleSubmit = () => {
@@ -69,36 +65,15 @@ export function ClustersConfigScreen() {
       toast.error('Cluster name is required');
       return;
     }
-    if (!formData.latitude || !formData.longitude) {
-      toast.error('Latitude and longitude are required');
-      return;
-    }
-
-    const lat = parseFloat(formData.latitude);
-    const lng = parseFloat(formData.longitude);
-
-    if (isNaN(lat) || isNaN(lng)) {
-      toast.error('Invalid coordinates');
-      return;
-    }
-
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      toast.error('Coordinates out of valid range');
-      return;
-    }
 
     if (editingCluster) {
       updateCluster(editingCluster.id, {
         name: formData.name.trim(),
-        latitude: lat,
-        longitude: lng,
       });
       toast.success('Cluster updated successfully');
     } else {
       addCluster({
         name: formData.name.trim(),
-        latitude: lat,
-        longitude: lng,
       });
       toast.success('Cluster added successfully');
     }
@@ -178,10 +153,6 @@ export function ClustersConfigScreen() {
                       <div>
                         <CardTitle>{cluster.name}</CardTitle>
                         <div className="text-sm text-gray-600 mt-1 space-y-1">
-                          <div>
-                            📍 Lat: {cluster.latitude.toFixed(4)}, Lng:{' '}
-                            {cluster.longitude.toFixed(4)}
-                          </div>
                           <div className="text-blue-600">
                             {clusterMappingCount} mapping(s) configured
                           </div>
@@ -232,34 +203,6 @@ export function ClustersConfigScreen() {
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g., North Delhi"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="0.0001"
-                value={formData.latitude}
-                onChange={e =>
-                  setFormData({ ...formData, latitude: e.target.value })
-                }
-                placeholder="e.g., 28.7041"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="0.0001"
-                value={formData.longitude}
-                onChange={e =>
-                  setFormData({ ...formData, longitude: e.target.value })
-                }
-                placeholder="e.g., 77.1025"
               />
             </div>
           </div>

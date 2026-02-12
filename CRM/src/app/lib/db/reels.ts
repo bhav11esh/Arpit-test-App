@@ -1,3 +1,4 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import type { ReelTask, ReelStatus } from '../../types';
 import type { Database } from '../types/database.types';
@@ -17,8 +18,8 @@ const rowToReelTask = (row: ReelTaskRow): ReelTask => ({
 });
 
 // Get reel tasks for a user
-export const getReelTasksByUser = async (userId: string): Promise<ReelTask[]> => {
-  const { data, error } = await supabase
+export const getReelTasksByUser = async (userId: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask[]> => {
+  const { data, error } = await supabaseClient
     .from('reel_tasks')
     .select('*')
     .eq('assigned_user_id', userId)
@@ -29,8 +30,8 @@ export const getReelTasksByUser = async (userId: string): Promise<ReelTask[]> =>
 };
 
 // Get pending reel tasks for a user
-export const getPendingReelTasksByUser = async (userId: string): Promise<ReelTask[]> => {
-  const { data, error } = await supabase
+export const getPendingReelTasksByUser = async (userId: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask[]> => {
+  const { data, error } = await supabaseClient
     .from('reel_tasks')
     .select('*')
     .eq('assigned_user_id', userId)
@@ -42,8 +43,8 @@ export const getPendingReelTasksByUser = async (userId: string): Promise<ReelTas
 };
 
 // Get all reel tasks (admin only)
-export const getAllReelTasks = async (status?: ReelStatus): Promise<ReelTask[]> => {
-  let query = supabase.from('reel_tasks').select('*');
+export const getAllReelTasks = async (status?: ReelStatus, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask[]> => {
+  let query = supabaseClient.from('reel_tasks').select('*');
 
   if (status) {
     query = query.eq('status', status);
@@ -71,8 +72,8 @@ export const getReelTaskById = async (id: string): Promise<ReelTask | null> => {
 };
 
 // Get reel task by delivery ID
-export const getReelTaskByDelivery = async (deliveryId: string): Promise<ReelTask | null> => {
-  const { data, error } = await supabase
+export const getReelTaskByDelivery = async (deliveryId: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask | null> => {
+  const { data, error } = await supabaseClient
     .from('reel_tasks')
     .select('*')
     .eq('delivery_id', deliveryId)
@@ -86,7 +87,7 @@ export const getReelTaskByDelivery = async (deliveryId: string): Promise<ReelTas
 };
 
 // Create a new reel task
-export const createReelTask = async (reelTask: Omit<ReelTask, 'id'>): Promise<ReelTask> => {
+export const createReelTask = async (reelTask: Omit<ReelTask, 'id'>, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask> => {
   const insert: ReelTaskInsert = {
     delivery_id: reelTask.delivery_id,
     assigned_user_id: reelTask.assigned_user_id,
@@ -95,7 +96,7 @@ export const createReelTask = async (reelTask: Omit<ReelTask, 'id'>): Promise<Re
     reassigned_reason: reelTask.reassigned_reason ?? null,
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('reel_tasks')
     .insert(insert)
     .select()
@@ -106,7 +107,7 @@ export const createReelTask = async (reelTask: Omit<ReelTask, 'id'>): Promise<Re
 };
 
 // Update a reel task
-export const updateReelTask = async (id: string, updates: Partial<ReelTask>): Promise<ReelTask> => {
+export const updateReelTask = async (id: string, updates: Partial<ReelTask>, supabaseClient: SupabaseClient<Database> = supabase): Promise<ReelTask> => {
   const update: ReelTaskUpdate = {
     delivery_id: updates.delivery_id,
     assigned_user_id: updates.assigned_user_id,
@@ -121,7 +122,7 @@ export const updateReelTask = async (id: string, updates: Partial<ReelTask>): Pr
     }
   });
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('reel_tasks')
     .update(update)
     .eq('id', id)

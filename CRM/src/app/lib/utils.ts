@@ -1,6 +1,33 @@
 import type { Delivery } from '../types';
 
 /**
+ * Get current date as YYYY-MM-DD string in local timezone
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const offset = date.getTimezoneOffset();
+  const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+  return adjustedDate.toISOString().split('T')[0];
+}
+
+/**
+ * Get the "operational date" string.
+ * V1 RULE: Operational day shifts at 8 AM local time.
+ * Before 8 AM, we are still on the previous calendar day's operational shift.
+ */
+export function getOperationalDateString(now: Date = new Date()): string {
+  const currentHour = now.getHours();
+
+  if (currentHour < 8) {
+    // It's before 8 AM, so the operational date is still "yesterday"
+    const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    return getLocalDateString(yesterday);
+  }
+
+  // It's 8 AM or later, use the actual local date
+  return getLocalDateString(now);
+}
+
+/**
  * V1 SPEC: Check if delivery prompt has expired (current time >= delivery time)
  */
 export function isPromptExpired(
@@ -11,7 +38,7 @@ export function isPromptExpired(
 
   const [year, month, day] = delivery.date.split('-').map(Number);
   const [hours, minutes] = delivery.timing.split(':').map(Number);
-  
+
   const deliveryTime = new Date(year, month - 1, day, hours, minutes);
 
   return currentTime >= deliveryTime;
@@ -39,19 +66,12 @@ export function canSelfAssign(
     return false;
   }
 
-  // V1 RULE: Cannot self-assign terminal states
-  if (
-    delivery.status === 'REJECTED_CUSTOMER' ||
-    delivery.status === 'CANCELED' ||
-    delivery.status === 'POSTPONED'
-  ) {
-    return false;
-  }
-
   // V1 RULE: Cannot self-assign if photographer already closed their day
   if (photographerDayState === 'CLOSED') {
     return false;
   }
+
+
 
   return true;
 }
@@ -89,18 +109,19 @@ export function generateDeliveryName(
   creationIndex?: number
 ): string {
   const [year, month, day] = date.split('-');
-  
+
   if (timing) {
     // Timing exists: use full format with time (replaces identity suffix _1/_2/_3)
+    // V1 SPEC STRICT: Zero-pad hours and minutes (e.g. 9:5 -> 09_05)
     const [hours, minutes] = timing.split(':');
-    return `${day}-${month}-${year}_${showroomCode}_${hours}_${minutes}`;
+    const pad = (n: string) => n.padStart(2, '0');
+    return `${day}-${month}-${year}_${showroomCode}_${pad(hours)}_${pad(minutes)}`;
   } else {
     // No timing: use incremental suffix based on creation_index
-    if (creationIndex !== undefined) {
-      return `${day}-${month}-${year}_${showroomCode}_${creationIndex}`;
-    }
-    // Fallback for backward compatibility (should not happen in V1)
-    return `${day}-${month}-${year}_${showroomCode}`;
+    // V1 SPEC: Always append index for non-timed deliveries for uniqueness
+    // Format: DD-MM-YYYY_SHOWROOM_INDEX
+    const index = creationIndex || 1;
+    return `${day}-${month}-${year}_${showroomCode}_${index}`;
   }
 }
 
@@ -151,12 +172,12 @@ export function calculateIncentive(
 
   // Check if deliveries span at least 7 consecutive calendar days
   const dateRange = getDateRange(startDate, endDate);
-  
+
   // Spec: 7 consecutive calendar days with >= 20 total deliveries
   // Leave days (0 deliveries) do NOT break streak
   const totalDays = dateRange.length;
   const totalCount = userCompletedDeliveries.length;
-  
+
   const eligible = totalCount >= 20 && totalDays >= 7;
 
   return {
@@ -230,7 +251,7 @@ export function shouldShowAcceptRejectPrompt(
   // Parse delivery date and timing
   const [year, month, day] = delivery.date.split('-').map(Number);
   const [hours, minutes] = delivery.timing.split(':').map(Number);
-  
+
   const deliveryTime = new Date(year, month - 1, day, hours, minutes);
   const thirtyMinsBefore = new Date(deliveryTime.getTime() - 30 * 60 * 1000);
 

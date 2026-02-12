@@ -31,8 +31,7 @@ export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -57,6 +56,9 @@ export function UserManagement() {
       setLoading(false);
     }
   };
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const handleOpenDialog = (user?: User) => {
     if (user) {
@@ -97,6 +99,7 @@ export function UserManagement() {
     e.preventDefault();
     setError(null);
 
+    setSubmitting(true);
     try {
       if (editingUser) {
         await usersDb.updateUser(editingUser.id, {
@@ -109,8 +112,16 @@ export function UserManagement() {
       } else {
         if (!formData.email) {
           setError('Email is required');
+          setSubmitting(false);
           return;
         }
+
+        // V1 FIX: Pre-check for existing user to give better error message
+        const existingUser = await usersDb.getUserByEmail(formData.email);
+        if (existingUser) {
+          throw new Error(`A user with email ${formData.email} already exists.`);
+        }
+
         await usersDb.createUser({
           name: formData.name,
           email: formData.email,
@@ -126,6 +137,8 @@ export function UserManagement() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save user';
       setError(errorMessage);
       toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -192,11 +205,10 @@ export function UserManagement() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-lg">{user.name}</h3>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        user.role === 'ADMIN' 
-                          ? 'bg-purple-100 text-purple-800' 
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${user.role === 'ADMIN'
+                          ? 'bg-purple-100 text-purple-800'
                           : 'bg-blue-100 text-blue-800'
-                      }`}>
+                        }`}>
                         {user.role}
                       </span>
                       {user.active ? (
@@ -316,10 +328,19 @@ export function UserManagement() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit">{editingUser ? 'Update' : 'Create'}</Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Plus className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>{editingUser ? 'Update' : 'Create'}</>
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -8,6 +8,7 @@ import { Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { LeaveHalf } from '../../types';
 import { format } from 'date-fns';
+import { getOperationalDateString } from '../../lib/utils';
 
 export function PhotographerLeaveScreen() {
   const { user } = useAuth();
@@ -75,7 +76,7 @@ export function PhotographerLeaveScreen() {
               className="w-full px-3 py-2 border rounded-lg mt-1"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
+              min={getOperationalDateString()}
             />
           </div>
 

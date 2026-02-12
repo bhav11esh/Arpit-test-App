@@ -6,10 +6,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
-import { 
-  ArrowLeft, 
-  CheckCircle2, 
-  Upload, 
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Upload,
   Link as LinkIcon,
   AlertCircle,
   XCircle
@@ -40,7 +40,15 @@ export function SendUpdateScreen({
   const [tempFootageLink, setTempFootageLink] = useState('');
 
   const validateGoogleDriveUrl = (url: string): boolean => {
-    return url.includes('drive.google.com');
+    if (!url) return false;
+    // V1 FIX: Relax validation to allow "ONLY PHOTOS" or short status notes
+    // We only block if it looks like a URL (http) but ISN'T Google Drive
+    const looksLikeUrl = url.toLowerCase().startsWith('http');
+    if (looksLikeUrl) {
+      return url.includes('drive.google.com') || url.includes('instagram.com/reel');
+    }
+    // If it's just text (like "ONLY PHOTOS"), allow it as a note
+    return true;
   };
 
   const handleApplyFootageLink = (deliveryId: string) => {
@@ -70,7 +78,7 @@ export function SendUpdateScreen({
     // - Client-side resize allowed to meet size constraint
     // - Date/amount fields must remain readable after any resize
     // - Admin deletion removes screenshot from binary storage permanently
-    
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please upload an image file');
@@ -116,7 +124,7 @@ export function SendUpdateScreen({
     // This is an atomic closeout operation, not a soft submit
     // 1 missing item blocks ENTIRE batch
     const incomplete = deliveries.filter(d => !isDeliveryComplete(d));
-    
+
     if (incomplete.length > 0) {
       const incompleteNames = incomplete.map(d => d.delivery_name).join(', ');
       toast.error(`Cannot send update: ${incomplete.length} delivery(ies) incomplete: ${incompleteNames}`, {
@@ -168,7 +176,7 @@ export function SendUpdateScreen({
             <div
               className="bg-[#2563EB] h-2 rounded-full transition-all duration-300"
               style={{
-                width: hasDeliveries 
+                width: hasDeliveries
                   ? `${(deliveries.filter(d => isDeliveryComplete(d)).length / deliveries.length) * 100}%`
                   : '100%'
               }}
@@ -192,182 +200,182 @@ export function SendUpdateScreen({
       <div className="p-4 space-y-4">
         {hasDeliveries ? (
           deliveries.map(delivery => {
-          const deliveryScreenshots = screenshots.get(delivery.id) || [];
-          const hasFootage = footageLinks.get(delivery.id) || delivery.footage_link;
-          const hasPaymentScreenshot = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
-          const hasFollowScreenshot = deliveryScreenshots.some(s => s.type === 'FOLLOW' && !s.deleted_at);
-          const isComplete = isDeliveryComplete(delivery);
-          const isCustomerPaid = delivery.payment_type === 'CUSTOMER_PAID';
+            const deliveryScreenshots = screenshots.get(delivery.id) || [];
+            const hasFootage = footageLinks.get(delivery.id) || delivery.footage_link;
+            const hasPaymentScreenshot = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
+            const hasFollowScreenshot = deliveryScreenshots.some(s => s.type === 'FOLLOW' && !s.deleted_at);
+            const isComplete = isDeliveryComplete(delivery);
+            const isCustomerPaid = delivery.payment_type === 'CUSTOMER_PAID';
 
-          return (
-            <Card key={delivery.id} className={`${isComplete ? 'border-[#16A34A] border-2' : 'border-gray-200'}`}>
-              <CardContent className="pt-6">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="font-semibold text-lg">{delivery.delivery_name}</div>
-                    <div className="text-sm text-gray-500">
-                      {delivery.showroom_code} • {delivery.timing || 'No timing'}
-                    </div>
-                  </div>
-                  {isComplete && (
-                    <Badge className="bg-[#16A34A] text-white">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Complete
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {/* Footage Link */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium flex items-center gap-1">
-                        <LinkIcon className="h-4 w-4" />
-                        Footage Link
-                        <span className="text-red-500">*</span>
-                      </Label>
-                      {hasFootage ? (
-                        <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                    </div>
-                    {editingFootage === delivery.id ? (
-                      <div className="flex gap-2">
-                        <Input
-                          value={tempFootageLink}
-                          onChange={(e) => setTempFootageLink(e.target.value)}
-                          placeholder="https://drive.google.com/..."
-                          className="flex-1"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handleApplyFootageLink(delivery.id)}
-                          className="bg-[#16A34A] hover:bg-green-700"
-                        >
-                          Apply
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingFootage(null);
-                            setTempFootageLink('');
-                          }}
-                        >
-                          Cancel
-                        </Button>
+            return (
+              <Card key={delivery.id} className={`${isComplete ? 'border-[#16A34A] border-2' : 'border-gray-200'}`}>
+                <CardContent className="pt-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="font-semibold text-lg">{delivery.delivery_name}</div>
+                      <div className="text-sm text-gray-500">
+                        {delivery.showroom_code} • {delivery.timing || 'No timing'}
                       </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        {hasFootage ? (
-                          <div className="flex-1 px-3 py-2 bg-gray-50 rounded border text-sm truncate">
-                            {footageLinks.get(delivery.id) || delivery.footage_link}
-                          </div>
-                        ) : (
-                          <div className="flex-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-600 flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4" />
-                            Footage link required
-                          </div>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingFootage(delivery.id);
-                            setTempFootageLink(footageLinks.get(delivery.id) || delivery.footage_link || '');
-                          }}
-                        >
-                          {hasFootage ? 'Edit' : 'Add'}
-                        </Button>
-                      </div>
+                    </div>
+                    {isComplete && (
+                      <Badge className="bg-[#16A34A] text-white">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
                     )}
                   </div>
 
-                  {/* Payment Screenshot - Only for Customer Paid */}
-                  {isCustomerPaid && (
+                  <div className="space-y-4">
+                    {/* Footage Link */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium flex items-center gap-1">
-                          <Upload className="h-4 w-4" />
-                          Payment Screenshot
+                          <LinkIcon className="h-4 w-4" />
+                          Footage Link
                           <span className="text-red-500">*</span>
                         </Label>
-                        {hasPaymentScreenshot ? (
+                        {hasFootage ? (
                           <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
                         ) : (
                           <XCircle className="h-4 w-4 text-red-500" />
                         )}
                       </div>
-                      {hasPaymentScreenshot ? (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                          <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                          <span className="text-sm text-green-700">Screenshot uploaded</span>
+                      {editingFootage === delivery.id ? (
+                        <div className="flex gap-2">
+                          <Input
+                            value={tempFootageLink}
+                            onChange={(e) => setTempFootageLink(e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                            className="flex-1"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleApplyFootageLink(delivery.id)}
+                            className="bg-[#16A34A] hover:bg-green-700"
+                          >
+                            Apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingFootage(null);
+                              setTempFootageLink('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          <label className="flex items-center justify-center gap-2 px-4 py-3 bg-[#2563EB] hover:bg-blue-700 text-white rounded cursor-pointer transition-colors">
+                        <div className="flex gap-2">
+                          {hasFootage ? (
+                            <div className="flex-1 px-3 py-2 bg-gray-50 rounded border text-sm truncate">
+                              {footageLinks.get(delivery.id) || delivery.footage_link}
+                            </div>
+                          ) : (
+                            <div className="flex-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-600 flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Footage link required
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingFootage(delivery.id);
+                              setTempFootageLink(footageLinks.get(delivery.id) || delivery.footage_link || '');
+                            }}
+                          >
+                            {hasFootage ? 'Edit' : 'Add'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Payment Screenshot - Only for Customer Paid */}
+                    {isCustomerPaid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium flex items-center gap-1">
                             <Upload className="h-4 w-4" />
-                            <span className="text-sm font-medium">Upload Payment Screenshot</span>
+                            Payment Screenshot
+                            <span className="text-red-500">*</span>
+                          </Label>
+                          {hasPaymentScreenshot ? (
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        {hasPaymentScreenshot ? (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                            <span className="text-sm text-green-700">Screenshot uploaded</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="flex items-center justify-center gap-2 px-4 py-3 bg-[#2563EB] hover:bg-blue-700 text-white rounded cursor-pointer transition-colors">
+                              <Upload className="h-4 w-4" />
+                              <span className="text-sm font-medium">Upload Payment Screenshot</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(delivery.id, 'PAYMENT', e)}
+                              />
+                            </label>
+                            <p className="text-xs text-red-600">Required for customer-paid deliveries</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Follow Screenshot - Only for Customer Paid, Optional */}
+                    {isCustomerPaid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium flex items-center gap-1">
+                            <Upload className="h-4 w-4" />
+                            Follow Screenshot
+                            <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                          </Label>
+                          {hasFollowScreenshot && (
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                          )}
+                        </div>
+                        {hasFollowScreenshot ? (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                            <span className="text-sm text-green-700">Screenshot uploaded</span>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-gray-50 border-2 border-dashed border-gray-300 rounded cursor-pointer transition-colors">
+                            <Upload className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">Upload Follow Screenshot</span>
                             <input
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(e) => handleFileUpload(delivery.id, 'PAYMENT', e)}
+                              onChange={(e) => handleFileUpload(delivery.id, 'FOLLOW', e)}
                             />
                           </label>
-                          <p className="text-xs text-red-600">Required for customer-paid deliveries</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Follow Screenshot - Only for Customer Paid, Optional */}
-                  {isCustomerPaid && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium flex items-center gap-1">
-                          <Upload className="h-4 w-4" />
-                          Follow Screenshot
-                          <span className="text-gray-400 text-xs ml-1">(Optional)</span>
-                        </Label>
-                        {hasFollowScreenshot && (
-                          <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
                         )}
                       </div>
-                      {hasFollowScreenshot ? (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                          <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                          <span className="text-sm text-green-700">Screenshot uploaded</span>
-                        </div>
-                      ) : (
-                        <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-gray-50 border-2 border-dashed border-gray-300 rounded cursor-pointer transition-colors">
-                          <Upload className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">Upload Follow Screenshot</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(delivery.id, 'FOLLOW', e)}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  )}
+                    )}
 
-                  {/* V1 SPEC: Dealer-paid deliveries - Show clear "no customer interaction" message */}
-                  {!isCustomerPaid && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-900 font-medium">📦 Dealer-paid showroom</p>
-                      <p className="text-xs text-blue-700 mt-1">No customer interaction required. Only footage link needed.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                    {/* V1 SPEC: Dealer-paid deliveries - Show clear "no customer interaction" message */}
+                    {!isCustomerPaid && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-900 font-medium">📦 Dealer-paid showroom</p>
+                        <p className="text-xs text-blue-700 mt-1">No customer interaction required. Only footage link needed.</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         ) : (
           <div className="text-center text-gray-500">
             <p>No deliveries to update.</p>

@@ -7,12 +7,23 @@
         "lat": 12.9352,
         "lng": 77.6245
       },
-      "instructions": ["Be Good", "Sample Instructions 1"],
-      "maxDistanceMeters": 500,
-      "aliases": ["HITW-K", "Hole in the Wall Koramangala", "Hole in Wall Cafe Koramangala", "hitw cafe koramangala"],
+      "instructions": [
+        "Be Good",
+        "Sample Instructions 1"
+      ],
+      "maxDistanceMeters": 700,
+      "aliases": [
+        "HITW-K",
+        "Hole in the Wall Koramangala",
+        "Hole in Wall Cafe Koramangala",
+        "hitw cafe koramangala"
+      ],
       "phone": "919876543210",
       "address": "",
-      "photographerCode": ["ABHIGYAN139", "HITW001"]
+      "photographerCode": [
+        "ABHIGYAN139",
+        "HITW001"
+      ]
     },
     {
       "id": "the-bier-library-koramangala",
@@ -21,13 +32,91 @@
         "lat": 12.93923915563355,
         "lng": 77.62615140409902
       },
-      "instructions": ["Be Bad", "Sample Instructions 2"],
-      "maxDistanceMeters": 500,
-      "aliases": ["TBLK", "The bier library koramangala", "The Bier library Koramangala", "tblk"],
+      "instructions": [
+        "Be Bad",
+        "Sample Instructions 2"
+      ],
+      "maxDistanceMeters": 700,
+      "aliases": [
+        "TBLK",
+        "The bier library koramangala",
+        "The Bier library Koramangala",
+        "tblk"
+      ],
       "phone": "919876543210",
       "address": "",
-      "photographerCode": ["TBL001", "TBL002"]
+      "photographerCode": [
+        "TBL001",
+        "TBL002"
+      ]
+    },
+    {
+      "id": "marco-polo-cafe",
+      "name": "Marco Polo Cafe",
+      "coordinates": {
+        "lat": 12.933910711063595,
+        "lng": 77.61556484110673
+      },
+      "instructions": [
+        "No disturbance would be caused to other guests, making sure no un-consenting guest is in the edited photo’s background.",
+        "The whole transaction happens between 2 parties leaving the venue out of it & therefore, not liable."
+      ],
+      "maxDistanceMeters": 700,
+      "aliases": [
+        "MPC",
+        "marco polo",
+        "marco polo koramangala"
+      ],
+      "phone": "",
+      "address": "Koramangala",
+      "photographerCode": [
+        "ABHIGYAN139"
+      ]
+    },
+    {
+      "id": "roastea-koramangala",
+      "name": "Roastea Koramangala",
+      "coordinates": {
+        "lat": 12.935798122198424,
+        "lng": 77.62816688423402
+      },
+      "instructions": [
+        "No disturbance would be caused to other guests, making sure no un-consenting guest is in the edited photo’s background.",
+        "The whole transaction happens between 2 parties leaving the venue out of it & therefore, not liable."
+      ],
+      "maxDistanceMeters": 700,
+      "aliases": [
+        "RK",
+        "roastea"
+      ],
+      "phone": "",
+      "address": "Koramangala",
+      "photographerCode": [
+        "ABHIGYAN139"
+      ]
+    },
+    {
+      "id": "garden-asia",
+      "name": "Garden Asia",
+      "coordinates": {
+        "lat": 12.934253273807025,
+        "lng": 77.61607611191015
+      },
+      "instructions": [
+        "No disturbance would be caused to other guests, making sure no un-consenting guest is in the edited photo’s background.",
+        "The whole transaction happens between 2 parties leaving the venue out of it & therefore, not liable."
+      ],
+      "maxDistanceMeters": 700,
+      "aliases": [
+        "GA",
+        "garden asia koramangala"
+      ],
+      "phone": "",
+      "address": "Koramangala",
+      "photographerCode": [
+        "ABHIGYAN139"
+      ]
     }
   ],
-  "defaultMaxDistanceMeters": 500
+  "defaultMaxDistanceMeters": 700
 }

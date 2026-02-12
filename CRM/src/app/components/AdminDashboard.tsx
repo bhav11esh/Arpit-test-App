@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
-import { getStatusColor } from '../lib/utils';
+import { getStatusColor, getOperationalDateString } from '../lib/utils';
 import { Download, Search, Trash2, Eye, FileSpreadsheet } from 'lucide-react';
 import {
   Dialog,
@@ -49,9 +49,9 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
   const loadData = async () => {
     setLoading(true);
     await simulateApiDelay();
-    
+
     setDeliveries(mockDeliveries);
-    
+
     // Group screenshots by delivery
     const screenshotMap = new Map<string, any[]>();
     mockScreenshots.forEach(screenshot => {
@@ -59,27 +59,27 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
       screenshotMap.set(screenshot.delivery_id, [...existing, screenshot]);
     });
     setScreenshots(screenshotMap);
-    
+
     setLoading(false);
   };
 
   const handleDeleteScreenshot = async (screenshotId: string, deliveryId: string) => {
     await simulateApiDelay(300);
-    
+
     setScreenshots(prev => {
       const newMap = new Map(prev);
       const deliveryScreenshots = newMap.get(deliveryId) || [];
       newMap.set(
         deliveryId,
-        deliveryScreenshots.map(s => 
-          s.id === screenshotId 
+        deliveryScreenshots.map(s =>
+          s.id === screenshotId
             ? { ...s, deleted_at: new Date().toISOString() }
             : s
         )
       );
       return newMap;
     });
-    
+
     toast.success('Screenshot deleted');
   };
 
@@ -99,42 +99,42 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
         ].join(',');
       })
     ].join('\n');
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `deliveries-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `deliveries-${getOperationalDateString()}.csv`;
     a.click();
-    
+
     toast.success('CSV exported successfully');
   };
 
   const handleReassign = async (deliveryId: string, newUserId: string) => {
     await simulateApiDelay(300);
-    
+
     // V1 CRITICAL: Clear footage_link when reassigning or unassigning
     // - Footage link is the photographer's work product
     // - New photographer should start fresh
     // - Prevents accidental submission of previous photographer's footage
-    setDeliveries(prev => prev.map(d => 
-      d.id === deliveryId 
-        ? { 
-            ...d, 
-            assigned_user_id: newUserId || null,
-            footage_link: null, // Clear footage link on any reassignment
-            updated_at: new Date().toISOString() 
-          }
+    setDeliveries(prev => prev.map(d =>
+      d.id === deliveryId
+        ? {
+          ...d,
+          assigned_user_id: newUserId || null,
+          footage_link: null, // Clear footage link on any reassignment
+          updated_at: new Date().toISOString()
+        }
         : d
     ));
-    
+
     toast.success('Delivery reassigned');
   };
 
   // V1 FIX: Handle primary delivery unassignment with reason requirement
   const handleUnassignmentRequest = (delivery: Delivery) => {
     const user = mockUsers.find(u => u.id === delivery.assigned_user_id);
-    
+
     // V1 SPEC: Primary deliveries require reason for unassignment
     if (delivery.showroom_type === 'PRIMARY' && delivery.assigned_user_id) {
       setUnassignmentDialog({
@@ -161,14 +161,14 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
     setDeliveries(prev => prev.map(d =>
       d.id === delivery.id
         ? {
-            ...d,
-            assigned_user_id: null,
-            footage_link: null, // Clear footage link on unassignment
-            unassignment_reason: reason,
-            unassignment_timestamp: timestamp,
-            unassignment_by: unassignmentDialog.photographerName,
-            updated_at: timestamp,
-          }
+          ...d,
+          assigned_user_id: null,
+          footage_link: null, // Clear footage link on unassignment
+          unassignment_reason: reason,
+          unassignment_timestamp: timestamp,
+          unassignment_by: unassignmentDialog.photographerName,
+          updated_at: timestamp,
+        }
         : d
     ));
 
@@ -343,8 +343,8 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
                               <div className="grid gap-4 md:grid-cols-2">
                                 {activeScreenshots.map(screenshot => (
                                   <div key={screenshot.id} className="space-y-2">
-                                    <img 
-                                      src={screenshot.file_url} 
+                                    <img
+                                      src={screenshot.file_url}
                                       alt={screenshot.type}
                                       className="w-full rounded border"
                                     />
@@ -371,9 +371,9 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
                       </TableCell>
                       <TableCell>
                         {delivery.footage_link ? (
-                          <a 
-                            href={delivery.footage_link} 
-                            target="_blank" 
+                          <a
+                            href={delivery.footage_link}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline text-sm"
                           >

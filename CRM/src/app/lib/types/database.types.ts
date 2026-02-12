@@ -103,6 +103,8 @@ export interface Database {
           dealership_id: string
           photographer_id: string
           mapping_type: 'PRIMARY' | 'SECONDARY'
+          latitude: number
+          longitude: number
           created_at: string
           updated_at: string
         }
@@ -112,6 +114,8 @@ export interface Database {
           dealership_id: string
           photographer_id: string
           mapping_type: 'PRIMARY' | 'SECONDARY'
+          latitude: number
+          longitude: number
           created_at?: string
           updated_at?: string
         }
@@ -121,6 +125,8 @@ export interface Database {
           dealership_id?: string
           photographer_id?: string
           mapping_type?: 'PRIMARY' | 'SECONDARY'
+          latitude?: number
+          longitude?: number
           created_at?: string
           updated_at?: string
         }

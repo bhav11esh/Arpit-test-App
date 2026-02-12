@@ -34,7 +34,7 @@ export function WhatWeDoSection({ expanded, onToggle }: WhatWeDoSectionProps) {
                 The photographer helps you with all the poses you need. We are ready to spend as much effort as you need with no rush until you're satisfied with the pic.
               </p>
               <p className="text-sm text-gray-600 leading-relaxed mt-3">
-                The "Let's give it a shoot" button will direct you to whatsapp to give the order. Photos are sent in a google drive link dropped on the same whatsapp chat within the next 24 hours. Hardcopies handed over right away.
+                You can get the Google drive link with all your photos within the next 8 hours. Hardcopies handed over right away.
               </p>
             </div>
           </motion.div>

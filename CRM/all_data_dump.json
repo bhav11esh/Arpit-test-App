@@ -1,0 +1,115 @@
+{
+  "clusters": [
+    {
+      "id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+      "name": "Whitefield-Indiranagar",
+      "latitude": 12.986,
+      "longitude": 77.666,
+      "created_at": "2026-02-02T15:16:36.641004+00:00",
+      "updated_at": "2026-02-02T15:16:36.641004+00:00"
+    }
+  ],
+  "dealerships": [
+    {
+      "id": "92f642a5-563f-471e-a804-173fbadc71a3",
+      "name": "Nandi toyota",
+      "latitude": 31.111,
+      "longitude": 45.133,
+      "payment_type": "DEALER_PAID",
+      "created_at": "2026-02-02T15:17:28.54714+00:00",
+      "updated_at": "2026-02-02T15:17:28.54714+00:00"
+    },
+    {
+      "id": "724e0be7-58cf-445d-a9fe-eba9b34470fd",
+      "name": "Bimal Nexa",
+      "latitude": 0,
+      "longitude": 0,
+      "payment_type": "CUSTOMER_PAID",
+      "created_at": "2026-02-03T16:49:26.314601+00:00",
+      "updated_at": "2026-02-03T16:49:26.314601+00:00"
+    },
+    {
+      "id": "4e2d6e16-bb54-4071-9e75-bf55d37d6684",
+      "name": "Apple Auto Volkswagen",
+      "latitude": 0,
+      "longitude": 0,
+      "payment_type": "DEALER_PAID",
+      "created_at": "2026-02-03T16:49:42.256575+00:00",
+      "updated_at": "2026-02-03T16:49:42.256575+00:00"
+    },
+    {
+      "id": "a61d3a21-b946-4d0a-986e-9991448e1074",
+      "name": "PPS Mahindra",
+      "latitude": 0,
+      "longitude": 0,
+      "payment_type": "CUSTOMER_PAID",
+      "created_at": "2026-02-03T16:50:08.037792+00:00",
+      "updated_at": "2026-02-03T16:50:08.037792+00:00"
+    },
+    {
+      "id": "a93bf6ee-7698-47ea-bd32-1fe441ae3486",
+      "name": "Royal Enfield Teknik Motors",
+      "latitude": 0,
+      "longitude": 0,
+      "payment_type": "DEALER_PAID",
+      "created_at": "2026-02-03T16:50:26.466808+00:00",
+      "updated_at": "2026-02-03T16:50:26.466808+00:00"
+    },
+    {
+      "id": "272cf8fb-ced5-45ce-974d-17fb9db65d38",
+      "name": "Khivraj Triumph",
+      "latitude": 0,
+      "longitude": 0,
+      "payment_type": "CUSTOMER_PAID",
+      "created_at": "2026-02-03T16:50:47.26126+00:00",
+      "updated_at": "2026-02-03T16:50:47.26126+00:00"
+    }
+  ],
+  "mappings": [
+    {
+      "id": "deaca341-f853-432d-9272-f0693811ade9",
+      "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+      "dealership_id": "724e0be7-58cf-445d-a9fe-eba9b34470fd",
+      "photographer_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+      "mapping_type": "PRIMARY",
+      "created_at": "2026-02-03T16:53:14.479358+00:00",
+      "updated_at": "2026-02-03T16:53:14.479358+00:00",
+      "latitude": 12.988951775624,
+      "longitude": 77.68865726845
+    },
+    {
+      "id": "00fae552-c7c0-42cc-870f-b277ec92e533",
+      "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+      "dealership_id": "4e2d6e16-bb54-4071-9e75-bf55d37d6684",
+      "photographer_id": "6c1d0f86-9cf4-4028-9e96-2919800f5190",
+      "mapping_type": "PRIMARY",
+      "created_at": "2026-02-03T16:54:51.92502+00:00",
+      "updated_at": "2026-02-03T16:54:51.92502+00:00",
+      "latitude": 12.9950912321,
+      "longitude": 77.6849
+    },
+    {
+      "id": "e4627211-947f-4be4-9937-96b2c201c3fd",
+      "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+      "dealership_id": "a93bf6ee-7698-47ea-bd32-1fe441ae3486",
+      "photographer_id": "41b035b1-4391-4347-af95-ae9876328146",
+      "mapping_type": "PRIMARY",
+      "created_at": "2026-02-03T18:07:45.998566+00:00",
+      "updated_at": "2026-02-03T18:07:45.998566+00:00",
+      "latitude": 12.969464,
+      "longitude": 77.641139
+    },
+    {
+      "id": "993a24c7-b074-4772-b0c8-838fb296fdf8",
+      "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+      "dealership_id": "92f642a5-563f-471e-a804-173fbadc71a3",
+      "photographer_id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+      "mapping_type": "PRIMARY",
+      "created_at": "2026-02-04T10:40:35.426511+00:00",
+      "updated_at": "2026-02-04T10:40:35.426511+00:00",
+      "latitude": 12.977766,
+      "longitude": 77.711145
+    }
+  ],
+  "profiles": null
+}

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useConfig } from '../context/ConfigContext';
 import { useNavigate } from 'react-router-dom';
-import { mockDeliveries, mockScreenshots, mockUsers, mockDealerships, mockClusters, mockMappings, simulateApiDelay } from '../lib/mockData';
+import { mockScreenshots, simulateApiDelay } from '../lib/mockData';
+import * as deliveriesDb from '../lib/db/deliveries';
+import * as reelsDb from '../lib/db/reels';
+import { adminSupabase, supabase } from '../lib/supabase';
 import type { Delivery } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -9,44 +13,45 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
-import { getStatusColor } from '../lib/utils';
+import { getStatusColor, getOperationalDateString } from '../lib/utils';
 import { Download, Trash2, ChevronLeft, ChevronRight, Grid, FileText, Lock, Undo2, Redo2, Edit2, Check, X, Settings, Calendar, Trophy, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { AdminLogsViewer } from './AdminLogsViewer';
 import { IncentiveTracker } from './IncentiveTracker';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from 'sonner';
+import { LiveBookingsView } from './LiveBookingsView';
+import * as configDb from '../lib/db/config';
 
 export function ViewScreen() {
   const { user } = useAuth();
+  const { dealerships, clusters, mappings, photographers } = useConfig();
   const navigate = useNavigate();
-  
+
   // DEBUG: Track render count
   const renderCount = React.useRef(0);
   renderCount.current++;
   console.log(`🎨 ViewScreen RENDER #${renderCount.current} - historyIndex will be updated below`);
-  
+
   // V1 SPEC: Photographers see two tabs: Incentive Tracker + Spreadsheet
   // Admins see: Spreadsheet + Payment Gallery + Follow Gallery + Logs
-  const [mainTab, setMainTab] = useState<'incentive' | 'data'>('incentive');
-  
+  const [mainTab, setMainTab] = useState<'incentive' | 'data'>('data');
+
   // V1 SPEC: Admin View has 3 mutually exclusive modes:
-  // 1. Spreadsheet View (dealer + branch required, editable with undo/redo)
-  // 2. Payment Screenshot Gallery (admin-only, independent of spreadsheet)
-  // 3. Follow Screenshot Gallery (admin-only, independent of spreadsheet)
   // 4. Logs View (admin audit trail)
+  // 5. Portrait View (live_bookings)
   // V1 RULE: Photographers must NEVER see screenshot galleries (modes 2 & 3)
-  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'logs'>('spreadsheet');
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'logs' | 'portrait'>('spreadsheet');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryViewMode, setGalleryViewMode] = useState<'single' | 'grid'>('single');
   const [loading, setLoading] = useState(true);
-  
+
   // V1 SPEC: Gallery filters
   const [selectedDate, setSelectedDate] = useState<string>('all');
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
-  
+
   // V1 SPEC: Spreadsheet showroom filter (log of deliveries covered per showroom)
   const [selectedShowroom, setSelectedShowroom] = useState<string>('all');
 
@@ -55,9 +60,9 @@ export function ViewScreen() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [editingCell, setEditingCell] = useState<{ deliveryId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   // Add new row state
-  const [isAddingNewRow, setIsAddingNewRow] = useState(false);
   const [newRowData, setNewRowData] = useState({
     date: '',
     showroom_id: '',
@@ -69,29 +74,19 @@ export function ViewScreen() {
 
   // V1 SPEC: Only ADMIN can access screenshot galleries
   const isAdmin = user?.role === 'ADMIN';
-  
+
   // DEBUG: Log current state values on every render
   console.log(`📊 STATE VALUES: historyIndex=${historyIndex}, editHistory.length=${editHistory.length}, deliveries.length=${deliveries.length}`);
 
   // Helper function to format showroom display as "Dealership + Cluster"
-  const getShowroomDisplayName = (dealershipId: string): string => {
-    const dealership = mockDealerships.find(d => d.id === dealershipId);
-    if (!dealership) return 'Unknown';
-    
-    const mapping = mockMappings.find(m => m.dealershipId === dealershipId);
-    const cluster = mockClusters.find(c => c.id === mapping?.clusterId);
-    
-    const dealershipName = dealership.name.split('(')[0].trim();
-    
-    const clusterNameMap: Record<string, string> = {
-      'North Delhi': 'north delhi',
-      'South Delhi': 'south delhi',
-      'East Delhi': 'east delhi',
-      'West Delhi': 'west delhi'
-    };
-    const clusterName = cluster ? clusterNameMap[cluster.name] || cluster.name.toLowerCase() : '';
-    
-    return `${dealershipName} ${clusterName}`;
+  const getShowroomDisplayName = (mappingId: string): string => {
+    const mapping = mappings.find(m => m.id === mappingId);
+    if (!mapping) return 'Unknown Showroom';
+
+    const dealership = dealerships.find(d => d.id === mapping.dealershipId);
+    const cluster = clusters.find(c => c.id === mapping.clusterId);
+
+    return dealership && cluster ? `${dealership.name} ${cluster.name}` : 'Unknown Showroom';
   };
 
   useEffect(() => {
@@ -106,19 +101,65 @@ export function ViewScreen() {
   }, [editHistory, historyIndex]);
 
   const loadData = async () => {
-    console.log('🔄 loadData() called - THIS RESETS EDIT HISTORY!');
-    console.trace('loadData call stack:');
+    console.log('🔄 [ViewScreen] loadData() started...');
     setLoading(true);
-    await simulateApiDelay();
-    const loadedDeliveries = mockDeliveries;
-    setDeliveries(loadedDeliveries);
-    setScreenshots(mockScreenshots);
-    // V1 SPEC: Initialize edit history with loaded state
-    setEditHistory([loadedDeliveries]);
-    setHistoryIndex(0);
-    setLoading(false);
+
+    // Add a safety timeout to prevent infinite loading
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Data loading timed out after 10 seconds')), 10000)
+    );
+
+    try {
+      console.log('⏳ [ViewScreen] Fetching real data from database...');
+      await Promise.race([
+        (async () => {
+          const client = adminSupabase || supabase;
+
+          // 1. Fetch ALL persistent screenshots (Admin View)
+          const { getAllScreenshots } = await import('../lib/db/screenshots');
+          const realScreenshots = await getAllScreenshots();
+          setScreenshots(realScreenshots);
+
+          // 2. Fetch DONE deliveries (Spreadsheet source)
+          const doneDeliveries = await deliveriesDb.getDeliveries({ status: 'DONE' }, client);
+
+          // 3. V1 FIX: Also fetch any deliveries referenced by screenshots (even if not DONE)
+          // This ensures "Unknown" metadata is resolved for screenshots uploaded for active deliveries
+          const screenshotDeliveryIds = Array.from(new Set(realScreenshots.map(s => s.delivery_id)));
+
+          // Optimisation: exclude IDs we already have in doneDeliveries
+          const knownIds = new Set(doneDeliveries.map(d => d.id));
+          const missingIds = screenshotDeliveryIds.filter(id => !knownIds.has(id));
+
+          let extraDeliveries: Delivery[] = [];
+          if (missingIds.length > 0) {
+            console.log(`📸 Fetching ${missingIds.length} extra deliveries for screenshot metadata...`);
+            extraDeliveries = await deliveriesDb.getDeliveriesByIds(missingIds, client);
+          }
+
+          // Merge and deduplicate
+          const allDeliveries = [...doneDeliveries, ...extraDeliveries];
+          // Determine uniqueness by ID
+          const uniqueDeliveries = Array.from(new Map(allDeliveries.map(d => [d.id, d])).values());
+
+          setDeliveries(uniqueDeliveries);
+
+          // V1 SPEC: Initialize edit history with loaded state
+          setEditHistory([uniqueDeliveries]);
+          setHistoryIndex(0);
+        })(),
+        timeoutPromise
+      ]);
+      console.log('✅ [ViewScreen] Data loaded successfully');
+    } catch (err) {
+      console.error('❌ [ViewScreen] loadData failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      console.log('🏁 [ViewScreen] loadData complete. Setting loading=false');
+      setLoading(false);
+    }
   };
-  
+
   // V1 SPEC: Refresh data when switching to spreadsheet view to pick up reel link changes
   // Use a ref to track previous viewMode to only load when actually switching
   const prevViewMode = React.useRef<string | null>(null);
@@ -133,37 +174,56 @@ export function ViewScreen() {
 
   // V1 CRITICAL: Enforce admin-only access for screenshot galleries
   // If non-admin attempts to access payment/follow views, redirect to spreadsheet
-  useEffect(() => {
-    if (!isAdmin && (viewMode === 'payment' || viewMode === 'follow')) {
-      setViewMode('spreadsheet');
-      toast.error('Screenshot galleries are admin-only');
-    }
-  }, [viewMode, isAdmin]);
+  // V1 SPEC: Helper to resolve showroom code
+  const getShowroomCode = (dealershipName: string) => {
+    return dealershipName.match(/\(([^)]+)\)/)?.[1] ||
+      dealershipName.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  };
+
+  // V1 SPEC: Memoized filtered deliveries for both Table and CSV Export
+  const filteredDeliveries = React.useMemo(() => {
+    return deliveries.filter(d => {
+      // V1 SPEC: Only show deliveries where SEND UPDATE was pressed (status === DONE)
+      if (d.status !== 'DONE') return false;
+
+      // Apply showroom filter (Now strictly Dealership ID)
+      if (selectedShowroom !== 'all') {
+        const dealership = dealerships.find(d => d.id === selectedShowroom);
+        if (dealership) {
+          const code = getShowroomCode(dealership.name);
+          // Match logic:
+          // 1. If Code matches standard derivation
+          if (d.showroom_code !== code) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [deliveries, selectedShowroom, mappings, dealerships]);
 
   const handleExportCSV = () => {
     const csv = [
-      ['Date', 'Delivery Name', 'Status', 'Assigned To', 'Footage Link', 'Payment Type'].join(','),
-      ...deliveries.map(d => {
-        const user = mockUsers.find(u => u.id === d.assigned_user_id);
+      ['Date', 'Footage Link', 'Reel Link', 'Photographer Name'].join(','),
+      ...filteredDeliveries.map(d => {
+        const photographer = photographers.find(p => p.id === d.assigned_user_id);
         return [
           d.date,
-          d.delivery_name,
-          d.status,
-          user?.name || 'Unassigned',
           d.footage_link || '',
-          d.payment_type
-        ].join(',');
+          (d as any).reel_link || '',
+          photographer?.name || 'Unassigned'
+        ].map(val => `"${val}"`).join(','); // Wrap in quotes to handle commas in links if any
       })
     ].join('\n');
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `deliveries-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `deliveries-${getOperationalDateString()}${selectedShowroom !== 'all' ? '-filtered' : ''}.csv`;
     a.click();
-    
-    toast.success('CSV exported successfully');
+
+    toast.success(`Exported ${filteredDeliveries.length} rows to CSV`);
   };
 
   const handleDeleteScreenshot = async (screenshotId: string) => {
@@ -176,8 +236,8 @@ export function ViewScreen() {
     // - Does NOT affect spreadsheet data
     // - Does NOT affect SEND UPDATE status
     // - Admin-only operation (photographers cannot delete screenshots)
-    setScreenshots(prev => prev.map(s => 
-      s.id === screenshotId 
+    setScreenshots(prev => prev.map(s =>
+      s.id === screenshotId
         ? { ...s, deleted_at: new Date().toISOString() }
         : s
     ));
@@ -189,20 +249,6 @@ export function ViewScreen() {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1);
       setDeliveries(editHistory[historyIndex - 1]);
-      
-      // V1 SPEC: If we're in "add new row" mode, exit it when undoing
-      if (isAddingNewRow) {
-        setIsAddingNewRow(false);
-        setNewRowData({
-          date: '',
-          showroom_id: '',
-          delivery_name: '',
-          photographer_id: '',
-          footage_link: '',
-          reel_link: ''
-        });
-      }
-      
       toast.success('Undo successful');
     }
   };
@@ -211,22 +257,6 @@ export function ViewScreen() {
     if (historyIndex < editHistory.length - 1) {
       setHistoryIndex(historyIndex + 1);
       setDeliveries(editHistory[historyIndex + 1]);
-      
-      // V1 SPEC: Check if the redo brings back a placeholder row
-      const redoneDeliveries = editHistory[historyIndex + 1];
-      const hasPlaceholder = redoneDeliveries.some(d => d.id.startsWith('temp_'));
-      if (hasPlaceholder && !isAddingNewRow) {
-        setIsAddingNewRow(true);
-        setNewRowData({
-          date: new Date().toISOString().split('T')[0],
-          showroom_id: '',
-          delivery_name: '',
-          photographer_id: '',
-          footage_link: '',
-          reel_link: ''
-        });
-      }
-      
       toast.success('Redo successful');
     }
   };
@@ -240,8 +270,34 @@ export function ViewScreen() {
   const handleSaveEdit = async () => {
     if (!editingCell) return;
 
-    await simulateApiDelay(200);
-    
+    // V1 FIX: Persist changes to DB immediately
+    try {
+      const client = adminSupabase || supabase;
+
+      if (editingCell.field === 'reel_link') {
+        // 1. Update Delivery
+        // @ts-ignore
+        await deliveriesDb.updateDelivery(editingCell.deliveryId, { reel_link: editValue }, client);
+
+        // 2. Sync with Reel Task (Backlog)
+        const existingTask = await reelsDb.getReelTaskByDelivery(editingCell.deliveryId, client);
+        if (existingTask) {
+          await reelsDb.updateReelTask(existingTask.id, {
+            reel_link: editValue,
+            status: editValue && editValue.trim() !== '' ? 'RESOLVED' : 'PENDING'
+          }, client);
+          console.log(`🎬 Reel Task updated for ${editingCell.deliveryId} -> ${editValue ? 'RESOLVED' : 'PENDING'}`);
+        }
+      } else {
+        // Generic update for other fields
+        await deliveriesDb.updateDelivery(editingCell.deliveryId, { [editingCell.field]: editValue }, client);
+      }
+    } catch (error) {
+      console.error("Failed to save edit to DB:", error);
+      toast.error("Failed to save changes to database");
+      return;
+    }
+
     const updatedDeliveries = deliveries.map(d =>
       d.id === editingCell.deliveryId
         ? { ...d, [editingCell.field]: editValue } as any
@@ -253,11 +309,11 @@ export function ViewScreen() {
     newHistory.push(updatedDeliveries);
     setEditHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
-    
+
     setDeliveries(updatedDeliveries);
     setEditingCell(null);
     setEditValue('');
-    
+
     // V1 SPEC: Reel backlog is DERIVED STATE (not manual state)
     // - Exactly 1 reel per delivery (enforced by data model)
     // - Backlog exists iff reel_link cell is blank/empty
@@ -273,7 +329,70 @@ export function ViewScreen() {
     } else {
       toast.success('Cell updated successfully');
     }
+
+    // Trigger Google Sheets Sync
+    if (editingCell.field === 'footage_link' || editingCell.field === 'reel_link') {
+      const updatedDelivery = updatedDeliveries.find(d => d.id === editingCell.deliveryId);
+      if (updatedDelivery) {
+        handleTriggerSheetSync(updatedDelivery);
+      }
+    }
   };
+
+  const handleTriggerSheetSync = async (delivery: any) => {
+    try {
+      // GUARD: Don't sync imported records back to the sheet to avoid duplication loops
+      if (delivery.delivery_name?.includes('_IMPORT')) {
+        console.log("Sync skipped: Imported records are not pushed back to avoid loops.");
+        return;
+      }
+
+      // 1. Get Mapping to find Dealership
+      const mapping = await configDb.getMappingById(delivery.showroom_code);
+      if (!mapping) return;
+
+      // 2. Get Dealership Details
+      const dealership = await configDb.getDealershipById(mapping.dealershipId);
+      if (!dealership || !dealership.googleSheetId) {
+        console.log("Sync skipped: No Google Sheet ID configured for this dealership.");
+        return;
+      }
+
+      // 3. Call Google Apps Script Bridge
+      // We use the Web App URL that the user will deploy
+      // For now, we attempt to get it from env, or log a reminder
+      const SYNC_URL = import.meta.env.VITE_GOOGLE_SYNC_URL;
+
+      if (!SYNC_URL) {
+        console.warn("⚠️ Google Sync URL not configured in .env.local (VITE_GOOGLE_SYNC_URL)");
+        return;
+      }
+
+      const response = await fetch(SYNC_URL, {
+        method: 'POST',
+        mode: 'no-cors', // Apps Script requires no-cors sometimes for simple POSTs
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sheetId: dealership.googleSheetId,
+          delivery: {
+            delivery_name: delivery.delivery_name,
+            date: delivery.date,
+            timing: delivery.timing,
+            payment_type: delivery.payment_type,
+            footage_link: delivery.footage_link,
+            reel_link: delivery.reel_link
+          }
+        }),
+      });
+
+      console.log(`🚀 Sync request sent to bridge for: ${delivery.delivery_name}`);
+    } catch (error) {
+      console.error('❌ Failed to trigger Google Sheets sync:', error);
+    }
+  };
+
 
   const handleCancelEdit = () => {
     setEditingCell(null);
@@ -282,53 +401,15 @@ export function ViewScreen() {
 
   // Add new row handlers
   const handleStartAddRow = () => {
-    // V1 SPEC: Create a temporary placeholder delivery row
-    const placeholderDelivery: Delivery = {
-      id: `temp_${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      showroom_code: 'TEMP',
-      cluster_code: 'TEMP',
-      showroom_type: 'SECONDARY',
-      timing: null,
-      delivery_name: '[New Row - Fill Required Fields]',
-      status: 'DONE',
-      assigned_user_id: '',
-      footage_link: null,
-      payment_type: 'CASH',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    (placeholderDelivery as any).reel_link = '';
-
-    // Add placeholder to deliveries and update history
-    const updatedDeliveries = [...deliveries, placeholderDelivery];
-    
-    setDeliveries(updatedDeliveries);
-    setEditHistory(prevHistory => {
-      setHistoryIndex(prevIndex => {
-        const newHistory = prevHistory.slice(0, prevIndex + 1);
-        newHistory.push(updatedDeliveries);
-        const newIndex = newHistory.length - 1;
-        console.log('📝 Add Row - History updated: prevIndex:', prevIndex, '→ newIndex:', newIndex);
-        return newIndex;
-      });
-      
-      const newHistory = prevHistory.slice(0, historyIndex + 1);
-      newHistory.push(updatedDeliveries);
-      return newHistory;
-    });
-    
-    setIsAddingNewRow(true);
     setNewRowData({
-      date: new Date().toISOString().split('T')[0], // Default to today
+      date: getOperationalDateString(),
       showroom_id: '',
       delivery_name: '',
       photographer_id: '',
       footage_link: '',
       reel_link: ''
     });
-    
-    toast.success('New row added - fill in details or click Undo to remove');
+    setIsAddDialogOpen(true);
   };
 
   const handleSaveNewRow = async () => {
@@ -341,27 +422,22 @@ export function ViewScreen() {
     await simulateApiDelay(200);
 
     // Find the selected dealership to get showroom_code and cluster
-    const selectedDealership = mockDealerships.find(d => d.id === newRowData.showroom_id);
+    const selectedDealership = dealerships.find(d => d.id === newRowData.showroom_id);
     if (!selectedDealership) {
       toast.error('Selected showroom not found');
       return;
     }
-    
+
     // Extract showroom code from dealership name (e.g., "Khatri Wheels (KHTR_WH)" -> "KHTR_WH")
-    const showroomCode = selectedDealership.name.match(/\(([^)]+)\)/)?.[1] || '';
-    
+    const showroomCode = selectedDealership.name.match(/\(([^)]+)\)/)?.[1] ||
+      selectedDealership.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
     // Find the mapping to get cluster_code
-    const mapping = mockMappings.find(m => m.dealershipId === selectedDealership.id);
-    const cluster = mockClusters.find(c => c.id === mapping?.clusterId);
-    
-    // Map cluster names to cluster codes
-    const clusterCodeMap: Record<string, string> = {
-      'North Delhi': 'NORTH',
-      'South Delhi': 'SOUTH',
-      'East Delhi': 'EAST',
-      'West Delhi': 'WEST'
-    };
-    const clusterCode = cluster ? clusterCodeMap[cluster.name] || 'UNKNOWN' : 'UNKNOWN';
+    const mapping = mappings.find(m => m.dealershipId === selectedDealership.id);
+    const cluster = clusters.find(c => c.id === mapping?.clusterId);
+
+    // Use cluster name as code if explicit code not available (centralized with HomeScreen logic)
+    const clusterCode = cluster?.name || 'UNKNOWN';
 
     // Create new delivery object
     const newDelivery: Delivery = {
@@ -388,38 +464,25 @@ export function ViewScreen() {
     console.log('=== SAVE NEW ROW DEBUG ===');
     console.log('Before save - historyIndex:', historyIndex, 'editHistory.length:', editHistory.length);
     console.log('Current viewMode:', viewMode);
-    
+
     // Use functional updates to ensure we capture the latest state
     setDeliveries(prevDeliveries => {
-      // Remove the placeholder (last item) and add the real delivery
-      const withoutPlaceholder = prevDeliveries.slice(0, -1);
-      const updatedDeliveries = [...withoutPlaceholder, newDelivery];
-      console.log('📦 Replacing placeholder - new length:', updatedDeliveries.length);
-      
-      // Chain the history updates inside this callback to ensure atomic operation
+      const updatedDeliveries = [...prevDeliveries, newDelivery];
+
       setEditHistory(prevHistory => {
         setHistoryIndex(prevIndex => {
           const newHistory = prevHistory.slice(0, prevIndex + 1);
           newHistory.push(updatedDeliveries);
-          const newIndex = newHistory.length - 1;
-          
-          console.log('📝 Updating history - prevIndex:', prevIndex, '→ newIndex:', newIndex);
-          console.log('📝 editHistory.length:', prevHistory.length, '→', newHistory.length);
-          console.log('========================');
-          
-          return newIndex;
+          return newHistory.length - 1;
         });
-        
-        const newHistory = prevHistory.slice(0, historyIndex + 1);
-        newHistory.push(updatedDeliveries);
-        return newHistory;
+        return [...prevHistory.slice(0, historyIndex + 1), updatedDeliveries];
       });
-      
+
       return updatedDeliveries;
     });
-    
-    setIsAddingNewRow(false);
-    
+
+    setIsAddDialogOpen(false);
+
     // Reset new row form
     setNewRowData({
       date: '',
@@ -429,27 +492,12 @@ export function ViewScreen() {
       footage_link: '',
       reel_link: ''
     });
-    
+
     toast.success('Delivery row saved successfully');
   };
 
   const handleCancelAddRow = () => {
-    // V1 SPEC: Remove the placeholder row by undoing
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setDeliveries(editHistory[historyIndex - 1]);
-      toast.success('New row cancelled');
-    }
-    
-    setIsAddingNewRow(false);
-    setNewRowData({
-      date: '',
-      showroom_id: '',
-      delivery_name: '',
-      photographer_id: '',
-      footage_link: '',
-      reel_link: ''
-    });
+    setIsAddDialogOpen(false);
   };
 
   const paymentScreenshots = screenshots.filter(s => s.type === 'PAYMENT' && !s.deleted_at);
@@ -460,15 +508,15 @@ export function ViewScreen() {
     return screenshotList.filter(s => {
       // Date filter
       if (selectedDate !== 'all') {
-        const screenshotDate = new Date(s.uploaded_at).toISOString().split('T')[0];
+        const screenshotDate = getOperationalDateString(new Date(s.uploaded_at));
         if (screenshotDate !== selectedDate) return false;
       }
-      
+
       // Photographer filter
       if (selectedPhotographer !== 'all' && s.user_id !== selectedPhotographer) {
         return false;
       }
-      
+
       return true;
     });
   };
@@ -477,7 +525,7 @@ export function ViewScreen() {
   const filteredFollowScreenshots = applyFilters(followScreenshots);
 
   // Get unique dates and photographers for filter options
-  const uniqueDates = Array.from(new Set(screenshots.map(s => new Date(s.uploaded_at).toISOString().split('T')[0])));
+  const uniqueDates = Array.from(new Set(screenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
   const uniquePhotographers = Array.from(new Set(screenshots.map(s => s.user_id)));
 
   if (loading) {
@@ -506,7 +554,7 @@ export function ViewScreen() {
               <SelectItem value="data" className="font-semibold">📊 Data Views</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* Non-Admin Warning */}
           {!isAdmin && (
             <div className="mt-3 flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-800">
@@ -544,7 +592,8 @@ export function ViewScreen() {
                   {/* V1 SPEC: Separate Data Views from Audit Views */}
                   <SelectItem value="spreadsheet" className="font-semibold">📊 Data Views</SelectItem>
                   <SelectItem value="spreadsheet" className="pl-6">Spreadsheet View</SelectItem>
-                  
+                  <SelectItem value="portrait" className="pl-6">Live Portrait Bookings</SelectItem>
+
                   {/* V1 SPEC: Screenshot galleries and logs are ADMIN-ONLY */}
                   {isAdmin && (
                     <>
@@ -556,7 +605,7 @@ export function ViewScreen() {
                   )}
                 </SelectContent>
               </Select>
-              
+
               {/* Non-Admin Warning */}
               {!isAdmin && (
                 <div className="mt-3 flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-800">
@@ -567,6 +616,17 @@ export function ViewScreen() {
                       Audit Views (screenshot galleries & logs) are restricted to admin users only.
                     </p>
                   </div>
+                </div>
+              )}
+              {/* DEBUG: Admin Client Status */}
+              {isAdmin && (
+                <div className={`mt-3 p-2 rounded text-xs border ${adminSupabase ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+                  }`}>
+                  <p className="font-bold flex items-center gap-2">
+                    {adminSupabase ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                    Admin Client: {adminSupabase ? 'ACTIVE' : 'INACTIVE (Check .env VITE_SUPABASE_SERVICE_ROLE_KEY)'}
+                  </p>
+                  {!adminSupabase && <p className="mt-1">You are viewing data with standard permissions. Some records may be hidden.</p>}
                 </div>
               )}
             </CardContent>
@@ -638,12 +698,12 @@ export function ViewScreen() {
                     <CardTitle>Deliveries Covered Log</CardTitle>
                     <div className="flex items-center gap-2">
                       {/* V1 SPEC: Undo/Redo buttons for spreadsheet edits */}
-                      <Button 
+                      <Button
                         onClick={() => {
                           console.log('Undo clicked - historyIndex:', historyIndex, 'editHistory.length:', editHistory.length);
                           handleUndo();
-                        }} 
-                        size="sm" 
+                        }}
+                        size="sm"
                         variant="outline"
                         disabled={historyIndex <= 0}
                         className="gap-1"
@@ -652,12 +712,12 @@ export function ViewScreen() {
                         <Undo2 className="h-3 w-3" />
                         Undo ({historyIndex})
                       </Button>
-                      <Button 
+                      <Button
                         onClick={() => {
                           console.log('Redo clicked - historyIndex:', historyIndex, 'editHistory.length:', editHistory.length);
                           handleRedo();
-                        }} 
-                        size="sm" 
+                        }}
+                        size="sm"
                         variant="outline"
                         disabled={historyIndex >= editHistory.length - 1}
                         className="gap-1"
@@ -672,25 +732,25 @@ export function ViewScreen() {
                       </Button>
                     </div>
                   </div>
-                  
-                  {/* Showroom Filter */}
+
+                  {/* Showroom/Dealership Filter */}
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Showroom</label>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Dealership</label>
                     <Select value={selectedShowroom} onValueChange={setSelectedShowroom}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select showroom" />
+                        <SelectValue placeholder="Select dealership" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Showrooms</SelectItem>
-                        {mockDealerships.map(dealership => (
+                        <SelectItem value="all">All Dealerships</SelectItem>
+                        {dealerships.slice().sort((a, b) => a.name.localeCompare(b.name)).map(dealership => (
                           <SelectItem key={dealership.id} value={dealership.id}>
-                            {getShowroomDisplayName(dealership.id)}
+                            {dealership.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   {/* V1 SPEC: Spreadsheet is a log of covered deliveries */}
                   <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
                     <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-700" />
@@ -709,248 +769,260 @@ export function ViewScreen() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Showroom</TableHead>
-                        <TableHead>Delivery Name</TableHead>
-                        <TableHead>Photographer</TableHead>
                         <TableHead>Footage Link</TableHead>
                         <TableHead>Reel Link</TableHead>
+                        <TableHead>Photographer Name</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {deliveries
-                        .filter(d => {
-                          // V1 SPEC: Only show deliveries where SEND UPDATE was pressed (status === DONE)
-                          // NOT just any delivery with a footage link (draft state should not appear)
-                          if (d.status !== 'DONE') return false;
-                          
-                          // Apply showroom filter
-                          if (selectedShowroom !== 'all') {
-                            const dealershipCode = d.showroom_code;
-                            const dealership = mockDealerships.find(ds => ds.name.includes(`(${dealershipCode})`));
-                            if (!dealership || dealership.id !== selectedShowroom) return false;
-                          }
-                          
-                          return true;
-                        })
+                      {filteredDeliveries
                         .map(delivery => {
-                          const photographer = mockUsers.find(u => u.id === delivery.assigned_user_id);
-                          
+                          const photographer = photographers.find(p => p.id === delivery.assigned_user_id);
+
                           // V1 SPEC: Showroom = "Dealership Name + Cluster Name"
-                          // Extract dealership code from showroom_code (e.g., "KHTR_WH")
-                          const dealershipCode = delivery.showroom_code;
-                          
-                          // Find dealership by code (code is in parentheses in the name)
-                          const dealership = mockDealerships.find(ds => ds.name.includes(`(${dealershipCode})`));
-                          
-                          // Extract dealership name without code (e.g., "Khatri Wheels (KHTR_WH)" -> "Khatri Wheels")
-                          const dealershipName = dealership?.name.split('(')[0].trim() || 'Unknown';
-                          
-                          // Find cluster name by cluster_code from delivery
-                          const clusterNameMap: Record<string, string> = {
-                            'NORTH': 'north delhi',
-                            'SOUTH': 'south delhi',
-                            'EAST': 'east delhi',
-                            'WEST': 'west delhi'
-                          };
-                          const clusterName = clusterNameMap[delivery.cluster_code] || delivery.cluster_code.toLowerCase() || '';
-                          
-                          // Combine to create showroom display name (e.g., "Khatri Wheels north delhi")
-                          const showroomDisplay = `${dealershipName} ${clusterName}`;
-                          
+                          // Resolved from showroom_code
+                          let showroomDisplay = 'Unknown Showroom';
+                          const resolvedDealership = dealerships.find(d => {
+                            const code = getShowroomCode(d.name);
+                            return code === delivery.showroom_code;
+                          });
+
+                          if (resolvedDealership) {
+                            // Fix: Dealership doesn't have cluster_id, find via mapping
+                            const mapping = mappings.find(m => m.dealershipId === resolvedDealership.id);
+                            const cluster = clusters.find(c => c.id === mapping?.clusterId || c.name === delivery.cluster_code);
+                            showroomDisplay = cluster ? `${resolvedDealership.name} ${cluster.name}` : resolvedDealership.name;
+                          } else {
+                            showroomDisplay = delivery.showroom_code; // Fallback
+                          }
+
                           const isEditingFootage = editingCell?.deliveryId === delivery.id && editingCell?.field === 'footage_link';
                           const isEditingReel = editingCell?.deliveryId === delivery.id && editingCell?.field === 'reel_link';
-                          
+
                           return (
                             <TableRow key={delivery.id}>
                               <TableCell className="text-sm">
-                                {new Date(delivery.date).toLocaleDateString('en-IN')}
+                                {(() => {
+                                  const [y, m, d] = delivery.date.split('-');
+                                  return `${d}/${m}/${y}`;
+                                })()}
                               </TableCell>
-                              <TableCell className="text-sm font-medium">{showroomDisplay}</TableCell>
-                              <TableCell className="font-medium text-sm">{delivery.delivery_name}</TableCell>
-                              <TableCell className="text-sm">{photographer?.name || 'Unassigned'}</TableCell>
-                            
-                            {/* V1 SPEC: Footage Link (Editable) */}
-                            <TableCell className="text-sm">
-                              {isEditingFootage ? (
-                                <div className="flex items-center gap-1">
-                                  <Input 
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    className="h-7 text-xs"
-                                    placeholder="https://drive.google.com/..."
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleSaveEdit();
-                                      if (e.key === 'Escape') handleCancelEdit();
-                                    }}
-                                  />
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
-                                    <Check className="h-3 w-3 text-green-600" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
-                                    <X className="h-3 w-3 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div 
-                                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded group"
-                                  onClick={() => handleStartEdit(delivery.id, 'footage_link', delivery.footage_link || '')}
+
+                              {/* Footage Link (Editable) */}
+                              <TableCell className="text-sm">
+                                {isEditingFootage ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      className="h-7 text-xs"
+                                      placeholder="https://drive.google.com/..."
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveEdit();
+                                        if (e.key === 'Escape') handleCancelEdit();
+                                      }}
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded group"
+                                    onClick={() => handleStartEdit(delivery.id, 'footage_link', delivery.footage_link || '')}
+                                    title={`Showroom: ${showroomDisplay}\nDelivery: ${delivery.delivery_name}`}
+                                  >
+                                    <span className="flex-1 truncate max-w-[200px]">
+                                      {delivery.footage_link || <span className="text-gray-400">Click to add</span>}
+                                    </span>
+                                    <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                  </div>
+                                )}
+                              </TableCell>
+
+                              {/* Reel Link (Editable) */}
+                              <TableCell className="text-sm">
+                                {isEditingReel ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      className="h-7 text-xs"
+                                      placeholder="Reel link or leave empty"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveEdit();
+                                        if (e.key === 'Escape') handleCancelEdit();
+                                      }}
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded group"
+                                    onClick={() => handleStartEdit(delivery.id, 'reel_link', (delivery as any).reel_link || '')}
+                                    title={`Showroom: ${showroomDisplay}\nDelivery: ${delivery.delivery_name}`}
+                                  >
+                                    <span className="flex-1 truncate max-w-[200px]">
+                                      {(delivery as any).reel_link || <span className="text-gray-400">Click to add</span>}
+                                    </span>
+                                    <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                  </div>
+                                )}
+                              </TableCell>
+
+                              {/* Photographer Name (Editable for Admin) */}
+                              <TableCell className="text-sm">
+                                {editingCell?.deliveryId === delivery.id && editingCell?.field === 'assigned_user_id' ? (
+                                  <div className="flex items-center gap-1">
+                                    <Select
+                                      value={editValue}
+                                      onValueChange={setEditValue}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs w-[140px]">
+                                        <SelectValue placeholder="Select" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                                        {photographers.map(p => (
+                                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`flex items-center gap-2 p-1 rounded group ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'assigned_user_id', delivery.assigned_user_id || 'unassigned')}
+                                    title={isAdmin ? "Click to reassign photographer" : undefined}
+                                  >
+                                    <span className={!photographer ? "text-red-500 font-medium" : ""}>
+                                      {photographer?.name || 'Unassigned'}
+                                    </span>
+                                    {isAdmin && (
+                                      <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+
+                      {/* Add New Row Dialog */}
+                      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Delivery Record</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-gray-500">Date</label>
+                                <Input
+                                  type="date"
+                                  value={newRowData.date}
+                                  onChange={(e) => setNewRowData({ ...newRowData, date: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-gray-500">Showroom</label>
+                                <Select
+                                  value={newRowData.showroom_id}
+                                  onValueChange={(value) => setNewRowData({ ...newRowData, showroom_id: value })}
                                 >
-                                  <span className="flex-1 truncate max-w-[200px]">
-                                    {delivery.footage_link || <span className="text-gray-400">Click to add</span>}
-                                  </span>
-                                  <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                                </div>
-                              )}
-                            </TableCell>
-                            
-                            {/* V1 SPEC: Reel Link (Editable - clear = backlog, overwrite = no backlog) */}
-                            <TableCell className="text-sm">
-                              {isEditingReel ? (
-                                <div className="flex items-center gap-1">
-                                  <Input 
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    className="h-7 text-xs"
-                                    placeholder="Reel link or leave empty"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleSaveEdit();
-                                      if (e.key === 'Escape') handleCancelEdit();
-                                    }}
-                                  />
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
-                                    <Check className="h-3 w-3 text-green-600" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
-                                    <X className="h-3 w-3 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div 
-                                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded group"
-                                  onClick={() => handleStartEdit(delivery.id, 'reel_link', (delivery as any).reel_link || '')}
-                                >
-                                  <span className="flex-1 truncate max-w-[200px]">
-                                    {(delivery as any).reel_link || <span className="text-gray-400">Click to add</span>}
-                                  </span>
-                                  <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                                </div>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-
-                      {/* Add New Row Form */}
-                      {isAddingNewRow && (
-                        <TableRow className="bg-green-50">
-                          {/* Date */}
-                          <TableCell className="text-sm">
-                            <Input
-                              type="date"
-                              value={newRowData.date}
-                              onChange={(e) => setNewRowData({ ...newRowData, date: e.target.value })}
-                              className="h-7 text-xs"
-                            />
-                          </TableCell>
-
-                          {/* Showroom */}
-                          <TableCell className="text-sm">
-                            <Select
-                              value={newRowData.showroom_id}
-                              onValueChange={(value) => setNewRowData({ ...newRowData, showroom_id: value })}
-                            >
-                              <SelectTrigger className="h-7 text-xs">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {mockDealerships.map(dealership => (
-                                  <SelectItem key={dealership.id} value={dealership.id}>
-                                    {getShowroomDisplayName(dealership.id)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          {/* Delivery Name */}
-                          <TableCell className="text-sm">
-                            <Input
-                              value={newRowData.delivery_name}
-                              onChange={(e) => setNewRowData({ ...newRowData, delivery_name: e.target.value })}
-                              placeholder="Delivery name..."
-                              className="h-7 text-xs"
-                            />
-                          </TableCell>
-
-                          {/* Photographer */}
-                          <TableCell className="text-sm">
-                            <Select
-                              value={newRowData.photographer_id}
-                              onValueChange={(value) => setNewRowData({ ...newRowData, photographer_id: value })}
-                            >
-                              <SelectTrigger className="h-7 text-xs">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {mockUsers.filter(u => u.role === 'PHOTOGRAPHER').map(photographer => (
-                                  <SelectItem key={photographer.id} value={photographer.id}>
-                                    {photographer.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          {/* Footage Link */}
-                          <TableCell className="text-sm">
-                            <Input
-                              value={newRowData.footage_link}
-                              onChange={(e) => setNewRowData({ ...newRowData, footage_link: e.target.value })}
-                              placeholder="https://drive.google.com/..."
-                              className="h-7 text-xs"
-                            />
-                          </TableCell>
-
-                          {/* Reel Link */}
-                          <TableCell className="text-sm">
-                            <div className="flex items-center gap-1">
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select showroom" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {dealerships.map(dealership => (
+                                      <SelectItem key={dealership.id} value={dealership.id}>
+                                        {getShowroomDisplayName(dealership.id)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold uppercase text-gray-500">Delivery Name</label>
+                              <Input
+                                value={newRowData.delivery_name}
+                                onChange={(e) => setNewRowData({ ...newRowData, delivery_name: e.target.value })}
+                                placeholder="e.g. 10-02-2024_BIMAL_NEXA_1"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold uppercase text-gray-500">Photographer</label>
+                              <Select
+                                value={newRowData.photographer_id}
+                                onValueChange={(value) => setNewRowData({ ...newRowData, photographer_id: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select photographer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {photographers.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold uppercase text-gray-500">Footage Link</label>
+                              <Input
+                                value={newRowData.footage_link}
+                                onChange={(e) => setNewRowData({ ...newRowData, footage_link: e.target.value })}
+                                placeholder="https://drive.google.com/..."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold uppercase text-gray-500">Reel Link</label>
                               <Input
                                 value={newRowData.reel_link}
                                 onChange={(e) => setNewRowData({ ...newRowData, reel_link: e.target.value })}
-                                placeholder="Reel link (optional)"
-                                className="h-7 text-xs flex-1"
+                                placeholder="https://instagram.com/reel/..."
                               />
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveNewRow}>
-                                <Check className="h-3 w-3 text-green-600" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelAddRow}>
-                                <X className="h-3 w-3 text-red-600" />
-                              </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button variant="outline" onClick={handleCancelAddRow}>Cancel</Button>
+                              <Button onClick={handleSaveNewRow}>Save Record</Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </TableBody>
                   </Table>
                 </div>
 
                 {/* DEBUG INFO */}
                 <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono">
-                  <strong>DEBUG:</strong> historyIndex={historyIndex} | editHistory.length={editHistory.length} | 
+                  <strong>DEBUG:</strong> historyIndex={historyIndex} | editHistory.length={editHistory.length} |
                   canUndo={historyIndex > 0 ? 'YES' : 'NO'} | canRedo={historyIndex < editHistory.length - 1 ? 'YES' : 'NO'}
                 </div>
 
                 {/* Add New Row Button */}
-                {!isAddingNewRow && (
-                  <div className="mt-4">
-                    <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
-                      <Plus className="h-4 w-4" />
-                      Add New Delivery Row
-                    </Button>
-                  </div>
-                )}
+                <div className="mt-4">
+                  <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
+                    <Plus className="h-4 w-4" />
+                    Add New Delivery Row
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -991,7 +1063,7 @@ export function ViewScreen() {
                         <SelectContent>
                           <SelectItem value="all">All Photographers</SelectItem>
                           {uniquePhotographers.map(userId => {
-                            const photographer = mockUsers.find(u => u.id === userId);
+                            const photographer = photographers.find(p => p.id === userId);
                             return (
                               <SelectItem key={userId} value={userId}>
                                 {photographer?.name || 'Unknown'}
@@ -1054,8 +1126,8 @@ export function ViewScreen() {
                   <CardContent className="p-6 space-y-4">
                     {/* Image */}
                     <div className="relative">
-                      <ImageWithFallback 
-                        src={filteredPaymentScreenshots[currentImageIndex]?.file_url} 
+                      <ImageWithFallback
+                        src={filteredPaymentScreenshots[currentImageIndex]?.file_url}
                         alt="Payment Screenshot"
                         className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
                       />
@@ -1097,7 +1169,7 @@ export function ViewScreen() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">Photographer:</span>
                         <span className="text-sm text-gray-600 mt-1">
-                          {mockUsers.find(u => u.id === filteredPaymentScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
+                          {photographers.find(p => p.id === filteredPaymentScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -1137,10 +1209,10 @@ export function ViewScreen() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredPaymentScreenshots.map((screenshot, index) => {
                     const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = mockUsers.find(u => u.id === screenshot.user_id);
+                    const photographer = photographers.find(p => p.id === screenshot.user_id);
                     return (
-                      <Card 
-                        key={screenshot.id} 
+                      <Card
+                        key={screenshot.id}
                         className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
                         onClick={() => {
                           setCurrentImageIndex(index);
@@ -1148,8 +1220,8 @@ export function ViewScreen() {
                         }}
                       >
                         <CardContent className="p-0">
-                          <img 
-                            src={screenshot.file_url} 
+                          <img
+                            src={screenshot.file_url}
                             alt="Payment Screenshot"
                             className="w-full h-64 object-cover"
                           />
@@ -1266,7 +1338,7 @@ export function ViewScreen() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">Photographer:</span>
                         <span className="text-sm text-gray-600 mt-1">
-                          {mockUsers.find(u => u.id === filteredFollowScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
+                          {photographers.find(p => p.id === filteredFollowScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -1306,10 +1378,10 @@ export function ViewScreen() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredFollowScreenshots.map((screenshot, index) => {
                     const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = mockUsers.find(u => u.id === screenshot.user_id);
+                    const photographer = photographers.find(p => p.id === screenshot.user_id);
                     return (
-                      <Card 
-                        key={screenshot.id} 
+                      <Card
+                        key={screenshot.id}
                         className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
                         onClick={() => {
                           setCurrentImageIndex(index);
@@ -1317,8 +1389,8 @@ export function ViewScreen() {
                         }}
                       >
                         <CardContent className="p-0">
-                          <img 
-                            src={screenshot.file_url} 
+                          <img
+                            src={screenshot.file_url}
                             alt="Follow Screenshot"
                             className="w-full h-64 object-cover"
                           />
@@ -1348,6 +1420,11 @@ export function ViewScreen() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Live Portrait Bookings */}
+          {viewMode === 'portrait' && (
+            <LiveBookingsView />
           )}
 
           {/* Admin Logs Viewer */}

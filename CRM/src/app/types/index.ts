@@ -30,11 +30,13 @@
 export type UserRole = 'ADMIN' | 'PHOTOGRAPHER';
 
 // V1 SPEC: No DONE status exists - SEND UPDATE is the only closure
-export type DeliveryStatus = 
+export type DeliveryStatus =
   | 'ASSIGNED'
   | 'UNASSIGNED' // All deliveries not currently assigned (fresh or previously assigned)
   | 'REJECTED'
+  | 'REJECTED_CUSTOMER' // Terminal: rejected by customer
   | 'POSTPONED_CANCELED' // Combined status for deliveries that are postponed or canceled
+  | 'CANCELED' // Separate status used in some UI logic
   | 'DONE'; // Terminal state after SEND UPDATE
 
 // V1 CRITICAL: Decision state for Accept/Reject workflow
@@ -59,6 +61,7 @@ export type ReelStatus = 'PENDING' | 'RESOLVED';
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   active: boolean;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
@@ -83,6 +86,7 @@ export interface Delivery {
   assigned_user_id: string | null;
   payment_type: PaymentType;
   footage_link: string | null;
+  reel_link?: string | null; // V1 SPEC: Added for ViewScreen sync
   created_at: string;
   updated_at: string;
   // V1 CRITICAL: Decision state tracks the collective Accept/Reject outcome
@@ -150,16 +154,13 @@ export interface AcceptRejectPrompt {
 export interface Cluster {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
 }
 
 export interface Dealership {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
   paymentType: PaymentType;
+  googleSheetId?: string;
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';
@@ -168,8 +169,10 @@ export interface Mapping {
   id: string;
   clusterId: string;
   dealershipId: string;
-  photographerId: string;
+  photographerId: string | null;
   mappingType: MappingType; // PRIMARY or SECONDARY
+  latitude: number;
+  longitude: number;
 }
 
 // V1 LEAVE MANAGEMENT
@@ -186,6 +189,13 @@ export interface Leave {
   half: LeaveHalf; // FIRST_HALF or SECOND_HALF
   appliedBy: LeaveAppliedBy; // Who created this leave
   appliedAt: string; // ISO timestamp
+}
+
+export interface DeliveryRejection {
+  id: string;
+  delivery_id: string;
+  user_id: string;
+  rejected_at: string;
 }
 
 /**

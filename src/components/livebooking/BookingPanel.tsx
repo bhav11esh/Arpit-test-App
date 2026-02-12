@@ -93,10 +93,10 @@ export function BookingPanel({
             <h3 className="font-medium mb-2">Select package</h3>
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
               <BookingRow
-                label="Single"
+                label="Base Session (5 min)"
                 value={bookingData.single}
                 onChange={(v) => updateBooking('single', v)}
-                price={299}
+                price={99}
               />
               <BookingRow
                 label="Couple"
@@ -114,7 +114,7 @@ export function BookingPanel({
                 label="Just hard copies"
                 value={bookingData.hardCopy}
                 onChange={(v) => updateBooking('hardCopy', v)}
-                price={99}
+                price={39}
               />
             </div>
             <p className="text-xs text-gray-500 italic mt-2">
@@ -164,11 +164,11 @@ export function BookingPanel({
             disabled={!termsAccepted}
             className="w-full py-4 bg-black text-white rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors"
           >
-            {!termsAccepted 
-              ? 'Please accept terms to continue' 
-              : whatsappSent 
-              ? 'Complete Payment' 
-              : "Let's give this a shot!"}
+            {!termsAccepted
+              ? 'Please accept terms to continue'
+              : whatsappSent
+                ? 'Complete Payment'
+                : "Let's give this a shot!"}
           </button>
         </div>
       </SheetContent>

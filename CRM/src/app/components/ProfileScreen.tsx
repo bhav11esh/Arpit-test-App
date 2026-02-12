@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { mockDeliveries, simulateApiDelay } from '../lib/mockData';
+import * as deliveriesDb from '../lib/db/deliveries';
+import { simulateApiDelay } from '../lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { LogOut, User, Award, TrendingUp, Calendar } from 'lucide-react';
+import { LeaveManagement } from './LeaveManagement';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -22,32 +24,35 @@ export function ProfileScreen() {
   }, [user]);
 
   const loadStats = async () => {
+    if (!user) return;
     setLoading(true);
-    await simulateApiDelay();
 
-    const userDeliveries = mockDeliveries.filter(
-      d => d.assigned_user_id === user?.id && d.status === 'DONE'
-    );
+    try {
+      const userDeliveries = await deliveriesDb.getDeliveries({ assignedUserId: user.id });
+      const completedDeliveries = userDeliveries.filter(d => d.status === 'DONE');
 
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getFullYear(), now.getMonth(), 1);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const thisWeek = userDeliveries.filter(
-      d => new Date(d.updated_at) >= weekAgo
-    ).length;
+      const thisWeek = completedDeliveries.filter(
+        d => new Date(d.updated_at) >= weekAgo
+      ).length;
 
-    const thisMonth = userDeliveries.filter(
-      d => new Date(d.updated_at) >= monthAgo
-    ).length;
+      const thisMonth = completedDeliveries.filter(
+        d => new Date(d.updated_at) >= monthAgo
+      ).length;
 
-    setStats({
-      totalDeliveries: userDeliveries.length,
-      thisWeek,
-      thisMonth,
-    });
-
-    setLoading(false);
+      setStats({
+        totalDeliveries: completedDeliveries.length,
+        thisWeek,
+        thisMonth,
+      });
+    } catch (error) {
+      console.error('Failed to load profile stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!user) return null;
@@ -74,7 +79,7 @@ export function ProfileScreen() {
       {/* Stats Cards */}
       <div className="space-y-4">
         <h3 className="font-semibold text-gray-700">Delivery Statistics</h3>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Total Deliveries Completed</CardDescription>
@@ -129,14 +134,7 @@ export function ProfileScreen() {
 
       {/* Leave Management for Photographers */}
       {user.role === 'PHOTOGRAPHER' && (
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={() => navigate('/photographer/leave')}
-        >
-          <Calendar className="h-4 w-4" />
-          My Leaves
-        </Button>
+        <LeaveManagement photographerId={user.id} />
       )}
 
       {/* Logout Button */}

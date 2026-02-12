@@ -6,11 +6,11 @@ import { Button } from './ui/button';
 import { getStatusColor, formatTiming, canSelfAssign as canSelfAssignUtil } from '../lib/utils';
 import { Clock, MapPin, AlertCircle, Calendar, MoreVertical } from 'lucide-react';
 import { UpdateTimingDialog } from './UpdateTimingDialog';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from './ui/dropdown-menu';
 
 interface DeliveryCardProps {
@@ -58,47 +58,47 @@ export function DeliveryCard({
   // - REJECTED_CUSTOMER
   // Assignment status (ASSIGNED/UNASSIGNED/REJECTED) must NOT block timing edits
   // V1 FIX: Also blocked when dayCompleted === true (after SEND UPDATE)
-  
-  const canEditTiming = 
+
+  const canEditTiming =
     !readonly &&
     !['REJECTED_CUSTOMER', 'POSTPONED_CANCELED', 'DONE'].includes(delivery.status) &&
     !dayCompleted; // V1 FIX: Hide timing button after SEND UPDATE
 
-  const showActions = 
+  const showActions =
     !readonly &&
     !['DONE', 'REJECTED_CUSTOMER', 'POSTPONED_CANCELED'].includes(delivery.status) &&
     !dayCompleted; // V1 FIX: Hide all actions after SEND UPDATE
 
   // Check if current user can unassign this delivery
-  const canUnassign = 
+  const canUnassign =
     delivery.status === 'ASSIGNED' &&
     delivery.assigned_user_id === currentUserId &&
     !dayCompleted &&
     !readonly;
 
   // Check if "Assign Me" button should be shown
-  const canAssignSelf = 
-    delivery.status === 'UNASSIGNED' &&
+  const canAssignSelf =
+    (delivery.status === 'UNASSIGNED' || (delivery.status === 'REJECTED' && canSelfAssignDelivery)) &&
     !dayCompleted &&
     !readonly;
 
   // Check if Postpone/Cancel options should be shown for REJECTED deliveries
-  const canMarkAsPostponedOrCanceled = 
+  const canMarkAsPostponedOrCanceled =
     delivery.status === 'REJECTED' &&
     !dayCompleted &&
     !readonly &&
     (onPostpone || onCancel);
 
   // V1 BUSINESS RULE: "Rejected by Customer" only available for CUSTOMER_PAID deliveries
-  const canMarkAsRejectedByCustomer = 
+  const canMarkAsRejectedByCustomer =
     delivery.payment_type === 'CUSTOMER_PAID' &&
-    (delivery.status === 'ASSIGNED' || delivery.status === 'UNASSIGNED') &&
+    (delivery.status === 'ASSIGNED' || delivery.status === 'UNASSIGNED' || delivery.status === 'REJECTED') &&
     !dayCompleted &&
     !readonly &&
     onRejectedByCustomer;
 
   // V1 CRITICAL: Assignability blocked conditions
-  const assignabilityBlocked = 
+  const assignabilityBlocked =
     ['REJECTED_CUSTOMER', 'POSTPONED_CANCELED'].includes(delivery.status) ||
     dayCompleted;
 
@@ -151,18 +151,18 @@ export function DeliveryCard({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Badge 
+              <Badge
                 className={`${getStatusColor(delivery.status)}`}
               >
                 {delivery.status}
               </Badge>
-              
+
               {/* Action Dropdown Menu - Show when ANY action is available */}
               {(canUnassign || canAssignSelf || canMarkAsPostponedOrCanceled || canMarkAsRejectedByCustomer) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0"
                     >
@@ -171,7 +171,7 @@ export function DeliveryCard({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {canAssignSelf && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handleAssignSelf}
                         className="text-green-600 focus:text-green-600"
                       >
@@ -179,7 +179,7 @@ export function DeliveryCard({
                       </DropdownMenuItem>
                     )}
                     {canUnassign && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handleUnassign}
                         className="text-red-600 focus:text-red-600"
                       >
@@ -187,7 +187,7 @@ export function DeliveryCard({
                       </DropdownMenuItem>
                     )}
                     {(canUnassign || canAssignSelf || canMarkAsPostponedOrCanceled) && onPostpone && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handlePostpone}
                         className="text-orange-600 focus:text-orange-600"
                       >
@@ -195,7 +195,7 @@ export function DeliveryCard({
                       </DropdownMenuItem>
                     )}
                     {canMarkAsRejectedByCustomer && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handleRejectedByCustomer}
                         className="text-red-700 focus:text-red-700"
                       >
@@ -216,7 +216,7 @@ export function DeliveryCard({
               <Calendar className="h-4 w-4" />
               <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-gray-600" />
@@ -226,7 +226,7 @@ export function DeliveryCard({
                   <span className="text-gray-400 italic">No timing set</span>
                 )}
               </div>
-              
+
               {/* Update Timing Button - Only if can edit */}
               {canEditTiming && onUpdateTiming && (
                 <Button
@@ -257,10 +257,10 @@ export function DeliveryCard({
 
           {/* Payment Type Badge - V1 SPEC: Explicit visual tag mandatory for new hires */}
           <div className="flex items-center gap-2">
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={
-                delivery.payment_type === 'CUSTOMER_PAID' 
+                delivery.payment_type === 'CUSTOMER_PAID'
                   ? 'bg-blue-50 text-blue-700 border-blue-300 font-semibold'
                   : 'bg-gray-50 text-gray-700 border-gray-300 font-semibold'
               }
@@ -274,7 +274,7 @@ export function DeliveryCard({
                 - This NEVER changes based on accept/reject/status changes
                 - Status (PENDING/ASSIGNED/REJECTED) is separate from origin type */}
             {delivery.showroom_type && (
-              <Badge 
+              <Badge
                 variant="outline"
                 className={
                   delivery.showroom_type === 'PRIMARY'
@@ -321,7 +321,7 @@ export function DeliveryCard({
             <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <span>
-                ❌ Not assignable - 
+                ❌ Not assignable -
                 {delivery.status === 'REJECTED_CUSTOMER' && 'Rejected by customer'}
                 {delivery.status === 'POSTPONED_CANCELED' && 'Postponed by admin'}
                 {dayCompleted && 'Day completed'}
@@ -333,7 +333,7 @@ export function DeliveryCard({
           {showActions && (
             <div className="pt-2 border-t">
               <p className="text-xs text-gray-500">
-                {delivery.payment_type === 'CUSTOMER_PAID' 
+                {delivery.payment_type === 'CUSTOMER_PAID'
                   ? '📸 Payment screenshot required at day close'
                   : '📁 Footage link required before Send Update'}
               </p>

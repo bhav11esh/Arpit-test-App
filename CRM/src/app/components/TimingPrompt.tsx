@@ -59,6 +59,7 @@ export interface TimingPromptProps {
   photographerId: string;
   paymentType: 'CUSTOMER_PAID' | 'DEALER_PAID';
   showroomType: 'PRIMARY' | 'SECONDARY';
+  onMarkAllAdded: () => void;
 }
 
 export function TimingPrompt({
@@ -74,7 +75,9 @@ export function TimingPrompt({
   photographerId,
   paymentType,
   showroomType,
+  onMarkAllAdded,
 }: TimingPromptProps) {
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newDeliveryTiming, setNewDeliveryTiming] = useState<string>('');
 
   // Format date for display (DD-MM-YYYY)
@@ -83,9 +86,10 @@ export function TimingPrompt({
     return `${day}-${month}-${year}`;
   };
 
-  // Validate timing format HH:MM
+  // Validate timing format HH:MM (optionally HH:MM:SS)
   const isValidTiming = (timing: string): boolean => {
-    const pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+    // Relaxed regex to allow HH:MM or HH:MM:SS
+    const pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])(:[0-5][0-9])?$/;
     return pattern.test(timing);
   };
 
@@ -94,22 +98,26 @@ export function TimingPrompt({
       // Add without timing (deferred/"Later")
       onAddDelivery(null);
       setNewDeliveryTiming('');
+      setShowAddForm(false);
       return;
     }
 
     if (!isValidTiming(newDeliveryTiming)) {
-      toast.error('Invalid timing format. Use HH:MM (e.g., 09:30, 14:00)');
+      console.error('Invalid timing value:', newDeliveryTiming);
+      toast.error(`Invalid timing format: "${newDeliveryTiming}". Use HH:MM (e.g., 09:30)`);
       return;
     }
 
     onAddDelivery(newDeliveryTiming);
     setNewDeliveryTiming('');
+    setShowAddForm(false);
   };
 
   const handleMarkLater = () => {
     // V1 SPEC: "Later" explicitly means timing unknown
     // This is recorded as delivery with null timing
     onAddDelivery(null);
+    setShowAddForm(false);
     toast.info('Delivery added without timing. You can update timing later from Home screen.');
   };
 
@@ -118,8 +126,12 @@ export function TimingPrompt({
   const deliveriesWithoutTiming = existingDeliveries.filter(d => !d.timing).length;
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={true} onOpenChange={() => { }}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] flex flex-col"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        hideCloseButton={true}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-orange-600" />
@@ -192,71 +204,93 @@ export function TimingPrompt({
           )}
 
           {/* Add New Delivery Section */}
-          <div className="space-y-3 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-            <Label className="text-sm font-medium">Add New Delivery:</Label>
-            
-            <div className="space-y-2">
-              <Label htmlFor="timing" className="text-sm">
-                Delivery Timing (optional)
-              </Label>
-              <Input
-                id="timing"
-                type="time"
-                value={newDeliveryTiming}
-                onChange={(e) => setNewDeliveryTiming(e.target.value)}
-                placeholder="HH:MM (e.g., 09:30)"
-              />
-            </div>
+          {!showAddForm ? (
+            <Button
+              variant="outline"
+              className="w-full border-2 border-dashed h-16 text-gray-600 hover:text-[#2563EB] hover:border-[#2563EB] hover:bg-blue-50 transition-all"
+              onClick={() => setShowAddForm(true)}
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add Delivery
+            </Button>
+          ) : (
+            <div className="space-y-3 p-4 border-2 border-[#2563EB] bg-blue-50/30 rounded-lg animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold text-[#2563EB]">Add New Delivery:</Label>
+                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-8 text-gray-500">Cancel</Button>
+              </div>
 
-            <div className="flex gap-2">
-              <Button
-                onClick={handleAddWithTiming}
-                className="flex-1"
-                disabled={!newDeliveryTiming.trim()}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add with Timing
-              </Button>
-              
-              <Button
-                onClick={handleMarkLater}
-                variant="outline"
-                className="flex-1"
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Later (No Timing)
-              </Button>
+              <div className="space-y-2">
+                <Label htmlFor="timing" className="text-xs font-medium text-gray-600 uppercase">
+                  Delivery Timing (optional)
+                </Label>
+                <Input
+                  id="timing"
+                  type="time"
+                  value={newDeliveryTiming}
+                  onChange={(e) => setNewDeliveryTiming(e.target.value)}
+                  placeholder="HH:MM (e.g., 09:30)"
+                  className="bg-white"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAddWithTiming}
+                  className="flex-1 bg-[#2563EB] hover:bg-blue-700"
+                  disabled={!newDeliveryTiming.trim()}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add with Timing
+                </Button>
+
+                <Button
+                  onClick={handleMarkLater}
+                  variant="outline"
+                  className="flex-1 bg-white border-[#2563EB] text-[#2563EB] hover:bg-blue-50"
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Later (No Timing)
+                </Button>
+              </div>
+
+              <p className="text-[10px] text-gray-500 italic">
+                * Click "Later" to create delivery without timing. You can update it later from the Home screen.
+              </p>
             </div>
-            
-            <p className="text-xs text-gray-500">
-              Click "Later" to add delivery without timing. You can update timing later from Home screen.
-            </p>
-          </div>
+          )}
 
           {/* Info Banner */}
           <div className="flex gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-blue-800">
+            <div className="text-[11px] text-blue-800">
               <p className="font-medium mb-1">Timing Input Rules:</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li>This prompt repeats hourly until all deliveries have timing</li>
-                <li>You can add multiple deliveries for this showroom</li>
-                <li>Use "Later" to create delivery without timing (update later)</li>
-                <li>Use "Done for Now" to dismiss this prompt (comes back in 1 hour)</li>
+                <li>This prompt repeats hourly until finalized.</li>
+                <li>Add multiple deliveries if needed via the "Add Delivery" button.</li>
+                <li><strong>"All Deliveries Logged"</strong>: Finalizes this showroom for the entire cluster today.</li>
+                <li><strong>"Done for Now"</strong>: Snoozes this prompt for 1 hour.</li>
               </ul>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
+        <div className="flex gap-2 w-full">
           <Button
+            className="flex-1"
+            variant="default" // Keep primary color for positive action
+            onClick={onMarkAllAdded}
+          >
+            All Deliveries Logged
+          </Button>
+          <Button
+            className="flex-1"
             variant="outline"
             onClick={onDismiss}
-            className="flex-1"
           >
             Done for Now
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

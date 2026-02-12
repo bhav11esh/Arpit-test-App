@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { mockReelTasks, mockDeliveries, mockUsers, simulateApiDelay } from '../lib/mockData';
-import type { ReelTask } from '../types';
+import { supabase, adminSupabase } from '../lib/supabase';
+import * as reelsDb from '../lib/db/reels';
+import * as deliveriesDb from '../lib/db/deliveries';
+import * as usersDb from '../lib/db/users';
+import type { ReelTask, Delivery, User as UserType } from '../types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -30,6 +33,8 @@ import { toast } from 'sonner';
 export function ReelBacklog() {
   const { user } = useAuth();
   const [reelTasks, setReelTasks] = useState<ReelTask[]>([]);
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [allUsers, setAllUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<ReelTask | null>(null);
   const [reelLinkInput, setReelLinkInput] = useState('');
@@ -42,17 +47,38 @@ export function ReelBacklog() {
   }, [user]);
 
   const loadData = async () => {
+    if (!user) return;
     setLoading(true);
-    await simulateApiDelay();
-    
-    // Filter tasks for current user
-    let tasks = mockReelTasks;
-    if (user?.role === 'PHOTOGRAPHER') {
-      tasks = tasks.filter(t => t.assigned_user_id === user.id);
+    try {
+      // V1 ADMIN: Use privileged client for admin to bypass RLS
+      const client = user.role === 'ADMIN' ? (adminSupabase || supabase) : supabase;
+
+      // 1. Fetch relevant reel tasks first
+      const tasksClient = user.role === 'ADMIN' ? (adminSupabase || supabase) : supabase;
+      const allTasks = user.role === 'ADMIN'
+        ? await reelsDb.getAllReelTasks(undefined, tasksClient)
+        : await reelsDb.getReelTasksByUser(user.id, tasksClient);
+
+      // 2. Extract delivery IDs from tasks
+      const deliveryIds = Array.from(new Set(allTasks.map(t => t.delivery_id)));
+
+      // 3. Fetch ONLY those deliveries (using admin client if possible to bypass RLS)
+      // This ensures re-assigned tasks are visible even if the delivery belongs to someone else
+      const deliveryClient = adminSupabase || supabase;
+      const relevantDeliveries = await deliveriesDb.getDeliveriesByIds(deliveryIds, deliveryClient);
+
+      // 4. Fetch users
+      const allDbUsers = await usersDb.getUsers(tasksClient);
+
+      setReelTasks(allTasks);
+      setDeliveries(relevantDeliveries);
+      setAllUsers(allDbUsers);
+    } catch (error) {
+      console.error('Failed to load reel backlog:', error);
+      toast.error('Failed to load reel backlog');
+    } finally {
+      setLoading(false);
     }
-    
-    setReelTasks(tasks);
-    setLoading(false);
   };
 
   const handleResolve = async (taskId: string) => {
@@ -61,37 +87,39 @@ export function ReelBacklog() {
       return;
     }
 
-    await simulateApiDelay(300);
-    
-    // V1 CRITICAL: Update mockReelTasks directly so changes persist across navigation
-    const taskIndex = mockReelTasks.findIndex(t => t.id === taskId);
-    if (taskIndex !== -1) {
-      mockReelTasks[taskIndex] = {
-        ...mockReelTasks[taskIndex],
+    try {
+      // V1 FIX: Use admin client to allow resolving reassigned tasks (bypass RLS)
+      const client = adminSupabase || supabase;
+
+      await reelsDb.updateReelTask(taskId, {
         reel_link: reelLinkInput,
         status: 'RESOLVED',
-      };
-      
-      // V1 CRITICAL BUSINESS LOGIC: Save reel link to ORIGINAL DELIVERY, not current photographer
-      // When a reel task is reassigned (e.g., Priya → Rahul), the delivery ownership stays with Priya.
-      // Rahul only edits the reel, but the link must be saved to Priya's delivery record.
-      // This ensures the spreadsheet shows the reel link under the correct original photographer.
-      const deliveryIndex = mockDeliveries.findIndex(d => d.id === mockReelTasks[taskIndex].delivery_id);
-      if (deliveryIndex !== -1) {
-        (mockDeliveries[deliveryIndex] as any).reel_link = reelLinkInput;
+      }, client);
+
+      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
+      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
+      // Using the same privileged client to ensure permissions
+      const currentTask = reelTasks.find(t => t.id === taskId);
+      if (currentTask && currentTask.delivery_id) {
+        await deliveriesDb.updateDelivery(currentTask.delivery_id, {
+          reel_link: reelLinkInput
+        }, client);
       }
+
+      // Update local state
+      setReelTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, reel_link: reelLinkInput, status: 'RESOLVED' }
+          : t
+      ));
+
+      setSelectedTask(null);
+      setReelLinkInput('');
+      toast.success('Reel task resolved');
+    } catch (error) {
+      console.error('Failed to resolve reel task:', error);
+      toast.error('Failed to resolve reel task');
     }
-    
-    // Update local state
-    setReelTasks(prev => prev.map(t => 
-      t.id === taskId 
-        ? { ...t, reel_link: reelLinkInput, status: 'RESOLVED' }
-        : t
-    ));
-    
-    setSelectedTask(null);
-    setReelLinkInput('');
-    toast.success('Reel task resolved - Link saved to delivery spreadsheet');
   };
 
   const handleReassign = async (taskId: string, newUserId: string) => {
@@ -100,28 +128,26 @@ export function ReelBacklog() {
       return;
     }
 
-    await simulateApiDelay(300);
-    
-    // V1 CRITICAL: Update mockReelTasks directly so changes persist across navigation
-    const taskIndex = mockReelTasks.findIndex(t => t.id === taskId);
-    if (taskIndex !== -1) {
-      mockReelTasks[taskIndex] = {
-        ...mockReelTasks[taskIndex],
+    try {
+      await reelsDb.updateReelTask(taskId, {
         assigned_user_id: newUserId,
         reassigned_reason: reassignReason,
-      };
+      });
+
+      // Update local state
+      setReelTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, assigned_user_id: newUserId, reassigned_reason: reassignReason }
+          : t
+      ));
+
+      setSelectedTask(null);
+      setReassignReason('');
+      toast.success('Reel task reassigned');
+    } catch (error) {
+      console.error('Failed to reassign reel task:', error);
+      toast.error('Failed to reassign reel task');
     }
-    
-    // Update local state
-    setReelTasks(prev => prev.map(t => 
-      t.id === taskId 
-        ? { ...t, assigned_user_id: newUserId, reassigned_reason: reassignReason }
-        : t
-    ));
-    
-    setSelectedTask(null);
-    setReassignReason('');
-    toast.success('Reel task reassigned');
   };
 
   const pendingTasks = reelTasks.filter(t => t.status === 'PENDING');
@@ -162,14 +188,14 @@ export function ReelBacklog() {
           <h2 className="text-lg font-semibold">Pending Reels</h2>
           <div className="grid gap-4 md:grid-cols-2">
             {pendingTasks.map(task => {
-              const delivery = mockDeliveries.find(d => d.id === task.delivery_id);
+              const delivery = deliveries.find(d => d.id === task.delivery_id);
               if (!delivery) return null;
 
               // V1 ADMIN: Show photographer name for admin view
-              const photographer = mockUsers.find(u => u.id === task.assigned_user_id);
-              
+              const photographer = allUsers.find(u => u.id === task.assigned_user_id);
+
               // V1 CRITICAL: Show original delivery owner when task is reassigned
-              const originalDeliveryOwner = mockUsers.find(u => u.id === delivery.assigned_user_id);
+              const originalDeliveryOwner = allUsers.find(u => u.id === delivery.assigned_user_id);
 
               return (
                 <Card key={task.id}>
@@ -193,6 +219,20 @@ export function ReelBacklog() {
                     <div className="text-sm text-gray-600">
                       Date: {new Date(delivery.date).toLocaleDateString('en-IN')}
                     </div>
+
+                    {delivery.footage_link && (
+                      <div className="flex items-center gap-2 p-2 border rounded bg-gray-50 text-xs">
+                        <span className="font-medium text-gray-500">Footage:</span>
+                        <a
+                          href={delivery.footage_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate"
+                        >
+                          {delivery.footage_link}
+                        </a>
+                      </div>
+                    )}
 
                     {task.reassigned_reason && (
                       <div className="bg-blue-50 border border-blue-200 rounded p-3">
@@ -295,7 +335,7 @@ export function ReelBacklog() {
                                   <SelectValue placeholder="Select photographer" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {mockUsers
+                                  {allUsers
                                     .filter(u => u.role === 'PHOTOGRAPHER' && u.active)
                                     .map(photographer => (
                                       <SelectItem key={photographer.id} value={photographer.id}>
@@ -341,72 +381,91 @@ export function ReelBacklog() {
             })}
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Resolved Tasks */}
-      {resolvedTasks.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Resolved Reels</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            {resolvedTasks.map(task => {
-              const delivery = mockDeliveries.find(d => d.id === task.delivery_id);
-              if (!delivery) return null;
+      {
+        resolvedTasks.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Resolved Reels</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {resolvedTasks.map(task => {
+                const delivery = deliveries.find(d => d.id === task.delivery_id);
+                if (!delivery) return null;
 
-              // V1 ADMIN: Show photographer name for admin users
-              const photographer = mockUsers.find(u => u.id === task.assigned_user_id);
+                // V1 ADMIN: Show photographer name for admin users
+                const photographer = allUsers.find(u => u.id === task.assigned_user_id);
 
-              return (
-                <Card key={task.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-base">{delivery.delivery_name}</CardTitle>
-                        <CardDescription>{delivery.showroom_code}</CardDescription>
-                        {/* V1 ADMIN: Show photographer name for admin view */}
-                        {user?.role === 'ADMIN' && photographer && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
-                            <User className="h-3 w-3" />
-                            <span>{photographer.name}</span>
-                          </div>
-                        )}
+                return (
+                  <Card key={task.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-base">{delivery.delivery_name}</CardTitle>
+                          <CardDescription>{delivery.showroom_code}</CardDescription>
+                          {/* V1 ADMIN: Show photographer name for admin view */}
+                          {user?.role === 'ADMIN' && photographer && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                              <User className="h-3 w-3" />
+                              <span>{photographer.name}</span>
+                            </div>
+                          )}
+                        </div>
+                        <Badge className="bg-green-100 text-green-800">Resolved</Badge>
                       </div>
-                      <Badge className="bg-green-100 text-green-800">Resolved</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="text-sm text-gray-600">
-                      Date: {new Date(delivery.date).toLocaleDateString('en-IN')}
-                    </div>
-                    {task.reel_link && (
-                      <div className="flex items-center gap-2 p-2 border rounded bg-green-50">
-                        <Film className="h-4 w-4 text-green-600" />
-                        <a 
-                          href={task.reel_link} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-sm text-green-700 hover:underline truncate flex-1"
-                        >
-                          {task.reel_link}
-                        </a>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-sm text-gray-600">
+                        Date: {new Date(delivery.date).toLocaleDateString('en-IN')}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+
+                      {delivery.footage_link && (
+                        <div className="flex items-center gap-2 p-2 border rounded bg-gray-50 text-xs">
+                          <span className="font-medium text-gray-500">Footage:</span>
+                          <a
+                            href={delivery.footage_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline truncate"
+                          >
+                            {delivery.footage_link}
+                          </a>
+                        </div>
+                      )}
+                      {task.reel_link && (
+                        <div className="flex items-center gap-2 p-2 border rounded bg-green-50">
+                          <Film className="h-4 w-4 text-green-600" />
+                          <a
+                            href={task.reel_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-green-700 hover:underline truncate flex-1"
+                          >
+                            {task.reel_link}
+                          </a>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Empty State */}
-      {pendingTasks.length === 0 && resolvedTasks.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Film className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No reel tasks found.</p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+      {
+        pendingTasks.length === 0 && resolvedTasks.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Film className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No reel tasks found.</p>
+            </CardContent>
+          </Card>
+        )
+      }
+    </div >
   );
 }

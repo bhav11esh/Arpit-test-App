@@ -1,150 +1,210 @@
-import { supabase } from '../supabase';
-import type { Leave, LeaveHalf, LeaveAppliedBy } from '../../types';
+
+import { supabase, adminSupabase } from '../supabase';
 import type { Database } from '../types/database.types';
+import type { Leave, LeaveHalf, LeaveAppliedBy } from '../../types';
 
 type LeaveRow = Database['public']['Tables']['leaves']['Row'];
 type LeaveInsert = Database['public']['Tables']['leaves']['Insert'];
-type LeaveUpdate = Database['public']['Tables']['leaves']['Update'];
 
-// Convert database row to app type
+/**
+ * Helper to map DB row to App type (snake_case -> camelCase)
+ */
 const rowToLeave = (row: LeaveRow): Leave => ({
   id: row.id,
   photographerId: row.photographer_id,
   date: row.date,
   half: row.half as LeaveHalf,
   appliedBy: row.applied_by as LeaveAppliedBy,
-  appliedAt: row.applied_at,
+  appliedAt: row.applied_at
 });
 
-// Get leaves for a photographer
-export const getLeavesByPhotographer = async (photographerId: string, startDate?: string, endDate?: string): Promise<Leave[]> => {
+/**
+ * Get all leaves (used by LeaveContext)
+ */
+export async function getAllLeaves(): Promise<Leave[]> {
+  const { data, error } = await supabase
+    .from('leaves')
+    .select('*')
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching all leaves:', error);
+    throw error;
+  }
+
+  return (data || []).map(rowToLeave);
+}
+
+/**
+ * Get leaves for a specific photographer (used by LeaveManagement and context)
+ */
+export async function getLeaves(photographerId: string, startDate?: string, endDate?: string): Promise<Leave[]> {
   let query = supabase
     .from('leaves')
     .select('*')
-    .eq('photographer_id', photographerId);
+    .eq('photographer_id', photographerId)
+    .order('date', { ascending: true });
 
   if (startDate) {
     query = query.gte('date', startDate);
   }
+
   if (endDate) {
     query = query.lte('date', endDate);
   }
 
-  const { data, error } = await query.order('date', { ascending: false });
-
-  if (error) throw error;
-  return data.map(rowToLeave);
-};
-
-// Get leaves for a specific date
-export const getLeavesByDate = async (date: string): Promise<Leave[]> => {
-  const { data, error } = await supabase
-    .from('leaves')
-    .select('*')
-    .eq('date', date)
-    .order('applied_at', { ascending: false });
-
-  if (error) throw error;
-  return data.map(rowToLeave);
-};
-
-// Get all leaves (admin only)
-export const getAllLeaves = async (startDate?: string, endDate?: string): Promise<Leave[]> => {
-  let query = supabase.from('leaves').select('*');
-
-  if (startDate) {
-    query = query.gte('date', startDate);
-  }
-  if (endDate) {
-    query = query.lte('date', endDate);
-  }
-
-  const { data, error } = await query.order('date', { ascending: false });
-
-  if (error) throw error;
-  return data.map(rowToLeave);
-};
-
-// Get a single leave by ID
-export const getLeaveById = async (id: string): Promise<Leave | null> => {
-  const { data, error } = await supabase
-    .from('leaves')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await query;
 
   if (error) {
-    if (error.code === 'PGRST116') return null;
+    console.error('Error fetching user leaves:', error);
     throw error;
   }
-  return rowToLeave(data);
-};
 
-// Check if photographer is on leave for a specific date and half
-export const isPhotographerOnLeave = async (photographerId: string, date: string, half: LeaveHalf): Promise<boolean> => {
-  const { data, error } = await supabase
+  return (data || []).map(rowToLeave);
+}
+
+/**
+ * Check if a photographer is on leave (used by LeaveContext)
+ */
+export async function isPhotographerOnLeave(
+  photographerId: string,
+  date: string,
+  half: LeaveHalf
+): Promise<boolean> {
+  const { count, error } = await supabase
     .from('leaves')
-    .select('id')
+    .select('*', { count: 'exact', head: true })
     .eq('photographer_id', photographerId)
     .eq('date', date)
-    .eq('half', half)
-    .limit(1);
+    .eq('half', half);
 
-  if (error) throw error;
-  return data.length > 0;
-};
+  if (error) {
+    console.error('Error checking leave status:', error);
+    throw error;
+  }
 
-// Create a new leave
-export const createLeave = async (leave: Omit<Leave, 'id' | 'appliedAt'>): Promise<Leave> => {
-  const insert: LeaveInsert = {
-    photographer_id: leave.photographerId,
-    date: leave.date,
-    half: leave.half,
-    applied_by: leave.appliedBy,
-  };
+  return (count || 0) > 0;
+}
 
-  const { data, error } = await supabase
-    .from('leaves')
-    .insert(insert)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return rowToLeave(data);
-};
-
-// Update a leave
-export const updateLeave = async (id: string, updates: Partial<Leave>): Promise<Leave> => {
-  const update: LeaveUpdate = {
-    photographer_id: updates.photographerId,
-    date: updates.date,
-    half: updates.half,
-    applied_by: updates.appliedBy,
-  };
-
-  Object.keys(update).forEach(key => {
-    if (update[key as keyof LeaveUpdate] === undefined) {
-      delete update[key as keyof LeaveUpdate];
-    }
+/**
+ * Create a leave record (used by LeaveContext)
+ */
+export async function createLeave(leaveData: {
+  photographerId: string;
+  date: string;
+  half: LeaveHalf;
+  appliedBy: LeaveAppliedBy;
+}): Promise<Leave> {
+  return applyLeave({
+    photographer_id: leaveData.photographerId,
+    date: leaveData.date,
+    half: leaveData.half,
+    applied_by: leaveData.appliedBy
   });
+}
 
-  const { data, error } = await supabase
-    .from('leaves')
-    .update(update)
-    .eq('id', id)
-    .select()
-    .single();
+/**
+ * Apply for leave with V1 side effects (used by LeaveManagement and createLeave)
+ * SIDE EFFECT: Auto-unassign PRIMARY deliveries
+ */
+export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
+  // 1. Create leave record (Upsert with ignoreDuplicates to handle race conditions/stale state)
+  const { data: insertedData, error } = await (supabase.from('leaves') as any)
+    .upsert(leaveData, { onConflict: 'photographer_id, date, half', ignoreDuplicates: true })
+    .select();
 
-  if (error) throw error;
-  return rowToLeave(data);
-};
+  if (error) {
+    console.error('Error applying leave:', error);
+    throw error;
+  }
 
-// Delete a leave
-export const deleteLeave = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('leaves')
+  let leaveRecord = insertedData?.[0];
+
+  // If ignoreDuplicates triggered, no row is returned. fetch the existing one.
+  if (!leaveRecord) {
+    const { data: existingData, error: fetchError } = await (supabase.from('leaves') as any)
+      .select('*')
+      .eq('photographer_id', leaveData.photographer_id)
+      .eq('date', leaveData.date)
+      .eq('half', leaveData.half)
+      .single();
+
+    if (fetchError || !existingData) {
+      throw new Error('Failed to retrieve existing leave record after conflict');
+    }
+    leaveRecord = existingData;
+  }
+
+  // 2. V1 SPEC (EXPANDED): Auto-unassign based on leave status
+  // Fetch all leaves for this user+date to check for Full Day status
+  const { data: allDayLeaves, error: leavesFetchError } = await (supabase.from('leaves') as any)
+    .select('half')
+    .eq('photographer_id', leaveData.photographer_id)
+    .eq('date', leaveData.date);
+
+  if (leavesFetchError) {
+    console.error('Error checking for full day leave status:', leavesFetchError);
+  }
+
+  // A photographer has Full Day leave if they have both FIRST_HALF and SECOND_HALF recorded
+  const hasFirstHalf = allDayLeaves?.some((l: any) => l.half === 'FIRST_HALF');
+  const hasSecondHalf = allDayLeaves?.some((l: any) => l.half === 'SECOND_HALF');
+  const isFullDay = hasFirstHalf && hasSecondHalf;
+
+  // Build unassignment query
+  let unassignQuery = (supabase.from('deliveries') as any)
+    .select('id')
+    .eq('assigned_user_id', leaveData.photographer_id)
+    .eq('date', leaveData.date)
+    .neq('status', 'DONE');
+
+  // If NOT a full day, we only unassign PRIMARY deliveries (V1 baseline)
+  // If it IS a full day, we unassign EVERYTHING (any showroom)
+  if (!isFullDay) {
+    unassignQuery = unassignQuery.eq('showroom_type', 'PRIMARY');
+  }
+
+  const { data: deliveriesToUnassign, error: deliveriesFetchError } = await unassignQuery;
+
+  if (deliveriesFetchError) {
+    console.error('Error fetching deliveries for auto-unassignment:', deliveriesFetchError);
+  }
+
+  if (deliveriesToUnassign && deliveriesToUnassign.length > 0) {
+    const idsToUnassign = deliveriesToUnassign.map((d: any) => d.id);
+    const client = adminSupabase || supabase; // V1 FIX: Use Admin client to bypass RLS for auto-unassignment
+
+    const { error: unassignError } = await client
+      .from('deliveries' as any)
+      .update({
+        status: 'UNASSIGNED',
+        assigned_user_id: null,
+        unassignment_reason: isFullDay ? `Full Day Leave applied` : `Half Day Leave applied`,
+        unassignment_timestamp: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as any)
+      .in('id', idsToUnassign);
+
+    if (unassignError) {
+      console.error('Error auto-unassigning deliveries:', unassignError);
+    }
+  }
+
+  return rowToLeave(leaveRecord);
+}
+
+/**
+ * Delete leave (Admin only)
+ */
+export async function deleteLeave(leaveId: string): Promise<void> {
+  const client = adminSupabase || supabase;
+
+  const { error } = await (client.from('leaves') as any)
     .delete()
-    .eq('id', id);
+    .eq('id', leaveId);
 
-  if (error) throw error;
-};
+  if (error) {
+    console.error('Error deleting leave:', error);
+    throw error;
+  }
+}

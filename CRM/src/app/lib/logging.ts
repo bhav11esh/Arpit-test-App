@@ -1,4 +1,5 @@
 import type { LogEvent } from '../types';
+import { getLocalDateString } from './utils';
 
 // In-memory log storage (in real app, this would be backend)
 let logs: LogEvent[] = [];
@@ -17,7 +18,8 @@ export type LogEventType =
   | 'REEL_TASK_REASSIGNED'
   | 'GEOFENCE_BREACH'
   | 'SEND_UPDATE_COMPLETED'
-  | 'DELIVERY_STATUS_CHANGED';
+  | 'DELIVERY_STATUS_CHANGED'
+  | 'SHOWROOM_FINALIZED';
 
 /**
  * Create an immutable log event
@@ -38,10 +40,10 @@ export function createLogEvent(
   };
 
   logs.push(logEvent);
-  
+
   // In real app, would send to backend
   console.log('[LOG EVENT]', logEvent);
-  
+
   return logEvent;
 }
 
@@ -126,11 +128,11 @@ export function downloadLogsAsCSV(): void {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
-  
+
   link.setAttribute('href', url);
-  link.setAttribute('download', `delivery_logs_${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute('download', `delivery_logs_${getLocalDateString()}.csv`);
   link.style.visibility = 'hidden';
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

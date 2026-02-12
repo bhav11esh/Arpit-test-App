@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { ArrowLeft, Plus, Edit, Trash2, User, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, User, UserCheck, UserX, Film } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
 import type { User as UserType } from '../../types';
@@ -27,20 +27,27 @@ export function PhotographersConfigScreen() {
     photographers,
     addPhotographer,
     updatePhotographer,
+    updatePhotographerPassword,
     deletePhotographer,
     mappings,
   } = useConfig();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [editingPhotographer, setEditingPhotographer] = useState<UserType | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<UserType | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [photographerToDelete, setPhotographerToDelete] = useState<UserType | null>(
     null
   );
+  const [submitting, setSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
+    password: '',
     active: true,
   });
 
@@ -56,11 +63,13 @@ export function PhotographersConfigScreen() {
       setEditingPhotographer(photographer);
       setFormData({
         name: photographer.name,
+        email: photographer.email,
+        password: '', // Password is only for new photographers
         active: photographer.active,
       });
     } else {
       setEditingPhotographer(null);
-      setFormData({ name: '', active: true });
+      setFormData({ name: '', email: '', password: '', active: true });
     }
     setDialogOpen(true);
   };
@@ -68,31 +77,55 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', active: true });
+    setFormData({ name: '', email: '', password: '', active: true });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validation
     if (!formData.name.trim()) {
       toast.error('Photographer name is required');
       return;
     }
-
-    if (editingPhotographer) {
-      updatePhotographer(editingPhotographer.id, {
-        name: formData.name.trim(),
-        active: formData.active,
-      });
-      toast.success('Photographer updated successfully');
-    } else {
-      addPhotographer({
-        name: formData.name.trim(),
-        active: formData.active,
-      });
-      toast.success('Photographer added successfully');
+    if (!editingPhotographer && !formData.password.trim()) {
+      toast.error('Password is required for new photographers');
+      return;
     }
 
-    handleCloseDialog();
+    if (!editingPhotographer && formData.password.trim().length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (!formData.email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (editingPhotographer) {
+        await updatePhotographer(editingPhotographer.id, {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          active: formData.active,
+        });
+        toast.success('Photographer updated successfully');
+      } else {
+        await addPhotographer({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password.trim(),
+          active: formData.active,
+        });
+        toast.success('Photographer added successfully');
+      }
+      handleCloseDialog();
+    } catch (error: any) {
+      console.error('Failed to save photographer:', error);
+      const errorMessage = error?.message || 'Failed to save photographer. Please check your connection.';
+      toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDeleteClick = (photographer: UserType) => {
@@ -126,6 +159,27 @@ export function PhotographersConfigScreen() {
         ? 'Photographer deactivated'
         : 'Photographer activated'
     );
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!passwordTarget) return;
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await updatePhotographerPassword(passwordTarget.id, newPassword);
+      toast.success('Password updated successfully');
+      setPasswordDialogOpen(false);
+      setNewPassword('');
+    } catch (error: any) {
+      console.error('Failed to update password:', error);
+      toast.error(error?.message || 'Failed to update password. Admin Service Key may be required.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -182,11 +236,10 @@ export function PhotographersConfigScreen() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
                       <div
-                        className={`p-2 rounded-lg ${
-                          photographer.active
-                            ? 'bg-purple-100'
-                            : 'bg-gray-100'
-                        }`}
+                        className={`p-2 rounded-lg ${photographer.active
+                          ? 'bg-purple-100'
+                          : 'bg-gray-100'
+                          }`}
                       >
                         {photographer.active ? (
                           <UserCheck className="h-5 w-5 text-purple-600" />
@@ -236,6 +289,17 @@ export function PhotographersConfigScreen() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => {
+                          setPasswordTarget(photographer);
+                          setPasswordDialogOpen(true);
+                        }}
+                        title="Set Password"
+                      >
+                        <Film className="h-4 w-4 text-blue-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleOpenDialog(photographer)}
                       >
                         <Edit className="h-4 w-4" />
@@ -281,6 +345,33 @@ export function PhotographersConfigScreen() {
               />
             </div>
 
+            <div>
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                placeholder="e.g., rahul@example.com"
+              />
+            </div>
+
+            {!editingPhotographer && (
+              <div>
+                <Label htmlFor="password">Initial Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The photographer will use this to sign in for the first time.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <div>
                 <Label htmlFor="active">Active Status</Label>
@@ -299,11 +390,18 @@ export function PhotographersConfigScreen() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+            <Button variant="outline" onClick={handleCloseDialog} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingPhotographer ? 'Update' : 'Add'} Photographer
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Plus className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>{editingPhotographer ? 'Update' : 'Add'} Photographer</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -328,6 +426,44 @@ export function PhotographersConfigScreen() {
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Update Password Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {passwordTarget?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 6 characters"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPasswordDialogOpen(false);
+                setNewPassword('');
+              }}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePassword} disabled={submitting}>
+              {submitting ? 'Updating...' : 'Update Password'}
             </Button>
           </DialogFooter>
         </DialogContent>

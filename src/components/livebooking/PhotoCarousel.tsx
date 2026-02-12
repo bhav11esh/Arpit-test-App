@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 const photos = [
-  'https://images.unsplash.com/photo-1549804780-287a8c50e0e7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWZlJTIwcGhvdG9ncmFwaHklMjBwb3J0cmFpdHxlbnwxfHx8fDE3NjY0MzkyMDh8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-  'https://images.unsplash.com/photo-1764154751153-f9a028893cf2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3VwbGUlMjBjYWZlJTIwbW9tZW50fGVufDF8fHx8MTc2NjQzOTIwOHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-  'https://images.unsplash.com/photo-1759997956854-9f11ab0f38b0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmllbmRzJTIwcmVzdGF1cmFudCUyMGNhbmRpZHxlbnwxfHx8fDE3NjY0MzkyMDl8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-  'https://images.unsplash.com/photo-1693651903005-26652aebe594?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsaWZlc3R5bGUlMjBwaG90b2dyYXBoeSUyMGNhZmV8ZW58MXx8fHwxNzY2NDM5MjA5fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  '/livebooking/img1.jpg',
+  '/livebooking/img2.png',
+  '/livebooking/img3.png',
+  '/livebooking/img4.png',
+  '/livebooking/img5.png',
 ];
 
 export function PhotoCarousel() {
@@ -37,15 +38,14 @@ export function PhotoCarousel() {
           />
         </motion.div>
       </AnimatePresence>
-      
+
       {/* Dots indicator */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
         {photos.map((_, index) => (
           <div
             key={index}
-            className={`w-2 h-2 rounded-full transition-all ${
-              index === currentIndex ? 'bg-white w-6' : 'bg-white/50'
-            }`}
+            className={`w-2 h-2 rounded-full transition-all ${index === currentIndex ? 'bg-white w-6' : 'bg-white/50'
+              }`}
           />
         ))}
       </div>

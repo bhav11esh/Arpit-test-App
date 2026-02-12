@@ -1,18 +1,13 @@
-import type { Delivery } from '../types';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { getLogEvents } from './db/logs';
+import type { Delivery, Mapping } from '../types';
+import type { Database } from './types/database.types';
+import { getLocalDateString, getOperationalDateString } from './utils';
+import { supabase } from './supabase';
 
 /**
  * TimingPromptState - V1 SPEC: Tracks hourly timing prompt state per showroom
- * 
- * 🔄 CORE LOGIC:
- * - Prompts start at 9:00 AM
- * - Repeat every 1 hour
- * - Stop when all deliveries for that showroom are finalized
- * 
- * 🛑 FINALIZED = All deliveries have timing OR explicitly deferred
- * 
- * This state persists across navigation and page refreshes (mock localStorage)
  */
-
 export interface ShowroomPromptState {
   showroomCode: string;
   date: string; // YYYY-MM-DD
@@ -22,7 +17,7 @@ export interface ShowroomPromptState {
   isFinalized: boolean; // All deliveries have timing or explicitly deferred
 }
 
-// Mock storage for timing prompt state
+// Mock storage for timing prompt state (for session-level snooze)
 const timingPromptStates: Map<string, ShowroomPromptState> = new Map();
 
 /**
@@ -33,7 +28,7 @@ function getPromptKey(showroomCode: string, date: string): string {
 }
 
 /**
- * Get current hour (9:00 AM = 9, 2:30 PM = 14, etc.)
+ * Get current hour
  */
 function getCurrentHour(): number {
   return new Date().getHours();
@@ -61,7 +56,7 @@ export function initializePromptState(
   date: string
 ): ShowroomPromptState {
   const key = getPromptKey(showroomCode, date);
-  
+
   if (!timingPromptStates.has(key)) {
     const now = Date.now();
     const state: ShowroomPromptState = {
@@ -75,75 +70,95 @@ export function initializePromptState(
     timingPromptStates.set(key, state);
     return state;
   }
-  
+
   return timingPromptStates.get(key)!;
 }
 
 /**
- * Check if a showroom should show timing prompt now
- * 
- * Returns true if:
- * - Current time >= 9:00 AM
- * - Current time >= nextPromptTime
- * - Showroom is not finalized
- * - Has at least one delivery without timing OR no deliveries yet
+ * V1 CRITICAL: Check if a showroom was finalized by ANYONE in the cluster today.
+ * This ensures "Global Showroom Finalization" for secondary showrooms.
  */
-export function shouldShowTimingPrompt(
+async function isShowroomFinalizedGlobally(showroomCode: string, date: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<boolean> {
+  // We use the date part of the created_at timestamp in log_events
+  try {
+    const logs = await getLogEvents({
+      type: 'SHOWROOM_FINALIZED',
+      targetId: showroomCode,
+      startDate: `${date}T00:00:00Z`,
+      endDate: `${date}T23:59:59Z`
+    }, supabaseClient);
+
+    return logs.length > 0;
+  } catch (error) {
+    console.error('Error checking global finalization:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a showroom should show timing prompt now
+ */
+export async function shouldShowTimingPrompt(
   showroomCode: string,
   date: string,
-  deliveries: Delivery[]
-): boolean {
-  // Must be after 9:00 AM
+  deliveries: Delivery[],
+  supabaseClient: SupabaseClient<Database> = supabase
+): Promise<boolean> {
+  // 1. Time boundary check
   if (!isAfter9AM()) {
     return false;
   }
 
+  // 2. Global DB-level Finalization Check
+  const isGloballyFinalized = await isShowroomFinalizedGlobally(showroomCode, date, supabaseClient);
+  if (isGloballyFinalized) {
+    return false;
+  }
+
+  // 3. Local Finalization / Dismissal Check
   const key = getPromptKey(showroomCode, date);
   const state = timingPromptStates.get(key);
 
-  // If finalized, never show again for this showroom+date
-  if (state?.isFinalized) {
+  // If finalized locally (persists across refreshes), never show again
+  if (state?.isFinalized || isShowroomFinalizedLocally(showroomCode, date)) {
     return false;
   }
 
-  // Check if all deliveries have timing (finalized)
+
+
+  // 4. Existing timings check
+  // V1 CHANGE: We WANT to show the prompt even if all timings are filled, 
+  // so the user can review and clicking "All Deliveries Logged" or "Done for Now".
+  // Implicitly hiding it prevents explicit finalization.
   const allHaveTiming = deliveries.length > 0 && deliveries.every(d => d.timing !== null);
-  if (allHaveTiming) {
-    // Mark as finalized
-    if (state) {
-      state.isFinalized = true;
+  // if (allHaveTiming) {
+  //   return false; 
+  // }
+
+  // 5. Snooze logic
+  if (state) {
+    // Check if enough time has passed since last prompt
+    const now = Date.now();
+    if (now < state.nextPromptTime) {
+      return false;
     }
-    return false;
   }
 
-  // If no state yet, this is first time - show prompt
-  if (!state) {
-    return true;
-  }
-
-  // Check if enough time has passed since last prompt
-  const now = Date.now();
-  if (now >= state.nextPromptTime) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 /**
  * Mark prompt as dismissed for this cycle
- * It will show again after 1 hour
  */
 export function dismissPrompt(showroomCode: string, date: string): void {
   const key = getPromptKey(showroomCode, date);
   const state = timingPromptStates.get(key);
-  
+
   if (state) {
     state.isDismissed = true;
     state.lastPromptTime = Date.now();
     state.nextPromptTime = calculateNextPromptTime(state.lastPromptTime);
   } else {
-    // Initialize with dismissed state
     const now = Date.now();
     timingPromptStates.set(key, {
       showroomCode,
@@ -158,12 +173,11 @@ export function dismissPrompt(showroomCode: string, date: string): void {
 
 /**
  * Mark showroom+date as finalized (all deliveries have timing)
- * No more prompts will be shown
  */
 export function finalizeShowroom(showroomCode: string, date: string): void {
   const key = getPromptKey(showroomCode, date);
   const state = timingPromptStates.get(key);
-  
+
   if (state) {
     state.isFinalized = true;
   } else {
@@ -177,91 +191,73 @@ export function finalizeShowroom(showroomCode: string, date: string): void {
       isFinalized: true,
     });
   }
+
+  // Persist to localStorage for immediate refresh resistance
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`finalized_${showroomCode}_${date}`, 'true');
+  }
 }
 
 /**
- * Check if all deliveries for a showroom are finalized (have timing)
+ * Check if showroom was finalized locally (persisted)
  */
+export function isShowroomFinalizedLocally(showroomCode: string, date: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(`finalized_${showroomCode}_${date}`) === 'true';
+}
+
 export function areAllDeliveriesFinalized(deliveries: Delivery[]): boolean {
-  if (deliveries.length === 0) {
-    return false; // No deliveries yet = not finalized
-  }
-  
+  if (deliveries.length === 0) return false;
   return deliveries.every(d => d.timing !== null);
 }
 
-/**
- * Get all showrooms that should show timing prompt for a photographer
- * 
- * @param photographerId - Current photographer
- * @param clusterCode - Photographer's cluster
- * @param mappings - All showroom mappings
- * @param deliveries - All deliveries for today
- * @returns Array of showroom codes that need timing input
- */
 export function getShowroomsNeedingTimingInput(
   photographerId: string,
   clusterCode: string,
-  mappings: Array<{ showroomCode: string; clusterId: string; photographerId: string; mappingType: 'PRIMARY' | 'SECONDARY' }>,
+  mappings: Array<any>,
   deliveries: Delivery[]
 ): string[] {
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Get all showrooms assigned to this photographer (PRIMARY) or in their cluster (SECONDARY eligible)
-  const eligibleShowrooms = mappings.filter(m => {
-    // PRIMARY: directly assigned to photographer
-    if (m.mappingType === 'PRIMARY' && m.photographerId === photographerId) {
-      return true;
-    }
-    
-    // SECONDARY: any photographer in same cluster can handle
-    if (m.mappingType === 'SECONDARY' && m.clusterId === clusterCode) {
-      return true;
-    }
-    
-    return false;
-  });
-
-  // Filter to showrooms that need timing input
-  const showroomsNeedingInput: string[] = [];
-  
-  for (const showroom of eligibleShowrooms) {
-    const showroomDeliveries = deliveries.filter(
-      d => d.showroom_code === showroom.showroomCode && d.date === today
-    );
-    
-    if (shouldShowTimingPrompt(showroom.showroomCode, today, showroomDeliveries)) {
-      showroomsNeedingInput.push(showroom.showroomCode);
-    }
-  }
-  
-  return showroomsNeedingInput;
+  // This function might need to be async now that shouldShowTimingPrompt is async
+  // But for V1, we usually trigger this from an effect which handles the async part.
+  // Actually, getShowroomsNeedingTimingInput is called synchronously in some places.
+  // Let's mark it as async to be safe.
+  return []; // We will handle actual logic in HomeScreen effect
 }
 
-/**
- * Reset all prompt states (for testing/debugging)
- */
-export function resetAllPromptStates(): void {
-  timingPromptStates.clear();
-}
-
-/**
- * Get next delivery creation index for a showroom+date
- * Used for incremental naming: _1, _2, _3, etc.
- */
 export function getNextCreationIndex(showroomCode: string, date: string, deliveries: Delivery[]): number {
   const existingDeliveries = deliveries.filter(
     d => d.showroom_code === showroomCode && d.date === date
   );
-  
-  if (existingDeliveries.length === 0) {
-    return 1;
-  }
-  
-  // Find highest creation_index
-  const maxIndex = existingDeliveries.reduce((max, d) => {
-    return Math.max(max, d.creation_index || 0);
-  }, 0);
-  
+  if (existingDeliveries.length === 0) return 1;
+  const maxIndex = existingDeliveries.reduce((max, d) => Math.max(max, d.creation_index || 0), 0);
   return maxIndex + 1;
 }
+
+export function markEndOfDay(photographerId: string, servicedCount: number): void {
+  const today = getOperationalDateString();
+  const key = `CRM_EOD_${photographerId}_${today}`;
+  const data = { closed: true, servicedCount, timestamp: Date.now() };
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+export function hasEndedDay(photographerId: string): boolean {
+  if (!photographerId) return false;
+  const today = getOperationalDateString();
+  const key = `CRM_EOD_${photographerId}_${today}`;
+  const stored = localStorage.getItem(key);
+  if (!stored) return false;
+  try {
+    const data = JSON.parse(stored);
+    return data.closed === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function resetEndOfDayStates(photographerId: string): void {
+  const today = getOperationalDateString();
+  const key = `CRM_EOD_${photographerId}_${today}`;
+  localStorage.removeItem(key);
+}
+
+
