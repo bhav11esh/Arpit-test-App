@@ -124,18 +124,8 @@ export async function shouldShowTimingPrompt(
     return false;
   }
 
-
-
-  // 4. Existing timings check
-  // V1 CHANGE: We WANT to show the prompt even if all timings are filled, 
-  // so the user can review and clicking "All Deliveries Logged" or "Done for Now".
-  // Implicitly hiding it prevents explicit finalization.
-  const allHaveTiming = deliveries.length > 0 && deliveries.every(d => d.timing !== null);
-  // if (allHaveTiming) {
-  //   return false; 
-  // }
-
   // 5. Snooze logic
+  // Only check snooze if we haven't already returned false
   if (state) {
     // Check if enough time has passed since last prompt
     const now = Date.now();
@@ -144,6 +134,7 @@ export async function shouldShowTimingPrompt(
     }
   }
 
+  // V1 FINAL: If we got here, it's not finalized and not snoozed.
   return true;
 }
 

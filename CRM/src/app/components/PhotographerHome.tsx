@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { Delivery } from '../types';
 import { mockDeliveries, mockScreenshots, simulateApiDelay } from '../lib/mockData';
-import { shouldShowAcceptRejectPrompt, isPromptExpired, canSendUpdate, getStatusColor, formatTiming, generateDeliveryName } from '../lib/utils';
+import { shouldShowAcceptRejectPrompt, isPromptExpired, canSendUpdate, getStatusColor, formatTiming, generateDeliveryName, getClusterShortCode } from '../lib/utils';
 import { DeliveryCard } from './DeliveryCard';
 import { AcceptRejectDialog } from './AcceptRejectDialog';
 import { Button } from './ui/button';
@@ -33,7 +33,7 @@ export function PhotographerHome() {
     const checkForPrompts = () => {
       // Find all PENDING deliveries in user's cluster that should show prompt
       // V1 SPEC: Only SECONDARY deliveries should show Accept/Reject prompts automatically
-      const eligibleDeliveries = mockDeliveries.filter(delivery => 
+      const eligibleDeliveries = mockDeliveries.filter(delivery =>
         delivery.showroom_type === 'SECONDARY' &&
         shouldShowAcceptRejectPrompt(delivery, user.cluster_code)
       );
@@ -61,14 +61,14 @@ export function PhotographerHome() {
   const loadData = async () => {
     setLoading(true);
     await simulateApiDelay();
-    
+
     // Filter deliveries for current user
     const userDeliveries = mockDeliveries.filter(
       d => d.assigned_user_id === user?.id
     );
-    
+
     setDeliveries(userDeliveries);
-    
+
     // Group screenshots by delivery
     const screenshotMap = new Map<string, any[]>();
     mockScreenshots.forEach(screenshot => {
@@ -76,20 +76,20 @@ export function PhotographerHome() {
       screenshotMap.set(screenshot.delivery_id, [...existing, screenshot]);
     });
     setScreenshots(screenshotMap);
-    
+
     setLoading(false);
   };
 
   const handleAccept = async (deliveryId: string) => {
     await simulateApiDelay(300);
-    
+
     // Update delivery status
-    setDeliveries(prev => prev.map(d => 
-      d.id === deliveryId 
+    setDeliveries(prev => prev.map(d =>
+      d.id === deliveryId
         ? { ...d, status: 'ASSIGNED', assigned_user_id: user?.id || null }
         : d
     ));
-    
+
     // Add to user's deliveries if not already there
     const acceptedDelivery = mockDeliveries.find(d => d.id === deliveryId);
     if (acceptedDelivery) {
@@ -99,7 +99,7 @@ export function PhotographerHome() {
         return [...prev, { ...acceptedDelivery, status: 'ASSIGNED', assigned_user_id: user?.id || null }];
       });
     }
-    
+
     setPendingPrompt(null);
     toast.success('Delivery accepted successfully');
   };
@@ -111,11 +111,11 @@ export function PhotographerHome() {
     // - Delivery time expires with no acceptance
     // Only then does system mark it as REJECTED and move to Not Chosen
     await simulateApiDelay(300);
-    
+
     // In production: would record this user's rejection in a separate table
     // but NOT change delivery status to REJECTED yet
     // For now, just close the prompt - delivery stays PENDING
-    
+
     setPendingPrompt(null);
     toast.info('Delivery declined (still available to others in your cluster)');
   };
@@ -124,56 +124,59 @@ export function PhotographerHome() {
   // When delivery time is reached with no acceptance → "Rejected by all" → moves to Not Chosen
   const handleDeliveryExpiry = async (deliveryId: string) => {
     await simulateApiDelay(300);
-    
+
     // Close the prompt - system will check if anyone accepted
     // If not, delivery moves to "Not Chosen" with status REJECTED
     setPendingPrompt(null);
-    
+
     toast.info('Delivery time reached - prompt expired');
   };
 
   const handleUpdateTiming = async (deliveryId: string, timing: string) => {
     await simulateApiDelay(300);
-    
+
     setDeliveries(prev => prev.map(d => {
       if (d.id === deliveryId) {
         // V1 SPEC: Use centralized name generation
-        const newName = generateDeliveryName(d.date, d.showroom_code, timing);
+        const newName = generateDeliveryName(d.date, d.showroom_code, getClusterShortCode(d.cluster_code), timing);
         // V1 RULE: Timing update re-triggers Accept/Reject prompt scheduling (30 min before)
         // The useEffect hooks above automatically re-schedule when deliveries array updates
         return { ...d, timing, delivery_name: newName, updated_at: new Date().toISOString() };
       }
       return d;
     }));
-    
+
     toast.success('Timing updated');
   };
 
   const handleUpdateFootageLink = async (deliveryId: string, link: string) => {
     await simulateApiDelay(300);
-    
-    setDeliveries(prev => prev.map(d => 
-      d.id === deliveryId 
+
+    setDeliveries(prev => prev.map(d =>
+      d.id === deliveryId
         ? { ...d, footage_link: link, updated_at: new Date().toISOString() }
         : d
     ));
-    
+
     toast.success('Footage link updated');
   };
 
   const handleSendUpdate = async () => {
-    if (!canSendUpdate(deliveries, screenshots)) {
+    // Check if ALL assigned deliveries are ready
+    const allReady = assignedDeliveries.length > 0 && assignedDeliveries.every(d => canSendUpdate(d, screenshots.get(d.id) || []));
+
+    if (!allReady) {
       toast.error('Cannot send update. Ensure all deliveries have footage links and payment screenshots.');
       return;
     }
 
     setLoading(true);
     await simulateApiDelay(1000);
-    
+
     // V1 FIX: SEND UPDATE clears everything - no deliveries remain visible
     // Mark all assigned deliveries as DONE and clear from view
     setDeliveries([]); // V1 RULE: Clear Home UI completely after SEND UPDATE
-    
+
     setLoading(false);
     setDayClosed(true); // V1 FIX: Mark day as closed
     toast.success('Day closeout completed! Home UI cleared. Check Reel Backlog for pending tasks.');
@@ -182,8 +185,8 @@ export function PhotographerHome() {
   // Filter deliveries
   const assignedDeliveries = deliveries.filter(d => d.status === 'ASSIGNED');
   const doneDeliveries = deliveries.filter(d => d.status === 'DONE');
-  
-  const sendUpdateEnabled = canSendUpdate(deliveries, screenshots);
+
+  const sendUpdateEnabled = assignedDeliveries.length > 0 && assignedDeliveries.every(d => canSendUpdate(d, screenshots.get(d.id) || []));
 
   if (loading) {
     return (
@@ -233,7 +236,7 @@ export function PhotographerHome() {
             <h2 className="text-lg font-semibold">Active Deliveries</h2>
             {/* V1 FIX: Hide SEND UPDATE button after day is closed */}
             {!dayClosed && (
-              <Button 
+              <Button
                 onClick={handleSendUpdate}
                 disabled={!sendUpdateEnabled}
                 className="gap-2"
@@ -284,17 +287,17 @@ export function PhotographerHome() {
                     uploaded_at: new Date().toISOString(),
                     deleted_at: null,
                   };
-                  
+
                   // V1 FIX: Save to mockScreenshots for persistence across logout
                   mockScreenshots.push(newScreenshot);
-                  
+
                   setScreenshots(prev => {
                     const newMap = new Map(prev);
                     const existing = newMap.get(deliveryId) || [];
                     newMap.set(deliveryId, [...existing, newScreenshot]);
                     return newMap;
                   });
-                  
+
                   toast.success('Screenshot uploaded');
                 }}
               />

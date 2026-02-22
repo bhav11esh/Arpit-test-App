@@ -37,7 +37,9 @@ export function UserManagement() {
     email: '',
     role: 'PHOTOGRAPHER' as UserRole,
     active: true,
-    cluster_code: '',
+    role: 'PHOTOGRAPHER' as UserRole,
+    active: true,
+    // cluster_code: '', // V1 REMOVED: Inferred from mappings
   });
 
   useEffect(() => {
@@ -68,7 +70,8 @@ export function UserManagement() {
         email: '', // Email shouldn't be editable
         role: user.role,
         active: user.active,
-        cluster_code: user.cluster_code || '',
+        active: user.active,
+        // cluster_code: user.cluster_code || '', // V1 REMOVED
       });
     } else {
       setEditingUser(null);
@@ -77,7 +80,8 @@ export function UserManagement() {
         email: '',
         role: 'PHOTOGRAPHER',
         active: true,
-        cluster_code: '',
+        active: true,
+        // cluster_code: '', // V1 REMOVED
       });
     }
     setIsDialogOpen(true);
@@ -91,7 +95,8 @@ export function UserManagement() {
       email: '',
       role: 'PHOTOGRAPHER',
       active: true,
-      cluster_code: '',
+      active: true,
+      // cluster_code: '', // V1 REMOVED
     });
   };
 
@@ -106,7 +111,8 @@ export function UserManagement() {
           name: formData.name,
           role: formData.role,
           active: formData.active,
-          cluster_code: formData.cluster_code || undefined,
+          active: formData.active,
+          // cluster_code: formData.cluster_code || undefined, // V1 REMOVED
         });
         toast.success('User updated successfully');
       } else {
@@ -127,7 +133,7 @@ export function UserManagement() {
           email: formData.email,
           role: formData.role,
           active: formData.active,
-          cluster_code: formData.cluster_code || undefined,
+          // cluster_code removed
         });
         toast.success('User created successfully');
       }
@@ -206,8 +212,8 @@ export function UserManagement() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-lg">{user.name}</h3>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${user.role === 'ADMIN'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-blue-100 text-blue-800'
                         }`}>
                         {user.role}
                       </span>
@@ -307,15 +313,7 @@ export function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cluster_code">Cluster Code (Optional)</Label>
-                <Input
-                  id="cluster_code"
-                  value={formData.cluster_code}
-                  onChange={(e) => setFormData({ ...formData, cluster_code: e.target.value })}
-                  placeholder="e.g., NORTH"
-                />
-              </div>
+              {/* V1 REMOVED: Cluster Code Input - now inferred from mappings */}
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"

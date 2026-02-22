@@ -66,6 +66,7 @@ export default function LiveBooking() {
   const [foundDriveLink, setFoundDriveLink] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [photographerDetails, setPhotographerDetails] = useState(null);
 
   // Extract venue from detected venue, QR params, selected venue, or use default
   const venue = detectedVenue?.name || selectedVenue?.name || (qrScanned ? (qrParams.venue || qrParams.venueName || 'Hole in the Wall Cafe') : '');
@@ -94,26 +95,38 @@ export default function LiveBooking() {
       try {
         const parsedState = JSON.parse(savedState);
 
-        // Restore state if valid
-        if (parsedState.qrScanned) setQrScanned(parsedState.qrScanned);
-        if (parsedState.screen) setScreen(parsedState.screen);
-        if (parsedState.sessionPrice) setSessionPrice(parsedState.sessionPrice);
-        if (parsedState.codeApplied) setCodeApplied(parsedState.codeApplied);
-        if (parsedState.filenamesComplete) setFilenamesComplete(parsedState.filenamesComplete);
-        if (parsedState.selectedFilenames) setSelectedFilenames(parsedState.selectedFilenames);
-        if (parsedState.qrParams) {
-          setQrParams(parsedState.qrParams);
-          initialQrParams = parsedState.qrParams;
+        // Check for expiration (4 hours)
+        const ONE_HOUR = 60 * 60 * 1000;
+        const EXPIRATION_TIME = 4 * ONE_HOUR;
+        const now = Date.now();
+
+        if (parsedState.lastUpdated && (now - parsedState.lastUpdated > EXPIRATION_TIME)) {
+          console.log('Saved state expired, clearing...');
+          localStorage.removeItem('liveBookingState');
+        } else {
+          // Restore state if valid and not expired
+          if (parsedState.qrScanned) setQrScanned(parsedState.qrScanned);
+          if (parsedState.screen) setScreen(parsedState.screen);
+          if (parsedState.sessionPrice) setSessionPrice(parsedState.sessionPrice);
+          if (parsedState.codeApplied) setCodeApplied(parsedState.codeApplied);
+          if (parsedState.filenamesComplete) setFilenamesComplete(parsedState.filenamesComplete);
+          if (parsedState.selectedFilenames) setSelectedFilenames(parsedState.selectedFilenames);
+          if (parsedState.qrParams) {
+            setQrParams(parsedState.qrParams);
+            initialQrParams = parsedState.qrParams;
+          }
+          if (parsedState.locationVerified) {
+            setLocationVerified(parsedState.locationVerified);
+            restoredVerified = true;
+          }
+          if (parsedState.detectedVenue) setDetectedVenue(parsedState.detectedVenue);
+          if (parsedState.selectedVenue) setSelectedVenue(parsedState.selectedVenue);
+          if (parsedState.tableName) setTableName(parsedState.tableName);
         }
-        if (parsedState.locationVerified) {
-          setLocationVerified(parsedState.locationVerified);
-          restoredVerified = true;
-        }
-        if (parsedState.detectedVenue) setDetectedVenue(parsedState.detectedVenue);
-        if (parsedState.selectedVenue) setSelectedVenue(parsedState.selectedVenue);
-        if (parsedState.tableName) setTableName(parsedState.tableName);
       } catch (e) {
         console.error('Failed to parse saved state:', e);
+        // If parse fails, clear it
+        localStorage.removeItem('liveBookingState');
       }
     }
 
@@ -139,6 +152,7 @@ export default function LiveBooking() {
 
       if (!restoredVerified) {
         setShowLocationPrompt(true);
+
         setExpandedSections(prev => ({
           ...prev,
           howItWorks: true,
@@ -164,7 +178,8 @@ export default function LiveBooking() {
       locationVerified,
       detectedVenue,
       selectedVenue,
-      tableName
+      tableName,
+      lastUpdated: Date.now()
     };
 
     localStorage.setItem('liveBookingState', JSON.stringify(stateToSave));
@@ -198,9 +213,25 @@ export default function LiveBooking() {
           table: 'live_bookings',
           filter: `request_id=eq.${qrParams.requestId}`
         },
-        (payload) => {
+        async (payload) => {
           const newStatus = payload.new.status;
           console.log(`Booking status changed to: ${newStatus}`);
+
+          // Fetch updated booking with photographer details
+          const { data: bookingData, error } = await supabase
+            .from('live_bookings')
+            .select('*, photographer:photographer_id(name, phone_number)')
+            .eq('request_id', qrParams.requestId)
+            .single();
+
+          if (bookingData?.photographer) {
+            setPhotographerDetails(bookingData.photographer);
+          }
+
+          if ((newStatus === 'PAID' || newStatus === 'COMPLETED') && screen !== 'success') {
+            console.log('Payment/Completion detected via realtime update');
+            setScreen('success');
+          }
 
           if (newStatus === 'NOT_PAID' || newStatus === 'CANCELLED') {
             alert(`Booking Status Update: The photographer has marked this request as ${newStatus.replace('_', ' ')}. \n\nIf this is a mistake, please talk to the photographer at the venue.`);
@@ -212,10 +243,56 @@ export default function LiveBooking() {
       )
       .subscribe();
 
+    // Initial fetch to get photographer if already assigned
+    const fetchBooking = async () => {
+      const { data } = await supabase
+        .from('live_bookings')
+        .select('*, photographer:photographer_id(name, phone_number)')
+        .eq('request_id', qrParams.requestId)
+        .single();
+
+      if (data?.photographer) {
+        setPhotographerDetails(data.photographer);
+      }
+    };
+    fetchBooking();
+
+    // Polling fallback every 5 seconds
+    const pollInterval = setInterval(async () => {
+      if (!qrParams?.requestId) return;
+
+      const { data, error } = await supabase
+        .from('live_bookings')
+        .select('status, photographer:photographer_id(name, phone_number)')
+        .eq('request_id', qrParams.requestId)
+        .single();
+
+      // Detailed logging for debugging
+      if (error) {
+        console.error('Polling error:', error);
+      }
+
+      if (data) {
+        if ((data.status === 'PAID' || data.status === 'COMPLETED') && screen !== 'success') {
+          setScreen('success');
+        } else if ((data.status === 'NOT_PAID' || data.status === 'CANCELLED') && screen !== 'landing') {
+          alert(`Booking Status Update: The photographer has marked this request as ${data.status.replace('_', ' ')}. \n\nIf this is a mistake, please talk to the photographer at the venue.`);
+          localStorage.removeItem('liveBookingState');
+          window.location.reload();
+        }
+
+        // Update photographer details if available
+        if (data.photographer) {
+          setPhotographerDetails(data.photographer);
+        }
+      }
+    }, 5000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, [qrParams?.requestId]);
+  }, [qrParams?.requestId, screen]);
 
 
   const handleGetThatPicClick = async () => {
@@ -590,7 +667,7 @@ export default function LiveBooking() {
                       Notifying Photographer...
                     </>
                   ) : (
-                    "Let's give it a shoot"
+                    "Bring the Camera Over 📸"
                   )}
                 </button>
               </div>
@@ -603,6 +680,11 @@ export default function LiveBooking() {
             />
           </>
         )}
+
+        {/* Debug Info Footer */}
+        <div className="text-[10px] text-gray-300 text-center pb-2">
+          ID: {qrParams?.requestId || 'None'}
+        </div>
 
         {screen === 'session' && (
           <>
@@ -619,6 +701,8 @@ export default function LiveBooking() {
                 onFilenamesChange={setSelectedFilenames}
                 requestId={qrParams.requestId}
                 activationCode={qrParams.activationCode}
+                photographerName={photographerDetails?.name}
+                photographerPhone={photographerDetails?.phone_number}
               />
             </main>
 

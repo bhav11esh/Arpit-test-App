@@ -19,6 +19,7 @@ export interface Database {
           cluster_code: string | null
           created_at: string
           updated_at: string
+          phone_number: string | null
         }
         Insert: {
           id?: string
@@ -29,6 +30,7 @@ export interface Database {
           cluster_code?: string | null
           created_at?: string
           updated_at?: string
+          phone_number?: string | null
         }
         Update: {
           id?: string
@@ -39,6 +41,7 @@ export interface Database {
           cluster_code?: string | null
           created_at?: string
           updated_at?: string
+          phone_number?: string | null
         }
       }
       clusters: {

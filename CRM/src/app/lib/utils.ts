@@ -99,12 +99,13 @@ export function canSelfAssign(
  *   ❌ WRONG: Do NOT renumber _2 to _1 even if its timing is earlier
  *   ✅ CORRECT: Each delivery's _X identity is permanent until timing is specified
  * 
- * When timing is present: DD-MM-YYYY_SHOWROOMCODE_HH_MM
- * When no timing: DD-MM-YYYY_SHOWROOMCODE_X (where X = creation_index)
+ * When timing is present: DD-MM-YYYY_SHOWROOMCODE_CLUSTERSHORT_HH_MM
+ * When no timing: DD-MM-YYYY_SHOWROOMCODE_CLUSTERSHORT_X (where X = creation_index)
  */
 export function generateDeliveryName(
   date: string,
   showroomCode: string,
+  clusterShortCode: string,
   timing?: string | null,
   creationIndex?: number
 ): string {
@@ -115,13 +116,13 @@ export function generateDeliveryName(
     // V1 SPEC STRICT: Zero-pad hours and minutes (e.g. 9:5 -> 09_05)
     const [hours, minutes] = timing.split(':');
     const pad = (n: string) => n.padStart(2, '0');
-    return `${day}-${month}-${year}_${showroomCode}_${pad(hours)}_${pad(minutes)}`;
+    return `${day}-${month}-${year}_${showroomCode}_${clusterShortCode}_${pad(hours)}_${pad(minutes)}`;
   } else {
     // No timing: use incremental suffix based on creation_index
     // V1 SPEC: Always append index for non-timed deliveries for uniqueness
-    // Format: DD-MM-YYYY_SHOWROOM_INDEX
+    // Format: DD-MM-YYYY_SHOWROOM_CLUSTER_INDEX
     const index = creationIndex || 1;
-    return `${day}-${month}-${year}_${showroomCode}_${index}`;
+    return `${day}-${month}-${year}_${showroomCode}_${clusterShortCode}_${index}`;
   }
 }
 
@@ -257,4 +258,46 @@ export function shouldShowAcceptRejectPrompt(
 
   // Check if current time is in [T-30, T)
   return currentTime >= thirtyMinsBefore && currentTime < deliveryTime;
+}
+
+/**
+ * V1 SPEC: Generate Short Code for Cluster (e.g., Nelamangala -> NE, Whitefield Indiranagar -> WH_IN)
+ * Used for delivery naming convention.
+ */
+export function getClusterShortCode(clusterName: string): string {
+  if (!clusterName) return 'XX';
+
+  const words = clusterName.trim().split(/\s+/);
+
+  if (words.length === 1) {
+    // Single word: First 2 chars uppercase
+    return words[0].substring(0, 2).toUpperCase();
+  } else {
+    // Multiple words: First 2 chars of each word, joined by _
+    return words.map(w => w.substring(0, 2).toUpperCase()).join('_');
+  }
+}
+/**
+ * Request browser notification permission
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (!('Notification' in window)) {
+    return 'denied';
+  }
+  if (Notification.permission === 'granted') return 'granted';
+  return await Notification.requestPermission();
+}
+
+/**
+ * Send a browser push notification
+ */
+export function sendPushNotification(title: string, options?: NotificationOptions): void {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+  try {
+    new Notification(title, options);
+  } catch (err) {
+    console.error('Failed to send push notification:', err);
+  }
 }

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { RefreshCw, MapPin, CheckCircle2, UserPlus, Clock, Ban, Bell, BellOff } from 'lucide-react';
+import { RefreshCw, MapPin, CheckCircle2, UserPlus, Clock, Ban, Bell, BellOff, Banknote } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -18,7 +18,7 @@ interface LiveBooking {
     status: 'PENDING' | 'OPTED_IN' | 'ARRIVED' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'NOT_PAID';
     created_at: string;
     photographer_id: string | null;
-    qr_params: any;
+    qr_params: any; // Using 'any' as it's a JSONB field
     drive_link: string | null;
     hardcopy_filenames: string | null;
     hardcopy_resolved: boolean;
@@ -32,12 +32,46 @@ export function LiveBookingsView() {
     const [loading, setLoading] = useState(true);
     const [selectedVenues, setSelectedVenues] = useState<string[]>([]);
     const [soundEnabled, setSoundEnabled] = useState(true);
+    const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Initialize notification sound
     useEffect(() => {
         audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        if ('Notification' in window) {
+            setNotificationPermission(Notification.permission);
+        }
     }, []);
+
+    const requestNotificationPermission = async () => {
+        if (!('Notification' in window)) {
+            toast.error('This browser does not support desktop notifications');
+            return;
+        }
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+            toast.success('Notifications enabled!');
+            new Notification('Test Notification', {
+                body: 'Notifications are working correctly!'
+            });
+        }
+    };
+
+    const sendBrowserNotification = (booking: LiveBooking) => {
+        if (notificationPermission === 'granted') {
+            const time = format(new Date(booking.created_at), 'hh:mm a');
+            const title = `New Booking at ${booking.venue_name}!`;
+            const code = booking.activation_code || 'Legacy';
+            const body = `Time: ${time}\nID: ${booking.request_id}\nCode: ${code}`;
+
+            new Notification(title, {
+                body: body,
+                icon: '/favicon.ico', // Optional: requires a valid path or can be omitted
+                tag: booking.id // Prevents duplicate notifications for the same ID
+            });
+        }
+    };
 
     const playNotificationSound = () => {
         if (soundEnabled && audioRef.current) {
@@ -91,6 +125,7 @@ export function LiveBookingsView() {
                             description: `Table: ${newBooking.table_name || 'N/A'}`
                         });
                         playNotificationSound();
+                        sendBrowserNotification(newBooking);
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedBooking = payload.new as LiveBooking;
                         setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
@@ -126,15 +161,72 @@ export function LiveBookingsView() {
         }
     };
 
-    const handleUpdateDriveLink = async (bookingId: string, link: string) => {
+    const handleManualPayment = async (booking: LiveBooking) => {
+        const amountStr = prompt('Enter the amount collected (₹):');
+        if (amountStr === null) return; // User cancelled
+
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid amount.');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to mark this as MANUALLY PAID with amount ₹${amount}? This should only be done if cash/UPI was collected outside the system.`)) {
+            return;
+        }
+
         try {
+            // Update status to PAID and add manual payment note to qr_params
+            const newQrParams = {
+                ...booking.qr_params,
+                payment_method: 'MANUAL',
+                manual_payment_amount: amount,
+                manual_payment_timestamp: new Date().toISOString(),
+                manual_payment_by: user?.email
+            };
+
+            const updates = {
+                status: 'PAID',
+                qr_params: newQrParams,
+                updated_at: new Date().toISOString()
+            };
+
             const { error } = await (supabase as any)
                 .from('live_bookings')
-                .update({ drive_link: link, updated_at: new Date().toISOString() })
+                .update(updates)
+                .eq('id', booking.id);
+
+            if (error) throw error;
+            toast.success(`Booking marked as Manually Paid (₹${amount})`);
+        } catch (error) {
+            console.error('Error processing manual payment:', error);
+            toast.error('Failed to mark as paid');
+        }
+    };
+
+
+    const handleUpdateDriveLink = async (bookingId: string, link: string) => {
+        try {
+            const bookingToUpdate = bookings.find(b => b.id === bookingId);
+            const updates: any = { drive_link: link, updated_at: new Date().toISOString() };
+
+            // specificy: If the booking is unassigned (e.g. they forgot to opt-in), assign it to the current user
+            // This handles the "paid but unassigned" scenario
+            if (bookingToUpdate && !bookingToUpdate.photographer_id && user?.id) {
+                updates.photographer_id = user.id;
+                // Also ensure status is at least OPTED_IN or higher if it was somehow pending? 
+                // But for PAID bookings, status is already PAID.
+                // We'll just assign the photographer.
+                console.log(`Auto-assigning photographer ${user.id} to booking ${bookingId}`);
+            }
+
+            const { error } = await (supabase as any)
+                .from('live_bookings')
+                .update(updates)
                 .eq('id', bookingId);
 
             if (error) throw error;
-            toast.success('Drive link saved');
+            toast.success('Drive link saved' + (updates.photographer_id ? ' & you were assigned' : ''));
         } catch (error) {
             console.error('Error saving drive link:', error);
             toast.error('Failed to save drive link');
@@ -162,7 +254,12 @@ export function LiveBookingsView() {
             case 'PENDING': return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
             case 'OPTED_IN': return <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">Opted In</Badge>;
             case 'ARRIVED': return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Arrived</Badge>;
-            case 'PAID': return <Badge className="bg-green-100 text-green-800 border-green-300">Paid!</Badge>;
+            case 'ARRIVED': return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Arrived</Badge>;
+            case 'PAID': return (
+                <div className="flex flex-col gap-1">
+                    <Badge className="bg-green-100 text-green-800 border-green-300">Paid!</Badge>
+                </div>
+            );
             case 'COMPLETED': return <Badge className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
             case 'CANCELLED': return <Badge variant="destructive">Cancelled</Badge>;
             case 'NOT_PAID': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Not Paid</Badge>;
@@ -212,9 +309,22 @@ export function LiveBookingsView() {
                         size="sm"
                         onClick={() => setSoundEnabled(!soundEnabled)}
                         className={soundEnabled ? 'text-blue-600' : 'text-gray-400'}
+                        title={soundEnabled ? "Mute Sound" : "Unmute Sound"}
                     >
                         {soundEnabled ? <Bell size={18} /> : <BellOff size={18} />}
                     </Button>
+
+                    {notificationPermission === 'default' && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={requestNotificationPermission}
+                            className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                        >
+                            Enable Push Notifications
+                        </Button>
+                    )}
+
                     <Button
                         variant="outline"
                         size="sm"
@@ -308,18 +418,28 @@ export function LiveBookingsView() {
                                                     <MapPin size={14} className="text-red-500" />
                                                     <span className="font-semibold">{booking.venue_name}</span>
                                                 </div>
-                                                {/* This is the original drive link input, kept as is */}
-                                                {(booking.photographer_id === user?.id || user?.role === 'ADMIN') && (booking.status === 'OPTED_IN' || booking.status === 'ARRIVED' || booking.status === 'PAID' || booking.status === 'COMPLETED') && (
-                                                    <div className="mt-2 flex gap-1">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Drive Link..."
-                                                            defaultValue={booking.drive_link || ''}
-                                                            onBlur={(e) => handleUpdateDriveLink(booking.id, e.target.value)}
-                                                            className={`text-[11px] px-2 py-1 border rounded w-full bg-white`}
-                                                        />
+                                                {/* Show manual payment note if applicable */}
+                                                {booking.qr_params?.payment_method === 'MANUAL' && (
+                                                    <div className="mt-1">
+                                                        <Badge variant="outline" className="text-[10px] bg-yellow-50 text-yellow-700 border-yellow-200 px-1 py-0 h-auto">
+                                                            Manually Paid {booking.qr_params?.manual_payment_amount ? `(₹${booking.qr_params.manual_payment_amount})` : ''}
+                                                        </Badge>
                                                     </div>
                                                 )}
+
+                                                {/* This is the original drive link input, modified to show for unassigned PAID bookings too */}
+                                                {((booking.photographer_id === user?.id || user?.role === 'ADMIN') && (booking.status === 'OPTED_IN' || booking.status === 'ARRIVED' || booking.status === 'PAID' || booking.status === 'COMPLETED') ||
+                                                    ((booking.status === 'PAID' || booking.status === 'COMPLETED') && !booking.photographer_id)) && (
+                                                        <div className="mt-2 flex gap-1">
+                                                            <input
+                                                                type="text"
+                                                                placeholder={!booking.photographer_id ? "Claim & Add Link..." : "Drive Link..."}
+                                                                defaultValue={booking.drive_link || ''}
+                                                                onBlur={(e) => handleUpdateDriveLink(booking.id, e.target.value)}
+                                                                className={`text-[11px] px-2 py-1 border rounded w-full bg-white ${!booking.photographer_id ? 'border-blue-300 ring-1 ring-blue-100' : ''}`}
+                                                            />
+                                                        </div>
+                                                    )}
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -373,7 +493,20 @@ export function LiveBookingsView() {
                                                         onClick={() => handleAction(booking.id, 'COMPLETED', { hardcopy_resolved: true })}
                                                     >
                                                         <CheckCircle2 size={14} className="mr-1" />
-                                                        {booking.hardcopy_filenames && !booking.hardcopy_resolved ? 'Handover Done?' : 'Resolved'}
+                                                        {booking.hardcopy_filenames && !booking.hardcopy_resolved ? 'Handover Done?' : 'Handover / Resolved'}
+                                                    </Button>
+                                                )}
+
+                                                {(booking.status === 'ARRIVED' || booking.status === 'OPTED_IN') && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 text-xs h-8 px-3"
+                                                        onClick={() => handleManualPayment(booking)}
+                                                        title="Mark as Paid (Cash/Internal UPI)"
+                                                    >
+                                                        <Banknote size={14} className="mr-1" />
+                                                        Manual Pay
                                                     </Button>
                                                 )}
 

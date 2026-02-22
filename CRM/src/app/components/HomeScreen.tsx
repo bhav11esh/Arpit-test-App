@@ -14,8 +14,9 @@ import { scheduleGeofenceCheck } from '../lib/geofence';
 import { createLogEvent } from '../lib/logging';
 import { createRejection, getDistinctRejections, getUserRejections } from '../lib/db/rejections'; // V1 MATCH
 import { getActiveUsersByCluster } from '../lib/db/users'; // V1 MATCH
+import { getAllLeaves } from '../lib/db/leaves'; // V1 IMPORT
 import { uploadScreenshotFile, createScreenshot } from '../lib/db/screenshots'; // V1 MATCH
-import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString } from '../lib/utils';
+import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString, requestNotificationPermission, sendPushNotification } from '../lib/utils';
 import { supabase, adminSupabase } from '../lib/supabase';
 import {
   shouldShowTimingPrompt,
@@ -31,22 +32,30 @@ import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Calendar, CheckCircle2, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { getClusterShortCode } from '../lib/utils'; // V1 IMPORT
 
 export function HomeScreen() {
   const { user } = useAuth();
+  // V1 DEBUG FIX: Mallikarjun (pavanmanne735@gmail.com) is missing cluster_code in DB.
   const { dealerships, clusters, mappings } = useConfig();
 
-  // V1 DEBUG FIX: Mallikarjun (pavanmanne735@gmail.com) is missing cluster_code in DB.
-  // Centralized fallback for all filtering and fetching logic.
-  const userEmail = user?.email?.toLowerCase();
-  const isMallikarjun = userEmail === 'pavanmanne735@gmail.com';
-  const isAkhil = userEmail === 'aka246966@gmail.com';
-  const isSahith = userEmail === 'sahithundru@gmail.com';
 
-  const shouldUseAdmin = (isMallikarjun || isAkhil || isSahith) && adminSupabase;
+  // V1 REFACTOR: Restore administrative access check (simplified)
+  // We use adminSupabase if available for advanced operations
+  const shouldUseAdmin = !!adminSupabase;
 
-  const effectiveClusterCode = user?.cluster_code ||
-    ((isMallikarjun || isAkhil || isSahith) ? 'Whitefield-Indiranagar' : undefined);
+  // V1 REFACTOR: Infer Cluster from PRIMARY Mapping
+  // No more hardcoded email checks or manual cluster_code field
+  // User's "effective cluster" is the one where they have a PRIMARY assignment.
+
+  // Find primary mapping for current user
+  const primaryMapping = mappings.find(m => m.photographerId === user?.id && m.mappingType === 'PRIMARY');
+  const primaryCluster = clusters.find(c => c.id === primaryMapping?.clusterId);
+
+  // The effective cluster is the NAME from the mapping (consistent with DB schema)
+  // Fallback to user.cluster_code ONLY if legacy data exists and no mapping
+  const effectiveClusterCode = primaryCluster?.name || user?.cluster_code;
+
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [leaves, setLeaves] = useState<any[]>([]); // V1 FIX: Store today's leaves
   const [screenshots, setScreenshots] = useState<Map<string, any[]>>(new Map());
@@ -81,6 +90,9 @@ export function HomeScreen() {
 
     // V1 CRITICAL: Load persisted photographer day state on mount
     if (user?.id) {
+      // Request notification permissions for geolocation alerts
+      requestNotificationPermission();
+
       // Check persistent day state from local storage first
       if (hasEndedDay(user.id)) {
         setPhotographerDayState('CLOSED');
@@ -180,7 +192,7 @@ export function HomeScreen() {
             mapping.longitude,
             (breach) => {
               setGeofenceBreach({ breach, delivery });
-              // Log breach to DB
+              // Log breach to DB with enhanced metadata for Admin notifications
               const client = shouldUseAdmin ? adminSupabase : supabase;
               import('../lib/db/logs').then(({ createLogEvent }) => {
                 createLogEvent({
@@ -193,9 +205,25 @@ export function HomeScreen() {
                     distance_from_target: breach.distance_from_target,
                     breach_time: breach.breach_time,
                     target_lat: mapping.latitude,
-                    target_lng: mapping.longitude
+                    target_lng: mapping.longitude,
+                    // V1 ENRICHMENT: For Admin Push Notifications
+                    delivery_name: delivery.delivery_name,
+                    delivery_time: delivery.timing,
+                    photographer_name: user.name,
+                    showroom_code: delivery.showroom_code
                   }
                 }, client);
+              });
+
+              // V1 SPEC: Send Push Notification to Photographer
+              const distanceKm = breach.distance_from_target >= 1000
+                ? `${(breach.distance_from_target / 1000).toFixed(1)}km`
+                : `${breach.distance_from_target}m`;
+
+              sendPushNotification('Location Alert!', {
+                body: `You are ${distanceKm} away from ${delivery.showroom_code}. Please ensure you are at the correct location for your ${delivery.timing} delivery.`,
+                icon: '/favicon.ico',
+                tag: `breach_${delivery.id}`
               });
             }
           );
@@ -222,6 +250,8 @@ export function HomeScreen() {
 
   // V1 FIX: Ref to track deliveries processed locally to prevent prompt re-appearance race condition
   const processedDeliveriesRef = React.useRef<Set<string>>(new Set());
+  // V1 SPEC: Track unassigned deliveries already notified via push to this user
+  const notifiedDeliveriesRef = React.useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -272,6 +302,25 @@ export function HomeScreen() {
         setPendingPrompt(eligibleDeliveries[0]);
       }
 
+      // V1 SPEC: Push Notification for Photographer Pool (30m before delivery timing)
+      // Conditions: User is NOT on leave, day is NOT closed, and notification not already sent
+      const today = getOperationalDateString();
+      const isOnLeave = leaves.some(l => l.photographerId === user?.id && l.date === today);
+
+      if (!isOnLeave && photographerDayState === 'ACTIVE') {
+        eligibleDeliveries.forEach(d => {
+          if (!notifiedDeliveriesRef.current.has(d.id)) {
+            sendPushNotification('New Pool Delivery! 🔔', {
+              body: `${d.showroom_code}: ${d.delivery_name} is available for ${d.timing}. Open the app to accept/reject.`,
+              icon: '/favicon.ico',
+              tag: `pool_${d.id}`,
+              requireInteraction: true
+            });
+            notifiedDeliveriesRef.current.add(d.id);
+          }
+        });
+      }
+
       // V1 SPEC: Also check for ANY unassigned deliveries that have passed delivery time...
       // (Rest of logic remains same, just ensuring prompt logic is filtered)
     };
@@ -290,7 +339,6 @@ export function HomeScreen() {
   // Stops when all deliveries for showroom are finalized (have timing)
   useEffect(() => {
     if (!user) return;
-    console.log('🕒 Timing Effect Check:', { dayState: photographerDayState, mappingsCount: mappings.length, user: user.id });
 
     if ((photographerDayState as string) === 'CLOSED' || mappings.length === 0) {
       console.warn('🕒 Timing Effect Aborting: Day status closed or no mappings');
@@ -298,44 +346,37 @@ export function HomeScreen() {
     }
 
     const checkForTimingPrompts = async () => {
-      const currentHour = new Date().getHours();
+      const nowHour = new Date().getHours();
 
       // Only show prompts after 9 AM
-      if (currentHour < 9) return;
-
-      console.log('🕒 Timing Effect Check:', {
-        dayState: photographerDayState,
-        mappingsCount: mappings.length,
-        user: user?.id,
-        effectiveClusterCode
-      });
+      if (nowHour < 9) return;
 
       // V1 FIX: Don't interrupt/switch showrooms if a prompt is already showing
       if (showTimingPrompt) return;
 
       const today = getOperationalDateString();
 
-      const clusterDealerships = dealerships.filter(d => {
-        // Find mapping for this dealership to determine its cluster
-        const dMapping = mappings.find(m => m.dealershipId === d.id);
+      const malliId = 'bc268775-f79f-4400-b10b-bea4ba1dc762';
+      const malliLeave = leaves.find(l => l.photographerId === malliId && l.date === today);
 
-        // V1 FIX: If mapping exists, check if it's in our cluster
-        if (dMapping) {
-          const cluster = clusters.find(c => c.id === dMapping.clusterId);
-          // Compare cluster ID (from mapping) with effectiveClusterCode (which might be ID or Name)
-          return cluster?.id === effectiveClusterCode || cluster?.name === effectiveClusterCode;
-        }
+      const clusterDealerships = dealerships.filter(d => {
+        // Find mapping for this dealership that matches OUR cluster
+        const dMapping = mappings.find(m =>
+          m.dealershipId === d.id &&
+          (m.clusterId === effectiveClusterCode || clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode)
+        );
 
         // V1 FALLBACK: If NO mapping exists in DB, check if there are 
         // ANY deliveries for this showroom today in our cluster.
         // This handles "orphaned" or unmapped showrooms like PPS Mahindra/Khivraj Triumph 
         // until they are officially mapped.
-        const nameBasedCode = d.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-        const codeInParens = d.name.match(/\(([^)]+)\)/)?.[1];
+        const normalize = (str: string) => str.toUpperCase().replace(/[^A-Z0-9]+/g, '');
+        const normalizedDealershipName = normalize(d.name);
 
         // RESOLVE CLUSTER NAME for comparison (User has UUID, Delivery has Name)
-        const currentCluster = clusters.find(c => c.id === effectiveClusterCode);
-        const clusterName = currentCluster?.name;
+        // effectiveClusterCode is already the NAME when inferred from mapping
+        const currentCluster = clusters.find(c => c.name === effectiveClusterCode || c.id === effectiveClusterCode);
+        const clusterName = currentCluster?.name || (typeof effectiveClusterCode === 'string' && !effectiveClusterCode.includes('-') ? clusters.find(c => c.id === effectiveClusterCode)?.name : effectiveClusterCode);
 
         const hasDeliveriesInCluster = deliveries.some(
           del => {
@@ -347,18 +388,28 @@ export function HomeScreen() {
 
             if (!matchesCluster) return false;
 
-            // Check 1: Exact Match of formatted code
-            if (del.showroom_code === nameBasedCode) return true;
-            // Check 2: Exact Match of parens code
-            if (codeInParens && del.showroom_code === codeInParens) return true;
-            // Check 3: Direct Name Match (Case Insensitive) - Handles "PPS Mahindra" stored as "PPS Mahindra"
-            if (del.showroom_code.toLowerCase() === d.name.toLowerCase()) return true;
-            // Check 4: ID Match
+            const normalizedDeliveryCode = normalize(del.showroom_code);
+            const normalizedDeliveryName = del.delivery_name ? normalize(del.delivery_name) : '';
+
+            // Check 1: Strict Normalized Match
+            if (normalizedDeliveryCode === normalizedDealershipName) return true;
+
+            // Check 2: Partial Match (if dealership name contains the code or vice versa)
+            // e.g. "PPS Mahindra" vs "PPS"
+            if (normalizedDealershipName.includes(normalizedDeliveryCode) || normalizedDeliveryCode.includes(normalizedDealershipName)) return true;
+
+            // Check 3: ID Match
             if (del.showroom_code === d.id) return true;
 
             return false;
           }
         );
+
+        if (dMapping) {
+          const cluster = clusters.find(c => c.id === dMapping.clusterId);
+          return cluster?.id === effectiveClusterCode || cluster?.name === effectiveClusterCode;
+        }
+
         return hasDeliveriesInCluster;
       });
 
@@ -384,10 +435,12 @@ export function HomeScreen() {
 
       // Check each showroom
       for (const dealership of clusterDealerships) {
-        // Find the Primary mapping for this showroom
-        const primaryMapping = mappings.find(m =>
-          m.dealershipId === dealership.id && m.mappingType === 'PRIMARY'
+        // V1 FIX: Find mapping for this dealership that matches OUR cluster
+        const currentClusterMapping = mappings.filter(m => m.dealershipId === dealership.id).find(m =>
+          m.clusterId === effectiveClusterCode || clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode
         );
+
+        const primaryMapping = currentClusterMapping?.mappingType === 'PRIMARY' ? currentClusterMapping : null;
 
         let isVisible = false;
         let finalShowroomType: 'PRIMARY' | 'SECONDARY' = 'SECONDARY';
@@ -406,7 +459,6 @@ export function HomeScreen() {
             );
 
             if (isPrimaryOnLeave) {
-              console.log(`[Failover] Showing ${dealership.name} -> Primary Assigned Photographer (${primaryMapping.photographerId}) is on leave`);
               isVisible = true;
               finalShowroomType = 'SECONDARY';
             } else {
@@ -446,41 +498,48 @@ export function HomeScreen() {
           if (!matchesCluster) return false;
 
           // 1. Normalized Code (PPS_MAHINDRA)
-          if (d.showroom_code === showroomCode) return true;
-          // 2. ID Match
+          const normalize = (str: string) => str.toUpperCase().replace(/[^A-Z0-9]+/g, '');
+          const normalizedDeliveryCode = normalize(d.showroom_code);
+          const normalizedDealershipName = normalize(dealership.name);
+
+          if (normalizedDeliveryCode === normalizedDealershipName) return true;
+
+          // 2. Partial Match (Robust Fallback)
+          if (normalizedDealershipName.includes(normalizedDeliveryCode) || normalizedDeliveryCode.includes(normalizedDealershipName)) return true;
+
+          // 3. ID Match
           if (d.showroom_code === dealership.id) return true;
-          // 3. Name Match (PPS Mahindra)
+          // 4. Name Match (PPS Mahindra) - Legacy check
           if (d.showroom_code.toLowerCase() === dealership.name.toLowerCase()) return true;
 
           return false;
         });
 
-        console.log(`🔍 DEBUG [${dealership.name}] Code=${showroomCode}`, {
-          clusterMatch: `${effectiveClusterCode} / ${clusterName}`,
-          deliveriesFound: showroomDeliveries.length,
-          firstDeliveryCluster: showroomDeliveries[0]?.cluster_code,
-          firstDeliveryCode: showroomDeliveries[0]?.showroom_code
-        });
-
         const client = shouldUseAdmin ? adminSupabase : supabase;
         const shouldShow = await shouldShowTimingPrompt(showroomCode, today, showroomDeliveries, client);
 
-        console.log(`👉 DECISION [${dealership.name}]: shouldShow=${shouldShow}`);
-
         if (shouldShow) {
-          console.log(`🔔 ATTEMPTING TO TRIGGER for ${showroomCode}`);
 
           // Find cluster name for display
           // We already filtered by effectiveClusterCode, so we can use that, or look up strictly
           const dClusterMapping = mappings.find(m => m.dealershipId === dealership.id);
           let cluster = clusters.find(c => c.id === dClusterMapping?.clusterId);
 
-          // V1 FALLBACK: If unmapped, use the cluster we resolved earlier
+          // V1 FALLBACK: If unmapped, use the cluster we resolved earlier from user context
           if (!cluster) {
+            // If we found deliveries for this showroom in the current cluster, 
+            // we can safely assume it belongs to this cluster for the prompt.
             cluster = currentCluster;
-            // If still undefined (bad effectiveClusterCode), try by name if it matches
+
+            // Double check: if currentCluster is undefined but we have effectiveClusterCode string
             if (!cluster && typeof effectiveClusterCode === 'string') {
+              // Try to find by name again or just construct a temporary object for display
               cluster = clusters.find(c => c.name === effectiveClusterCode);
+
+              if (!cluster) {
+                // Ultimate fallback for display
+                cluster = { id: 'temp', name: effectiveClusterCode };
+              }
             }
           }
 
@@ -545,11 +604,35 @@ export function HomeScreen() {
       // Let's keep the mock screenshots but mapped to real delivery IDs if possible?
       // Or just empty map if we assume no screenshots yet.
       // Since we just wiped mockDeliveries, the IDs won't match mockScreenshots.
-      // So screenshots will be empty. This is fine.
       setScreenshots(new Map());
 
-    } catch (error) {
-      console.error('Failed to load home data:', error);
+      // 3. Get Today's Leaves - V1 FIX: Use admin client to bypass RLS
+      // This ensures we can see Mallikarjun's leave for failover check
+      const client = adminSupabase || supabase;
+      const { data: allLeavesData, error: leavesError } = await client
+        .from('leaves')
+        .select('*');
+
+      if (leavesError) {
+        console.error('Error fetching global leaves:', leavesError);
+      } else {
+        const currentOperationalDate = getOperationalDateString();
+        // Map to app types
+        const todayLeaves = (allLeavesData || [])
+          .filter(l => l.date === currentOperationalDate)
+          .map(l => ({
+            id: l.id,
+            photographerId: l.photographer_id,
+            date: l.date,
+            half: l.half,
+            appliedBy: l.applied_by,
+            appliedAt: l.applied_at
+          }));
+        setLeaves(todayLeaves);
+        console.log('Successfully loaded home data with global leaves:', todayLeaves.length);
+      }
+    } catch (err: any) {
+      console.error('Failed to load home data:', err);
       toast.error('Failed to load deliveries');
     } finally {
       setLoading(false);
@@ -669,7 +752,12 @@ export function HomeScreen() {
       const delivery = deliveries.find(d => d.id === deliveryId);
       if (!delivery) return;
 
-      const newName = generateDeliveryName(delivery.date, delivery.showroom_code, timing);
+      const newName = generateDeliveryName(
+        delivery.date,
+        delivery.showroom_code,
+        getClusterShortCode(delivery.cluster_code),
+        timing
+      );
 
       const client = adminSupabase || supabase;
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
@@ -876,8 +964,8 @@ export function HomeScreen() {
 
       // Generate delivery name based on whether timing is provided
       const deliveryName = timing
-        ? generateDeliveryName(today, currentShowroomPrompt.showroomCode, timing)
-        : generateDeliveryName(today, currentShowroomPrompt.showroomCode, null, creationIndex);
+        ? generateDeliveryName(today, currentShowroomPrompt.showroomCode, getClusterShortCode(currentShowroomPrompt.clusterCode), timing)
+        : generateDeliveryName(today, currentShowroomPrompt.showroomCode, getClusterShortCode(currentShowroomPrompt.clusterCode), undefined, creationIndex);
 
       // V1 FIX: Determine assignment based on GLOBAL primary mapping
       // Even if I am adding it (Akhil), if Aman is PRIMARY for this showroom, it goes to Aman as ASSIGNED

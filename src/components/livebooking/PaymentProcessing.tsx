@@ -227,6 +227,9 @@ export function PaymentProcessing({ onComplete, onCancel, amount, venue, request
               </div>
             </div>
 
+            {/* Added details from HowItWorks */}
+
+
             <div className="mt-8 flex justify-center gap-2">
               {[0, 1, 2].map((i) => (
                 <motion.div

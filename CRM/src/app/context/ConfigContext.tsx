@@ -79,6 +79,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       try {
         // V1 FIX: Use adminSupabase (Service Role) if available to bypass RLS for Admin views
         const client = adminSupabase || supabase;
+        console.log('[ConfigContext] Loading data...', {
+          isAdminSupabaseAvailable: !!adminSupabase,
+          usingClient: adminSupabase ? 'ADMIN (Service Role)' : 'PUBLIC (Anon)'
+        });
 
         const [clustersData, dealershipsData, photographersData, mappingsData] = await Promise.all([
           configDb.getClusters(client), // Pass client
@@ -86,6 +90,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           usersDb.getUsersByRole('PHOTOGRAPHER', client), // Pass client
           configDb.getMappings(client), // Pass client
         ]);
+
+        console.log('[ConfigContext] Data loaded:', {
+          clusters: clustersData.length,
+          dealerships: dealershipsData.length,
+          photographers: photographersData.length,
+          mappings: mappingsData.length
+        });
 
         setClusters(clustersData);
         setDealerships(dealershipsData);
@@ -205,7 +216,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         // Update DB record to active
         const updated = await usersDb.updateUser(existingUser.id, {
           name: photographer.name,
-          active: true
+          active: true,
+          phone_number: photographer.phone_number
         });
 
         setPhotographers(prev => [...prev, updated]);
@@ -241,11 +253,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
       // Create the DB record with MATCHING ID
       const newPhotographer = await usersDb.createUserWithId({
-        id: authData.user.id,
         name: photographer.name,
         email: photographer.email,
         role: 'PHOTOGRAPHER',
         active: photographer.active,
+        phone_number: photographer.phone_number,
       });
 
       setPhotographers(prev => [...prev, newPhotographer]);

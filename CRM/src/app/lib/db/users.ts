@@ -14,6 +14,7 @@ const rowToUser = (row: UserRow): User => ({
   email: row.email,
   role: row.role as UserRole,
   active: row.active,
+  phone_number: row.phone_number,
   cluster_code: row.cluster_code ?? undefined,
 });
 
@@ -90,6 +91,7 @@ export const createUser = async (user: Omit<User, 'id'> & { email: string }): Pr
     name: user.name,
     role: user.role,
     active: user.active ?? true,
+    phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
   };
 
@@ -111,6 +113,7 @@ export const createUserWithId = async (user: User): Promise<User> => {
     name: user.name,
     role: user.role,
     active: user.active ?? true,
+    phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
   };
 
@@ -131,6 +134,7 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     name: updates.name,
     role: updates.role,
     active: updates.active,
+    phone_number: updates.phone_number,
     cluster_code: updates.cluster_code ?? null,
   };
 

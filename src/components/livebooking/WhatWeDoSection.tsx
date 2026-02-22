@@ -28,13 +28,13 @@ export function WhatWeDoSection({ expanded, onToggle }: WhatWeDoSectionProps) {
           >
             <div className="px-6 pb-6">
               <p className="text-sm text-gray-600 leading-relaxed">
-                We're uniquely positioned in this domain coming from a portraiture shoot background geared towards people coming in front of a professional the very first time.
+                We turn your café outing into a keepsake.
               </p>
               <p className="text-sm text-gray-600 leading-relaxed mt-3">
-                The photographer helps you with all the poses you need. We are ready to spend as much effort as you need with no rush until you're satisfied with the pic.
+                A professional photographer captures natural photos of your table in just 5 minutes.
               </p>
               <p className="text-sm text-gray-600 leading-relaxed mt-3">
-                You can get the Google drive link with all your photos within the next 8 hours. Hardcopies handed over right away.
+                Only buy if you love a photo — your hard copy is printed instantly, and the full set is shared via Drive within 8 hours.
               </p>
             </div>
           </motion.div>

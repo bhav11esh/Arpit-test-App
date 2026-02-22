@@ -47,6 +47,7 @@ export function PhotographersConfigScreen() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone_number: '',
     password: '',
     active: true,
   });
@@ -64,12 +65,13 @@ export function PhotographersConfigScreen() {
       setFormData({
         name: photographer.name,
         email: photographer.email,
+        phone_number: photographer.phone_number || '',
         password: '', // Password is only for new photographers
         active: photographer.active,
       });
     } else {
       setEditingPhotographer(null);
-      setFormData({ name: '', email: '', password: '', active: true });
+      setFormData({ name: '', email: '', phone_number: '', password: '', active: true });
     }
     setDialogOpen(true);
   };
@@ -77,7 +79,7 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', email: '', password: '', active: true });
+    setFormData({ name: '', email: '', phone_number: '', password: '', active: true });
   };
 
   const handleSubmit = async () => {
@@ -106,6 +108,7 @@ export function PhotographersConfigScreen() {
         await updatePhotographer(editingPhotographer.id, {
           name: formData.name.trim(),
           email: formData.email.trim(),
+          phone_number: formData.phone_number.trim() || null,
           active: formData.active,
         });
         toast.success('Photographer updated successfully');
@@ -113,6 +116,7 @@ export function PhotographersConfigScreen() {
         await addPhotographer({
           name: formData.name.trim(),
           email: formData.email.trim(),
+          phone_number: formData.phone_number.trim() || null,
           password: formData.password.trim(),
           active: formData.active,
         });
@@ -264,6 +268,11 @@ export function PhotographersConfigScreen() {
                           <div>
                             ID: <span className="font-mono">{photographer.id}</span>
                           </div>
+                          {photographer.phone_number && (
+                            <div>
+                              Phone: <span className="font-mono text-gray-700">{photographer.phone_number}</span>
+                            </div>
+                          )}
                           <div className="text-purple-600">
                             {photographerMappingCount} mapping(s): {primaryMappings}{' '}
                             primary, {secondaryMappings} secondary
@@ -353,6 +362,17 @@ export function PhotographersConfigScreen() {
                 value={formData.email}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
                 placeholder="e.g., rahul@example.com"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="phone">Phone Number (Optional)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone_number}
+                onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
+                placeholder="e.g., +91 9876543210"
               />
             </div>
 

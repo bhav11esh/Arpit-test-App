@@ -8,7 +8,7 @@ interface HowItWorksSectionProps {
 }
 
 const steps = [
-  { icon: Camera, title: '5 min shoot session for your table', description: 'Quick professional photoshoot', expandable: true },
+  { icon: Camera, title: '5 min table shoot', description: 'Quick professional photos', expandable: true },
   { icon: Eye, title: 'Review camera roll', description: 'Photos shown immediately post session', expandable: false },
   { icon: CreditCard, title: 'Pay only if you like', description: 'No obligation', expandable: false },
 ];
@@ -76,13 +76,7 @@ export function HowItWorksSection({ expanded, onToggle }: HowItWorksSectionProps
                           <div>• ~ 20 photos per 5 min session</div>
                           <div>• One 4×6-inch lab quality hard-copy photograph</div>
 
-                          <div className="pt-2 border-t border-gray-200 mt-2">
-                            <div className="font-medium text-gray-700 mb-1">Extension options:</div>
-                            <div>• +5 min (₹75): ~20 additional photos</div>
-                            <div>• +10 min (₹150): ~50 additional photos</div>
-                            <div>• +1 hardcopy (₹39): Hardcopy count can be increased</div>
-                          </div>
-                          <div className="pt-1 text-gray-400 italic">Sessions are extendable & Hard copy count increasable independently from each other</div>
+
                         </div>
                       </motion.div>
                     )}

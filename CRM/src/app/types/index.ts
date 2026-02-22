@@ -64,6 +64,7 @@ export interface User {
   email: string;
   role: UserRole;
   active: boolean;
+  phone_number?: string | null;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
 }
 

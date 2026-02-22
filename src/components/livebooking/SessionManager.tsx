@@ -13,6 +13,8 @@ interface SessionManagerProps {
   onFilenamesChange: (filenames: string[]) => void;
   requestId?: string;
   activationCode?: string;
+  photographerName?: string;
+  photographerPhone?: string;
 }
 
 export function SessionManager({
@@ -24,7 +26,9 @@ export function SessionManager({
   onFilenamesComplete,
   onFilenamesChange,
   requestId,
-  activationCode
+  activationCode,
+  photographerName,
+  photographerPhone
 }: SessionManagerProps) {
   const [photographerCode, setPhotographerCode] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -247,27 +251,29 @@ export function SessionManager({
     <div className="px-6 py-6 bg-gray-50 border-t border-b border-gray-200">
       {/* Photographer Code Input */}
       {!sessionStarted && (
-        <div className="mb-4">
+        <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
           <label className="block text-sm text-gray-600 mb-2">
-            <span className="text-xs" style={{ fontStyle: 'italic !important' }}>PHOTOGRAPHER IS ON THE WAY</span>
-            <br />
-            <br />
-            Code to be entered by photographer to start timer
+            <span className="text-xs font-bold text-green-600 block mb-1 uppercase tracking-wider">
+              {photographerName
+                ? `${photographerName} ${photographerPhone || ''} is on the way`
+                : 'PHOTOGRAPHER IS ON THE WAY'}
+            </span>
+            <span className="text-gray-500 text-xs">Enter code from photographer to start:</span>
           </label>
           <div className="flex gap-2">
             <input
               type="text"
               value={photographerCode}
               onChange={(e) => setPhotographerCode(e.target.value)}
-              placeholder="Enter code"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+              placeholder="0000"
+              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-black transition-all"
             />
             <button
               onClick={handleStartSession}
               disabled={!isCodeValid()}
-              className={`px-6 py-3 rounded-lg transition-colors font-medium ${isCodeValid()
-                ? 'bg-black text-white hover:bg-gray-800 cursor-pointer'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              className={`px-6 py-3 rounded-lg transition-all font-medium shadow-md active:scale-95 ${isCodeValid()
+                ? 'bg-black text-white hover:bg-gray-800'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                 }`}
             >
               Start
@@ -276,155 +282,144 @@ export function SessionManager({
         </div>
       )}
 
-      {/* Session Time Display */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-gray-600" />
+      {/* Timer & Extensions Card */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-4 relative overflow-hidden">
+        <div className="flex justify-between items-start mb-6">
           <div>
-            <span className="font-medium">Session: {baseTime} min</span>
+            <h3 className="text-sm font-semibold text-gray-900">Session Timer</h3>
+            <p className="text-xs text-gray-500">Base: {baseTime} min</p>
+          </div>
+          <div className="flex gap-1.5 bg-gray-50 p-1 rounded-lg">
+            {[5, 10].map((mins) => (
+              <button
+                key={mins}
+                onClick={() => handleExtension(mins)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${selectedExtension === mins
+                  ? 'bg-black text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                  }`}
+              >
+                +{mins}m
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Extension Buttons */}
-        <div className="flex gap-2">
-          <div className="flex flex-col items-center">
-            <button
-              onClick={() => handleExtension(5)}
-              className={`px-3 py-2 border rounded-lg text-sm transition-colors flex items-center gap-1 text-[13px] ${selectedExtension === 5
-                ? 'bg-black text-white border-black'
-                : 'border-gray-300 hover:bg-gray-100'
-                }`}
-            >
-              <Plus className="w-4 h-4" />
-              5 min
-            </button>
-            <span className="text-[10px] text-gray-600 italic mt-0.5">₹75 (~20 photos)</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <button
-              onClick={() => handleExtension(10)}
-              className={`px-3 py-2 border rounded-lg text-sm transition-colors flex items-center gap-1 text-[13px] ${selectedExtension === 10
-                ? 'bg-black text-white border-black'
-                : 'border-gray-300 hover:bg-gray-100'
-                }`}
-            >
-              <Plus className="w-4 h-4" />
-              10 min
-            </button>
-            <span className="text-[10px] text-gray-600 italic mt-0.5">₹150 (~50 photos)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Countdown Timer Display - Always visible */}
-      <div className="flex justify-center my-6">
-        <div className="relative w-40 h-40">
-          {/* Circular Progress Background */}
-          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
-            {/* Background circle */}
-            <circle
-              cx="80"
-              cy="80"
-              r="70"
-              fill="none"
-              stroke="#e5e7eb"
-              strokeWidth="8"
-            />
-            {/* Progress circle */}
-            <circle
-              cx="80"
-              cy="80"
-              r="70"
-              fill="none"
-              stroke={timeRemaining === 0 ? '#ef4444' : '#000000'}
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={`${2 * Math.PI * 70}`}
-              strokeDashoffset={`${2 * Math.PI * 70 * (1 - timeRemaining / (baseTime * 60))}`}
-              className={`transition-all duration-1000 ${timeRemaining === 0 ? 'animate-pulse' : ''}`}
-            />
-          </svg>
-          {/* Timer Text in Center */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Clock className={`w-8 h-8 mb-2 ${timeRemaining === 0 ? 'text-red-500' : 'text-gray-400'}`} />
-            <div className={`text-3xl font-bold ${timeRemaining === 0 ? 'text-red-500' : 'text-black'}`}>
-              {formatTime(timeRemaining)}
+        {/* Circular Timer */}
+        <div className="flex justify-center mb-6 relative">
+          {/* Dynamic Price Tag for Extension */}
+          {selectedExtension > 0 && (
+            <div className="absolute top-0 right-10 bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full animate-in fade-in zoom-in">
+              +₹{selectedExtension === 5 ? 75 : 150}
             </div>
-            <div className={`text-xs mt-1 ${timeRemaining === 0 ? 'text-red-500' : 'text-gray-500'}`}>
-              {timeRemaining === 0 ? 'Time up!' : sessionStarted ? 'remaining' : 'ready to start'}
+          )}
+
+          <div className="relative w-48 h-48">
+            <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="70" fill="none" stroke="#f3f4f6" strokeWidth="6" />
+              <circle
+                cx="80" cy="80" r="70" fill="none"
+                stroke={timeRemaining === 0 ? '#ef4444' : '#111827'}
+                strokeWidth="6" strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 70}`}
+                strokeDashoffset={`${2 * Math.PI * 70 * (1 - timeRemaining / (baseTime * 60))}`}
+                className={`transition-all duration-1000 ${timeRemaining === 0 ? 'animate-pulse' : ''}`}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className={`text-5xl font-bold tracking-tighter ${timeRemaining === 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                {formatTime(timeRemaining)}
+              </div>
+              <div className={`text-xs font-medium uppercase tracking-wide mt-1 ${timeRemaining === 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                {timeRemaining === 0 ? 'Time Up' : sessionStarted ? 'Remaining' : 'Ready'}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Hardcopy Count Control */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-sm">Hardcopy Count:</span>
-          <div className="flex items-center gap-3 border border-gray-300 rounded-lg px-3 py-1.5">
+      {/* Hardcopy Control Card */}
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Hardcopies</h3>
+            <p className="text-xs text-gray-500">₹39 per extra copy</p>
+          </div>
+          <div className="flex items-center bg-gray-50 rounded-lg p-1 border border-gray-200">
             <button
               onClick={() => handleHardcopyChange(-1)}
               disabled={hardcopyCount <= getIncludedHardcopies()}
-              className="text-gray-600 hover:text-black disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
             >
-              <Minus className="w-4 h-4" />
+              <Minus className="w-4 h-4 text-gray-600" />
             </button>
-            <span className="font-medium min-w-[20px] text-center">{hardcopyCount}</span>
+            <div className="w-8 text-center font-semibold text-sm">{hardcopyCount}</div>
             <button
               onClick={() => handleHardcopyChange(1)}
-              className="text-gray-600 hover:text-black"
+              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm transition-all"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-gray-600" />
             </button>
           </div>
         </div>
 
-        {/* Filename Input for Hardcopies */}
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           {hardcopyFilenames.map((filename, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={index} className="flex gap-2 animate-in fade-in slide-in-from-top-1">
               <input
                 type="text"
                 value={filename}
                 onChange={(e) => handleFilenameChange(index, e.target.value)}
-                placeholder={`Filename ${index + 1}`}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black text-sm"
+                placeholder={`Filename ${index + 1} (e.g. IMG_1234)`}
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black transition-all"
               />
               <button
                 onClick={() => handleSelectFilename(index)}
                 disabled={filename.trim() === '' || selectedFilenames[index]}
-                className={`px-4 py-2 border rounded-lg text-sm transition-colors whitespace-nowrap ${selectedFilenames[index]
-                  ? 'bg-black text-white border-black cursor-default'
+                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${selectedFilenames[index]
+                  ? 'bg-green-100 text-green-700 border border-green-200'
                   : filename.trim() === ''
-                    ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 hover:bg-gray-100 cursor-pointer'
+                    ? 'bg-gray-100 text-gray-400'
+                    : 'bg-black text-white hover:bg-gray-800'
                   }`}
               >
-                {selectedFilenames[index] ? 'Selected' : 'Select'}
+                {selectedFilenames[index] ? 'Saved' : 'Save'}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Session Details */}
-      <div className="mt-4 pt-4 border-t border-gray-300 text-sm text-gray-600">
-        <div className="flex justify-between mb-1">
-          <span>Base package (5 min session + 1 hard copy):</span>
-          <span>₹99</span>
+      {/* Session Details Receipt */}
+      <div className="bg-gray-50 rounded-xl p-4 border border-dashed border-gray-300 mb-4">
+        <div className="flex justify-between text-xs text-gray-600 mb-2">
+          <span>Base Package (5m + 1 copy)</span>
+          <span className="font-medium">₹99</span>
         </div>
+
         {selectedExtension > 0 && (
-          <div className="flex justify-between mb-1">
-            <span>Extension (+{selectedExtension} min):</span>
-            <span>₹{calculatePrice(selectedExtension) - 99}</span>
+          <div className="flex justify-between text-xs text-gray-600 mb-2 animate-in slide-in-from-left-2">
+            <span>Extra Time (+{selectedExtension} min)</span>
+            <span className="font-medium">₹{calculatePrice(selectedExtension) - 99}</span>
           </div>
         )}
+
         {getAdditionalHardcopies() > 0 && (
-          <div className="flex justify-between mb-1">
-            <span>Additional hard copies ({getAdditionalHardcopies()}):</span>
-            <span>₹{getAdditionalHardcopies() * 39}</span>
+          <div className="flex justify-between text-xs text-gray-600 mb-2 animate-in slide-in-from-left-2">
+            <span>Extra Copies ({getAdditionalHardcopies()} x ₹39)</span>
+            <span className="font-medium">₹{getAdditionalHardcopies() * 39}</span>
           </div>
         )}
+
+        <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between items-center">
+          <span className="text-sm font-semibold text-gray-900">Total</span>
+          <span className="text-lg font-bold text-gray-900">₹{getTotalPrice()}</span>
+        </div>
+      </div>
+
+      {/* Simplified Info Note */}
+      <div className="mt-4 bg-gray-50 border border-gray-100 rounded-lg p-3 text-[10px] text-gray-500 italic text-center leading-tight">
+        Sessions are extended & Hard copy count increased independently.
       </div>
 
       {/* Venue Instructions - Below the timer */}

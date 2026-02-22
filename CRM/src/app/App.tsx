@@ -22,6 +22,7 @@ import { ReelBacklog } from './components/ReelBacklog';
 import { Layout } from './components/Layout';
 import { BottomNav } from './components/BottomNav';
 import { Toaster } from './components/ui/sonner';
+import { AdminNotifier } from './components/admin/AdminNotifier';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -107,6 +108,7 @@ function AppRoutes() {
       </Routes>
 
       {!isAdminModule && <BottomNav userRole={user.role} />}
+      <AdminNotifier />
     </>
   );
 }
