@@ -115,7 +115,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/crm">
+    <BrowserRouter basename="/">
       <AuthProvider>
         <ConfigProvider>
           <LeaveProvider>

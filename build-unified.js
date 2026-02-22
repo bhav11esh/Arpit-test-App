@@ -9,9 +9,9 @@ const PUBLIC_CRM_DIR = path.join(__dirname, 'public', 'crm');
 console.log('🚀 Starting Unified Build Process...');
 
 try {
-    // 1. Install CRM Dependencies
+    // 1. Install CRM Dependencies (include dev deps for vite)
     console.log('\n📦 Installing CRM dependencies...');
-    execSync('npm install', { cwd: CRM_DIR, stdio: 'inherit' });
+    execSync('npm install --include=dev', { cwd: CRM_DIR, stdio: 'inherit' });
 
     // 2. Build CRM Project
     console.log('\n🔨 Building CRM project...');
