@@ -1,0 +1,120 @@
+{
+  "summary": {
+    "total_crm": 397,
+    "perfect_matches": 386,
+    "data_mismatches": 11,
+    "missing_in_sheet": 0
+  },
+  "details": [
+    {
+      "crm_index": 92,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Reel)",
+      "crm_date": "2026-02-03",
+      "sheet_date": "02/03/2026",
+      "crm_photog": "Mallikarjun",
+      "sheet_photog": "Mallikarjun ",
+      "links": "https://drive.google.com/drive/folders/1-kYqugDPHR1IgqyXZANC_NtCHUumwOSf"
+    },
+    {
+      "crm_index": 93,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Reel)",
+      "crm_date": "2026-02-03",
+      "sheet_date": "02/03/2026",
+      "crm_photog": "Mallikarjun",
+      "sheet_photog": "Mallikarjun ",
+      "links": "https://drive.google.com/drive/folders/1-kYqugDPHR1IgqyXZANC_NtCHUumwOSf"
+    },
+    {
+      "crm_index": 279,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-11-04",
+      "sheet_date": "4-11-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1XXQ4VH7zydB8rUcdjsySzlEhfu7c2vaE"
+    },
+    {
+      "crm_index": 280,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-11-03",
+      "sheet_date": "3-11-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1-hJ6sjQXUseYdJ-doTFbhZUlgRtEU9OB"
+    },
+    {
+      "crm_index": 281,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-11-03",
+      "sheet_date": "3-11-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1vzJ-vxGv_nDYJmRl5cVm0dVv3jznONul"
+    },
+    {
+      "crm_index": 282,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-11-03",
+      "sheet_date": "3-11-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1Bxk8qmMwSkNxLrAFEFheA-_O-10VHj3K"
+    },
+    {
+      "crm_index": 313,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-10-13",
+      "sheet_date": "13-10-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/182f4N55Zt9UZGW45ME8HSiNogiis26E_"
+    },
+    {
+      "crm_index": 318,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-10-10",
+      "sheet_date": "10-10-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1eCNGrJlmpTh2upVu_gsm5t3onjkO3z6l"
+    },
+    {
+      "crm_index": 320,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-10-08",
+      "sheet_date": "8-10-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/16PvHW2Qo0h5h8YiNJwhptJZ83RRpYn0H"
+    },
+    {
+      "crm_index": 322,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Reel)",
+      "crm_date": "2025-10-06",
+      "sheet_date": "06-10-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "Only photos "
+    },
+    {
+      "crm_index": 323,
+      "status": "DATA_MISMATCH",
+      "match_type": "Unique Link (Footage)",
+      "crm_date": "2025-10-06",
+      "sheet_date": "06-10-25",
+      "crm_photog": "Bibin",
+      "sheet_photog": "Bibin",
+      "links": "https://drive.google.com/drive/folders/1st5UVU1VXjzYGCOcY0P2Fg38Ov7vwIgo"
+    }
+  ]
+}

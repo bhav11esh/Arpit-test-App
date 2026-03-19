@@ -22,15 +22,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { ArrowLeft, Plus, Edit, Trash2, Building2, RefreshCw, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Save, Trash2, Building2, Search, Map, Check, X, AlertCircle, AlertTriangle, RefreshCw, Download, Code } from 'lucide-react';
+import { getShowroomCode } from '../../lib/utils';
 import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
+import * as reelsDb from '../../lib/db/reels';
+import * as screenshotsDb from '../../lib/db/screenshots';
+import { supabase } from '../../lib/supabase';
 import type { Dealership, PaymentType } from '../../types';
+import { formatDateForSheet, getDeliverySignature } from '../../lib/utils';
 
 export function DealershipsConfigScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { dealerships, addDealership, updateDealership, deleteDealership, mappings, photographers } =
+  const { dealerships, addDealership, updateDealership, deleteDealership, mappings, photographers, clusters } =
     useConfig();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -43,14 +48,14 @@ export function DealershipsConfigScreen() {
     name: '',
     paymentType: 'CUSTOMER_PAID' as PaymentType,
     googleSheetId: '',
+    ratePerDelivery: '',
+    city: '',
   });
 
-  // Admin-only access guard
-  if (user?.role !== 'ADMIN') {
-    toast.error('Access denied. Admin privileges required.');
-    navigate('/');
-    return null;
-  }
+  // Filter by city
+  const filteredDealerships = user?.role === 'ADMIN' && user?.city
+    ? dealerships.filter(d => (d as any).city === user.city)
+    : dealerships;
 
   const handleOpenDialog = (dealership?: Dealership) => {
     if (dealership) {
@@ -59,6 +64,8 @@ export function DealershipsConfigScreen() {
         name: dealership.name,
         paymentType: dealership.paymentType,
         googleSheetId: dealership.googleSheetId || '',
+        ratePerDelivery: dealership.ratePerDelivery?.toString() || '',
+        city: (dealership as any).city || '',
       });
     } else {
       setEditingDealership(null);
@@ -66,6 +73,8 @@ export function DealershipsConfigScreen() {
         name: '',
         paymentType: 'CUSTOMER_PAID',
         googleSheetId: '',
+        ratePerDelivery: '',
+        city: user?.city || '', // Default to admin's city
       });
     }
     setDialogOpen(true);
@@ -78,6 +87,8 @@ export function DealershipsConfigScreen() {
       name: '',
       paymentType: 'CUSTOMER_PAID',
       googleSheetId: '',
+      ratePerDelivery: '',
+      city: '',
     });
   };
 
@@ -87,20 +98,28 @@ export function DealershipsConfigScreen() {
       toast.error('Dealership name is required');
       return;
     }
+    if (!formData.city.trim()) {
+      toast.error('City is required');
+      return;
+    }
 
     if (editingDealership) {
       updateDealership(editingDealership.id, {
         name: formData.name.trim(),
         paymentType: formData.paymentType,
         googleSheetId: formData.googleSheetId.trim() || undefined,
-      });
+        ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
+        city: formData.city.trim(),
+      } as any);
       toast.success('Dealership updated successfully');
     } else {
       addDealership({
         name: formData.name.trim(),
         paymentType: formData.paymentType,
         googleSheetId: formData.googleSheetId.trim() || undefined,
-      });
+        ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
+        city: formData.city.trim(),
+      } as any);
       toast.success('Dealership added successfully');
     }
 
@@ -135,9 +154,9 @@ export function DealershipsConfigScreen() {
       return;
     }
 
-    const syncUrl = import.meta.env.VITE_GOOGLE_SYNC_URL;
+    const syncUrl = dealership.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
     if (!syncUrl) {
-      toast.error('Google Sync URL not configured in environment.');
+      toast.error('Google Sync URL not configured.');
       return;
     }
 
@@ -147,9 +166,15 @@ export function DealershipsConfigScreen() {
       const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id);
       const dealershipDeliveries = await deliveriesDb.getDeliveries();
 
-      const relevantDeliveries = dealershipDeliveries.filter((d: any) =>
-        dealershipMappings.some(m => m.id === d.showroom_code)
-      );
+      const targetCode = getShowroomCode(dealership.name);
+
+      const relevantDeliveries = dealershipDeliveries.filter((d: any) => {
+        // Match 1: By mapping ID (manual creation)
+        if (dealershipMappings.some(m => m.id === d.showroom_code)) return true;
+        // Match 2: By text code (imports and ViewScreen logic) - V1.1: Case-insensitive match for showroom_code
+        if (getShowroomCode(d.showroom_code) === targetCode) return true;
+        return false;
+      });
 
       if (relevantDeliveries.length === 0) {
         toast.warning('No historical records found for this dealership.');
@@ -159,15 +184,26 @@ export function DealershipsConfigScreen() {
       const response = await fetch(syncUrl, {
         method: 'POST',
         body: JSON.stringify({
+          action: 'sync_bulk', // V6.0: Use bulk action for efficiency
           sheetId: dealership.googleSheetId,
-          deliveries: relevantDeliveries.map(d => ({
-            delivery_name: d.delivery_name,
-            date: d.date,
-            timing: d.timing,
-            payment_type: d.payment_type,
-            footage_link: d.footage_link,
-            reel_link: d.reel_link
-          }))
+          deliveries: relevantDeliveries.map(d => {
+            const photographer = photographers.find(p => p.id === d.assigned_user_id);
+            const sig = getDeliverySignature(d, photographer?.name || '');
+            return {
+              signature: sig,
+              oldSignature: sig,
+              delivery_name: d.delivery_name,
+              date: formatDateForSheet(d.date),
+              timing: d.timing,
+              payment_type: d.payment_type,
+              footage_link: d.footage_link,
+              reel_link: d.reel_link,
+              photographer_name: photographer?.name || '',
+              received_amount: d.received_amount || '',
+              customer_phone: d.customer_phone || '',
+              rapido_charge: d.rapido_charge || ''
+            };
+          })
         })
       });
 
@@ -184,184 +220,202 @@ export function DealershipsConfigScreen() {
       return;
     }
 
-    const syncUrl = import.meta.env.VITE_GOOGLE_SYNC_URL;
+    const confirm = window.confirm(
+      `CRITICAL ACTION: This will delete ALL current CRM records for "${dealership.name}" and re-import them fresh from Google Sheets. Continue?`
+    );
+    if (!confirm) return;
+
+    const syncUrl = dealership.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
     if (!syncUrl) {
-      toast.error('Google Sync URL not configured in environment.');
+      toast.error('Google Sync URL not configured.');
       return;
     }
 
-    toast.info(`[v4.2-ULTIMATE] Fetching records from ${dealership.name} Google Sheet...`);
+    const toastId = toast.loading(`Refreshing records for ${dealership.name}...`);
 
     try {
+      // 1. Precise Wipe for this dealership
+      const getShowroomCode = (name: string) => {
+        const matches = name.match(/\(([^)]+)\)/);
+        return matches ? matches[1].toUpperCase() : name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      };
+      const showroomCode = getShowroomCode(dealership.name);
+      
+      const { data: targetDeliveries } = await supabase.from('deliveries').select('id').eq('showroom_code', showroomCode);
+      const deliveryIds = (targetDeliveries as any[])?.map(d => d.id) || [];
+      
+      if (deliveryIds.length > 0) {
+        await reelsDb.deleteReelTasksByDeliveryIds(deliveryIds);
+        await screenshotsDb.deleteScreenshotsByDeliveryIds(deliveryIds, supabase);
+        await deliveriesDb.deleteDeliveriesByShowroomCode(showroomCode);
+      }
+
+      // 2. Fetch from Sheet
       const response = await fetch(syncUrl, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
         body: JSON.stringify({
-          sheetId: dealership.googleSheetId,
-          action: 'read'
+          action: 'read',
+          sheetId: dealership.googleSheetId
         })
       });
       const result = await response.json();
 
-      if (result.status !== 'success') {
-        throw new Error(result.message || 'Failed to fetch data');
+      if (result.status !== 'success' || !Array.isArray(result.data)) {
+        throw new Error(result.message || 'Failed to fetch sheet data');
       }
 
-      const rows = result.data;
-      const scriptVersion = result.version || 'unknown';
-      const sheetNameFound = (result as any).sheetName || 'Unknown';
-
-      console.log('📊 [Import] Script Version:', scriptVersion);
-      console.log('📊 [Import] Sheet accessed:', sheetNameFound);
-      console.log('📊 [Import] Rows received:', rows?.length || 0);
-
-      if (!rows || rows.length === 0) {
-        toast.warning(`No records found in sheet "${sheetNameFound}". (Script: ${scriptVersion})`);
-        return;
+      let rawRows = result.data;
+      
+      // V7.8 FIX: If Apps Script returns raw Array of Arrays, convert to Array of Objects
+      if (Array.isArray(rawRows) && rawRows.length > 0 && Array.isArray(rawRows[0])) {
+        const headers = rawRows[0];
+        rawRows = rawRows.slice(1).map(row => {
+          const obj: any = {};
+          headers.forEach((h: string, i: number) => {
+            if (h) obj[h] = row[i];
+          });
+          return obj;
+        });
       }
 
-      // Find the primary showroom for this dealership
-      const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id);
-      if (dealershipMappings.length === 0) {
-        toast.error('No showroom mappings found for this dealership. Cannot import.');
-        return;
-      }
-      const defaultShowroom = dealershipMappings[0];
-
-      toast.info(`Parsing ${rows.length} records from "${sheetNameFound}"...`);
-      console.log('📋 [V4.2-ULTIMATE] RAW SHEET DATA:', rows);
-      console.table(rows.slice(0, 5)); // Show first 5 rows for quick audit
-
-      // Get existing deliveries for this dealership to avoid duplicates
-      const existingDeliveries = await deliveriesDb.getDeliveries({
-        showroomCode: defaultShowroom.id
+      // 🛠️ V8.3 Normalization: Trim all keys and values to defend against "Date " or " Chassis Number"
+      const rows = rawRows.map((r: any) => {
+        const normalized: any = {};
+        Object.keys(r).forEach(key => {
+          const cleanKey = key.trim();
+          normalized[cleanKey] = typeof r[key] === 'string' ? r[key].trim() : r[key];
+        });
+        return normalized;
       });
-      const existingNames = new Set(existingDeliveries.map(d => d.delivery_name));
 
-      let importCount = 0;
-      let skipCount = 0;
-      // V1 FIX: Use index to ensure uniqueness for same-day/same-photographer deliveries
-      for (const [index, row] of rows.entries()) {
-        // Robust helper to find value regardless of case or trailing spaces in headers
-        const getVal = (key: string) => {
-          const actualKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
-          return actualKey ? row[actualKey] : null;
-        };
+      const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id);
+      const cluster = dealershipMappings.length > 0 ? clusters.find(c => (c as any).id === dealershipMappings[0].clusterId) : null;
+      const mapping = dealershipMappings[0];
 
-        const dateVal = getVal('Date');
-        const footageLink = getVal('Footage Link');
-        const reelLink = getVal('Reel Link');
-        const photographerNameRaw = getVal('Photographer');
-
-        // Skip empty rows or header-like rows
-        // Skip empty rows or header-like rows
-        if (!dateVal || dateVal === 'Date' || dateVal === 'Original Dates') continue;
-        // V4.4 FIX: Allow import even if links are missing (Draft status)
-        // if (!footageLink && !reelLink) continue;
-
-        // 1. Parse Date (supporting DD-MM-YYYY and textual dates from Google)
-        // Since we use getDisplayValues in V4.2, we get exactly "08-12-2025"
-        let dateStr = String(dateVal || '').trim();
-        if (!dateStr || dateStr.toLowerCase() === 'date') continue;
-
-        let finalDate = '';
-        // Handle DD-MM-YYYY or DD-MM-YY (Standard in Bimal sheet)
-        // V4.3 FIX: Handle suffixes like _1, _2, _3 (e.g. "14-08-2025_1")
-        dateStr = dateStr.replace(/_\d+$/, '').trim();
-
-        // Handle DD-MM-YYYY or DD-MM-YY with flexible separators (hyphen, dot, slash, space, en-dash, em-dash)
-        // \u2013 is en-dash, \u2014 is em-dash
-        const dmyMatch = dateStr.match(/^(\d{1,2})[\s\-\/\.\u2013\u2014]+(\d{1,2})[\s\-\/\.\u2013\u2014]+(\d{2,4})/);
-
-        if (dmyMatch) {
-          let [_, dStr, mStr, y] = dmyMatch;
-          let d = parseInt(dStr, 10);
-          let m = parseInt(mStr, 10);
-
-          // V4.6 FIX: Handle MM-DD-YYYY format (or typos where Month > 12)
-          // If Month is > 12 (e.g. 13), it's likely the Day, so swap properly.
-          if (m > 12 && d <= 12) {
-            console.warn(`[V4.6] Date ambiguous (Month ${m} > 12). Swapping D/M for "${dateStr}".`);
-            const temp = d;
-            d = m;
-            m = temp;
-          }
-
-          // Ensure 4 digit year
-          if (y.length === 2) y = `20${y}`;
-
-          finalDate = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          console.log(`📅 [V4.6] Parsed: "${dateStr}" -> "${finalDate}"`);
-        } else {
-          // Fallback for ISO or other formats
+      // 3. Map and Batch Insert
+      const parseDate = (dStr: any) => {
+        if (!dStr) return null;
+        
+        // Handle numeric dates (Google Sheets/Excel format)
+        if (typeof dStr === 'number') {
           try {
-            const d = new Date(dateStr);
-            if (!isNaN(d.getTime())) {
-              // Use getFullYear/Month/Date to avoid timezone shift that toISOString() causes
-              const yyyy = d.getFullYear();
-              const mm = String(d.getMonth() + 1).padStart(2, '0');
-              const dd = String(d.getDate()).padStart(2, '0');
-              finalDate = `${yyyy}-${mm}-${dd}`;
-              console.log(`📅 [V4.2] Parsed (ISO Fallback): "${dateStr}" -> "${finalDate}"`);
-            } else {
-              continue;
+            const date = new Date(Math.round((dStr - 25569) * 86400 * 1000));
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          } catch (e) {}
+        }
+
+        const trimmed = typeof dStr === 'string' ? dStr.trim() : String(dStr);
+        let result: string | null = null;
+        
+        // Pre-normalize dashes (handle en-dash \u2013 and em-dash \u2014)
+        const normalizedTrimmed = trimmed.replace(/[\u2013\u2014]/g, '-');
+
+        // 1. Handle DD-MM-YYYY or DD/MM/YYYY with flexible spaces
+        const dmyMatch = normalizedTrimmed.match(/^(\d{1,2})\s*[\s\-\.\/]\s*(\d{1,2})\s*[\s\-\.\/]\s*(\d{2,4})/);
+        if (dmyMatch) {
+          let [_, d, m, y] = dmyMatch;
+          if (y.length === 2) y = '20' + y;
+          result = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+
+        // 2. Handle ISO strings produced by GAS
+        if (!result && trimmed.includes('T') && trimmed.includes('Z')) {
+          try {
+            const date = new Date(trimmed);
+            if (!isNaN(date.getTime())) {
+              const localDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+              result = localDate.toISOString().split('T')[0];
             }
-          } catch (e) {
-            continue;
-          }
+          } catch (e) {}
         }
 
-        // 2. Map Photographer
-        const photographerName = String(photographerNameRaw || '').trim();
-        let photographer = null;
-
-        if (photographerName) {
-          photographer = photographers.find(p =>
-            p.name.toLowerCase() === photographerName.toLowerCase() ||
-            p.name.toLowerCase().startsWith(photographerName.toLowerCase()) ||
-            photographerName.toLowerCase().startsWith(p.name.toLowerCase())
-          );
+        // 3. Final fallback: try native Date parsing
+        if (!result) {
+          try {
+            const nativeDate = new Date(normalizedTrimmed);
+            if (!isNaN(nativeDate.getTime())) {
+              result = nativeDate.toISOString().split('T')[0];
+            }
+          } catch (e) {}
         }
 
-        // 3. Create Delivery Record
-        // FIX: Include photographer name to prevent collisions if multiple deliveries occur on the same day
-        // FIX V2: Include row index to prevent collisions if SAME photographer has multiple records on same day
-        const photographerSuffix = photographerName ? `_${photographerName.replace(/\s+/g, '_').toUpperCase()}` : '';
-        const deliveryName = `${finalDate}_${dealership.name.replace(/\s+/g, '_').toUpperCase()}${photographerSuffix}_${index + 1}_IMPORT`;
-
-        // Check for duplicate
-        if (existingNames.has(deliveryName)) {
-          skipCount++;
-          continue;
+        // Year Guardrail (2020-2100)
+        if (result) {
+          const yearNum = parseInt(result.split('-')[0]);
+          if (yearNum < 2020 || yearNum > 2100) return null;
         }
 
-        await deliveriesDb.createDelivery({
-          date: finalDate,
-          showroom_code: defaultShowroom.dealershipId === dealership.id ?
-            (dealership.name.match(/\(([^)]+)\)/)?.[1] || dealership.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''))
-            : defaultShowroom.id,
-          cluster_code: defaultShowroom.clusterId,
-          showroom_type: 'PRIMARY',
-          timing: null,
-          delivery_name: deliveryName,
+        return result;
+      };
+
+      const getValue = (row: any, ...keys: string[]) => {
+        for (const key of keys) {
+          if (row[key] !== undefined) return row[key];
+          // Try case-insensitive search
+          const foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+          if (foundKey) return row[foundKey];
+        }
+        return null;
+      };
+
+      const mappedRows = rows.filter((row: any) => {
+        const rawDate = getValue(row, "Date", "date") || "";
+        const parsedDate = parseDate(rawDate);
+        
+        // Skip if header row or if date is invalid/empty
+        if (!parsedDate || parsedDate.toLowerCase().includes('date')) return false;
+        
+        // Ensure at least one other column has data
+        const hasData = Object.keys(row).some(key => {
+          if (key.toLowerCase() === 'date' || key === '_parsedDate') return false;
+          return !!row[key];
+        });
+        
+        row._parsedDate = parsedDate;
+        return hasData;
+      }).map((row: any, index: number) => {
+        const photographerName = (getValue(row, "Photographer", "Photographer name", "Photographer Name") || "").trim();
+        const photographer = photographers.find(p => 
+          p.name.toLowerCase().includes(photographerName.toLowerCase()) || 
+          photographerName.toLowerCase().includes(p.name.toLowerCase())
+        );
+
+        return {
+          date: row._parsedDate,
+          showroom_code: showroomCode,
+          cluster_code: cluster?.name || 'UNKNOWN',
+          showroom_type: mapping?.mappingType || 'SECONDARY',
+          timing: 'TBD',
+          delivery_name: getValue(row, "Customer Name", "Customer") || `Delivery_${row._parsedDate}_${index}`,
           status: 'DONE',
           assigned_user_id: photographer?.id || null,
-          footage_link: footageLink || null,
           payment_type: dealership.paymentType,
-          reel_link: reelLink || null
-        } as any);
+          footage_link: getValue(row, "Footage Link", "Footage link") || null,
+          reel_link: getValue(row, "Reel Link", "Reel link") || null,
+          received_amount: getValue(row, "Amount Received", "Received Amount") || null,
+          customer_phone: getValue(row, "Phone Number", "Customer Phone") || null,
+          rapido_charge: getValue(row, "Rapido Charge") || null
+        };
+      });
 
-        importCount++;
+      if (mappedRows.length > 0) {
+        const chunkSize = 100;
+        for (let i = 0; i < mappedRows.length; i += chunkSize) {
+          const chunk = mappedRows.slice(i, i + chunkSize);
+          const { error } = await supabase.from('deliveries').insert(chunk);
+          if (error) throw error;
+        }
       }
 
-      const totalMsg = importCount > 0
-        ? `Successfully imported ${importCount} records!`
-        : `No new records to import.`;
-
-      const skipMsg = skipCount > 0 ? ` (${skipCount} duplicates skipped)` : '';
-      toast.success(`${totalMsg}${skipMsg} (Script: ${scriptVersion})`);
-    } catch (error) {
-      console.error('Import failed:', error);
-      toast.error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.success(`Successfully refreshed ${mappedRows.length} records for ${dealership.name}!`, { id: toastId });
+      setTimeout(() => window.location.reload(), 1000);
+      
+    } catch (error: any) {
+      console.error('Refresh failed:', error);
+      toast.error(`Failed: ${error.message || 'Unknown error'}`, { id: toastId });
     }
   };
 
@@ -390,14 +444,14 @@ export function DealershipsConfigScreen() {
       </div>
 
       <div className="grid gap-4">
-        {dealerships.length === 0 ? (
+        {filteredDealerships.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
               No dealerships configured. Click "Add Dealership" to create one.
             </CardContent>
           </Card>
         ) : (
-          dealerships.map(dealership => {
+          filteredDealerships.map(dealership => {
             const dealershipMappingCount = mappings.filter(
               m => m.dealershipId === dealership.id
             ).length;
@@ -411,7 +465,14 @@ export function DealershipsConfigScreen() {
                         <Building2 className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <CardTitle>{dealership.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle>{dealership.name}</CardTitle>
+                          {(dealership as any).city && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                              {(dealership as any).city}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600 mt-1 space-y-1">
                           <div className="flex items-center gap-2">
                             <Badge
@@ -428,6 +489,11 @@ export function DealershipsConfigScreen() {
                             <span className="text-green-600">
                               {dealershipMappingCount} mapping(s) configured
                             </span>
+                            {dealership.paymentType === 'DEALER_PAID' && dealership.ratePerDelivery !== undefined && (
+                              <Badge className="bg-green-100 text-green-800 ml-2">
+                                Rate: ₹{dealership.ratePerDelivery}
+                              </Badge>
+                            )}
                           </div>
                           {dealership.googleSheetId && (
                             <div className="flex items-center gap-1 text-xs text-blue-600 font-mono">
@@ -518,6 +584,19 @@ export function DealershipsConfigScreen() {
               </Select>
             </div>
 
+            {formData.paymentType === 'DEALER_PAID' && (
+              <div>
+                <Label htmlFor="ratePerDelivery">Rate Per Delivery (Rs)</Label>
+                <Input
+                  id="ratePerDelivery"
+                  type="number"
+                  value={formData.ratePerDelivery}
+                  onChange={e => setFormData({ ...formData, ratePerDelivery: e.target.value })}
+                  placeholder="e.g., 700"
+                />
+              </div>
+            )}
+
             <div>
               <Label htmlFor="googleSheetId">Google Sheet ID (for Client Sync)</Label>
               <Input
@@ -530,6 +609,17 @@ export function DealershipsConfigScreen() {
               <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-tighter">
                 Paste the ID from the sheet URL between /d/ and /edit
               </p>
+            </div>
+
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value.toLowerCase() })}
+                placeholder="e.g., bengaluru"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Use lowercase, e.g., "bengaluru"</p>
             </div>
           </div>
 

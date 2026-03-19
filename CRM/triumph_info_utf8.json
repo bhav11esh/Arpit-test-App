@@ -1,0 +1,15 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: Γ£à audit secrets and track compliance: https://dotenvx.com/ops
+Checking dealership configuration for Triumph Popular...
+Dealership Data: {
+  "id": "eed4caf8-aafa-4f54-928a-f0863d02a813",
+  "name": "Triumph Popular",
+  "latitude": 0,
+  "longitude": 0,
+  "payment_type": "DEALER_PAID",
+  "created_at": "2026-02-11T10:10:43.379904+00:00",
+  "updated_at": "2026-03-19T10:27:24.47954+00:00",
+  "google_sheet_id": "1c8ESv_2C59WC_xY_HFQSGbCG__nlZVoK_12vqfyiL60",
+  "rate_per_delivery": 700,
+  "city": "bengaluru",
+  "google_sync_url": null
+}

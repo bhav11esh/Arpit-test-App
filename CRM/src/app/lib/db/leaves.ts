@@ -64,6 +64,25 @@ export async function getLeaves(photographerId: string, startDate?: string, endD
 }
 
 /**
+ * Get all leaves for a specific date range (admin audit)
+ */
+export async function getLeavesByDateRange(startDate: string, endDate: string): Promise<Leave[]> {
+  const { data, error } = await supabase
+    .from('leaves')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching date range leaves:', error);
+    throw error;
+  }
+
+  return (data || []).map(rowToLeave);
+}
+
+/**
  * Check if a photographer is on leave (used by LeaveContext)
  */
 export async function isPhotographerOnLeave(
@@ -136,33 +155,28 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
   }
 
   // 2. V1 SPEC (EXPANDED): Auto-unassign based on leave status
+  // V1 FIX: Use Admin client for selecting to bypass RLS issues in background logic
+  const client = supabase;
+
   // Fetch all leaves for this user+date to check for Full Day status
-  const { data: allDayLeaves, error: leavesFetchError } = await (supabase.from('leaves') as any)
-    .select('half')
+  const { data: allDayLeaves, error: leavesFetchError } = await (client.from('leaves') as any)
+    .select('*')
     .eq('photographer_id', leaveData.photographer_id)
     .eq('date', leaveData.date);
 
-  if (leavesFetchError) {
-    console.error('Error checking for full day leave status:', leavesFetchError);
-  }
+  if (leavesFetchError) throw leavesFetchError;
 
   // A photographer has Full Day leave if they have both FIRST_HALF and SECOND_HALF recorded
   const hasFirstHalf = allDayLeaves?.some((l: any) => l.half === 'FIRST_HALF');
   const hasSecondHalf = allDayLeaves?.some((l: any) => l.half === 'SECOND_HALF');
   const isFullDay = hasFirstHalf && hasSecondHalf;
 
-  // Build unassignment query
-  let unassignQuery = (supabase.from('deliveries') as any)
-    .select('id')
+  // V1 SPEC: Fetch deliveries with timing to filter based on half-day shift
+  let unassignQuery = (client.from('deliveries') as any)
+    .select('id, timing')
     .eq('assigned_user_id', leaveData.photographer_id)
     .eq('date', leaveData.date)
-    .neq('status', 'DONE');
-
-  // If NOT a full day, we only unassign PRIMARY deliveries (V1 baseline)
-  // If it IS a full day, we unassign EVERYTHING (any showroom)
-  if (!isFullDay) {
-    unassignQuery = unassignQuery.eq('showroom_type', 'PRIMARY');
-  }
+    .eq('status', 'ASSIGNED');
 
   const { data: deliveriesToUnassign, error: deliveriesFetchError } = await unassignQuery;
 
@@ -171,22 +185,34 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
   }
 
   if (deliveriesToUnassign && deliveriesToUnassign.length > 0) {
-    const idsToUnassign = deliveriesToUnassign.map((d: any) => d.id);
-    const client = adminSupabase || supabase; // V1 FIX: Use Admin client to bypass RLS for auto-unassignment
+    // V1 FIX: Filter based on Half-Day shift (Shift 1 < 14:00, Shift 2 >= 14:00)
+    const idsToUnassign = deliveriesToUnassign
+      .filter((d: any) => {
+        if (isFullDay) return true;
+        if (!d.timing) return true; // Safety: unassign untimed
+        const hours = parseInt(d.timing.split(':')[0]);
+        if (leaveData.half === 'FIRST_HALF') return hours < 14;
+        if (leaveData.half === 'SECOND_HALF') return hours >= 14;
+        return true;
+      })
+      .map((d: any) => d.id);
 
-    const { error: unassignError } = await client
-      .from('deliveries' as any)
-      .update({
-        status: 'UNASSIGNED',
-        assigned_user_id: null,
-        unassignment_reason: isFullDay ? `Full Day Leave applied` : `Half Day Leave applied`,
-        unassignment_timestamp: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      } as any)
-      .in('id', idsToUnassign);
+    if (idsToUnassign.length > 0) {
+      const updateClient = supabase;
+      const { error: unassignError } = await (updateClient
+        .from('deliveries') as any)
+        .update({
+          status: 'UNASSIGNED',
+          assigned_user_id: null,
+          unassignment_reason: isFullDay ? `Full Day Leave applied` : `${leaveData.half === 'FIRST_HALF' ? 'First Half' : 'Second Half'} Leave applied`,
+          unassignment_timestamp: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .in('id', idsToUnassign);
 
-    if (unassignError) {
-      console.error('Error auto-unassigning deliveries:', unassignError);
+      if (unassignError) {
+        console.error('Error auto-unassigning deliveries:', unassignError);
+      }
     }
   }
 
@@ -197,7 +223,7 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
  * Delete leave (Admin only)
  */
 export async function deleteLeave(leaveId: string): Promise<void> {
-  const client = adminSupabase || supabase;
+  const client = supabase;
 
   const { error } = await (client.from('leaves') as any)
     .delete()

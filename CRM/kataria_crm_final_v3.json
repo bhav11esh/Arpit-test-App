@@ -1,0 +1,368 @@
+{
+  "arena": [
+    {
+      "delivery_name": "Delivery_2025-12-12_2",
+      "date": "2025-12-12",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1nJwbvYL9JizLzS0FlSLNpI6bqDjnqKZq",
+      "reel_link": "https://drive.google.com/drive/folders/1oFNpBybJDO7s7oFKUvg_sEYF5Iyop4yd",
+      "assigned_user_id": "db61d597-a1db-4ef9-890a-8817e534e0bb"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-13_3",
+      "date": "2025-12-13",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1YXn9svxwXC6SIEOSuSk8OsmGCVh1HvX1?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/1Kq1zqO-tfTxjEn9Cyo5EwhobvRne6eYr?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-12-20_4",
+      "date": "2025-12-20",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1eZLn8STIPHd85gJ-CvDcN5-wISVOJqjz",
+      "reel_link": "https://drive.google.com/drive/folders/1oH2qIn_p4W4QglRZCTKZ8Fe_kQZoR0yi",
+      "assigned_user_id": "db61d597-a1db-4ef9-890a-8817e534e0bb"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-31_5",
+      "date": "2025-12-31",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1bQh5kEAajcqBt_dtyGjNs7xHXlFyljBR",
+      "reel_link": "https://drive.google.com/drive/folders/1_1WwQLiKM_8z1sUfc6c-ZWZdXVm4dxfv",
+      "assigned_user_id": "71704079-655e-43f3-8f52-86f2efe2cdca"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-09_6",
+      "date": "2026-01-09",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1H6wMyhqPUB3QKJmzblz_R5uor_mOWrmw?usp=share_link",
+      "reel_link": "https://drive.google.com/drive/folders/1CUvE5nYO3t_Zi8fDC1iZJ4AiFwILEC0k?usp=share_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2026-01-09_7",
+      "date": "2026-01-09",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1ekjlD9XWEYnoE0MJ31LoBJcDEy1nJcJF?usp=share_link",
+      "reel_link": "https://drive.google.com/drive/folders/1kMrUn942p1Vz3_Rv2ABxXcA6KnyPEf2s?usp=share_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2026-01-20_8",
+      "date": "2026-01-20",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1wLrSoZv7lwxzq5kBgyt4rn1TMeZiqPog",
+      "reel_link": "https://drive.google.com/drive/folders/1LWF1LACjIZupVmdNzltSsxQyN8pVUjne",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-23_9",
+      "date": "2026-01-23",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1gV4CDw5j9MhxWGFgrY4C016ruo1Um1OD",
+      "reel_link": "https://drive.google.com/drive/folders/1Vy_3Jf-hE7VW7hcRwrhky0dGCSSSYIta",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-25_10",
+      "date": "2026-01-25",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1XZvF36ensEIGaycEtc7HQry6nMxlJsx3",
+      "reel_link": "https://drive.google.com/drive/folders/1yAJaeyVI6TAYXnxCMqlmWi92clyaXLhk",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-26_11",
+      "date": "2026-01-26",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1nbR6JxCjLorSWbno3UrPV1AMAlrThVgS",
+      "reel_link": "https://drive.google.com/drive/folders/1UUEuuNdIeEjMPc5VLnD0Lz59637pXyDs",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-28_12",
+      "date": "2026-01-28",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1IH330I9xp7TCCQAwgGjX34M0ZWj8USd0",
+      "reel_link": "https://drive.google.com/drive/folders/16S_X4kZBcimB06Sxm539aEtToxiEIIbx",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-30_13",
+      "date": "2026-01-30",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1sIIW6PRy8BoorMRqQfwOUeQk2q19Owva?usp=sharing",
+      "reel_link": "https://drive.google.com/drive/folders/1WyLknEl3JPxCWAMMKGQouwA41P11Nhjs?usp=sharing",
+      "assigned_user_id": "4247126e-71f1-4472-98a0-544219a597b9"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-28_14",
+      "date": "2026-01-28",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1K1PE49sqVP8f3bkSIu42IfoqGHRtDuJp",
+      "reel_link": "https://drive.google.com/drive/folders/192YLi6eoyMyH1VOQSJswBuKXVSj9Dyi4",
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-29_15",
+      "date": "2026-01-29",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1uOQ0Z7PpmljsSan0caHqevzLJD6T0Oxg",
+      "reel_link": "https://drive.google.com/drive/folders/1aNl6lo_3UVZpeg1UxAzEqB2Pi_aCFfDx",
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-13_16",
+      "date": "2026-01-13",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/15YdWvXygCrsvT_Wfvzb8od-Mmhqnxqsr",
+      "reel_link": null,
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2026-02-20_17",
+      "date": "2026-02-20",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/18RcvPgTt6GscuRp-bC_A_h1LpnlsmZE0",
+      "reel_link": null,
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2026-02-22_18",
+      "date": "2026-02-22",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1C5LbEM-o_LzIVfKkAa9BGLh6YntoUT59",
+      "reel_link": null,
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2026-03-05_19",
+      "date": "2026-03-05",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1qBtnNWTjaKsafhW27nH4tEH81Fmj3tfP",
+      "reel_link": null,
+      "assigned_user_id": "3db87fe6-bc75-4caf-8848-974815647657"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-12_0",
+      "date": "2025-11-12",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1Ki381hywAIiSYrMyRscxP57utTVYm8NA?usp=share_link",
+      "reel_link": "https://drive.google.com/drive/folders/1CS5Bsv_S3Sm3hbICJsp0L8rNvhAtL7Is?usp=share_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-12-15_1",
+      "date": "2025-12-15",
+      "showroom_code": "KATARIA_ARENA",
+      "footage_link": "https://drive.google.com/drive/folders/1tSRzGvEEvCFNFosNvx0Q2djfbUDaqMGh",
+      "reel_link": "https://drive.google.com/drive/folders/1uxlpf5qmsygH_3AkpvwQoq432jVwLE-6",
+      "assigned_user_id": "71704079-655e-43f3-8f52-86f2efe2cdca"
+    }
+  ],
+  "nexa": [
+    {
+      "delivery_name": "Delivery_2025-11-30_0",
+      "date": "2025-11-30",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1BSZ6x2NxTSSNJQ_6fxvwXViwx0y4y0rW?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/1vZhFOrmbruZ1PI9Mqd7VogMo1oHnMAv9?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-11-30_1",
+      "date": "2025-11-30",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1wFQNAFIVLUB8ZJWSfaey2-s7tQTfpnSh?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/1AJLY1LDqdZJyDgTr_kLmOaFF6r-rp9ZO?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-11-30_2",
+      "date": "2025-11-30",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1dhf7gLE-E92t1cv7c9pPO17X_or249KP?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/11RkBD4tkuCicz1ott9Fjd0fRtWI7G5sf?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-11-30_3",
+      "date": "2025-11-30",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1RRgb9XxFcmdoFyVNPk98rbCDLUkwCgS4?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/1RRgb9XxFcmdoFyVNPk98rbCDLUkwCgS4?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-11-30_4",
+      "date": "2025-11-30",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/12Ej4OjFtAX1bT_lonqugMos8gt-inkom?usp=sharing",
+      "reel_link": "https://drive.google.com/drive/folders/1Bw6NuH8utYZH0VaG-QC5wDGViJm0zVkt?usp=sharing",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-03-12_5",
+      "date": "2025-03-12",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1A2H3qXlVWzt52wAYRVC3OJT9OXd9DTm3?usp=sharing",
+      "reel_link": "https://drive.google.com/drive/folders/1zrB4mtmRHBwMgU8lezMRd7INbT-PyET6?usp=sharing",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-03-12_6",
+      "date": "2025-03-12",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1-OoW46TS30-Mu1QK7kCnJGfoBdf-ma1y?usp=sharing",
+      "reel_link": "https://drive.google.com/drive/folders/1ola3T3FBMe_C5_vwP47_RgVMPpKhy5qe?usp=sharing",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-04-12_7",
+      "date": "2025-04-12",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1am1P88PFtnDyFRuG-3-15QLxAsGWmyW6?usp=sharing",
+      "reel_link": "https://drive.google.com/drive/folders/1am1P88PFtnDyFRuG-3-15QLxAsGWmyW6?usp=sharing",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-07-12_8",
+      "date": "2025-07-12",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1aog5HkIOj6W-H6bSbEZcfmznoJDnYkBh",
+      "reel_link": "https://drive.google.com/drive/folders/1HFQzmY7XqxZ1sS1HUINzEhg38sGK4IiD?usp=drive_link",
+      "assigned_user_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-07_9",
+      "date": "2025-12-07",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1LfDPenihOBnK-ccsZX68k8gAUW80p3yU",
+      "reel_link": "https://drive.google.com/drive/u/2/folders/18F14NhtNcGiaNl4GNxcPuxexW0c_7zW7",
+      "assigned_user_id": "d5022f45-8660-400c-8cf1-fdf1f7fc00bc"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-12_10",
+      "date": "2025-12-12",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/10FIwUD0QpPa8w1IYltboLNTJQ9fWz2-h",
+      "reel_link": "https://drive.google.com/file/d/1pGekT2BxbqNAwcbVWxxgaZU07g3xl2MM/view?usp=drivesdk",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-12-13_11",
+      "date": "2025-12-13",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/18Hh1K4mtF9elKSgz3sQney2g7jhr9TcR?usp=drive_link",
+      "reel_link": "https://drive.google.com/drive/folders/1Kq1zqO-tfTxjEn9Cyo5EwhobvRne6eYr?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-12-25_12",
+      "date": "2025-12-25",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/16F9BRaal3E4ow2WQvyF7keu3OkLa1pyh",
+      "reel_link": "https://drive.google.com/file/d/1B1I6W58MCSQITswX1z2OmLsnBMLEEMW_/view?usp=drivesdk",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-12-25_13",
+      "date": "2025-12-25",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/1GWU0QPD7jI2zqk91CwLj7tnRiH4Xl-YR",
+      "reel_link": "https://drive.google.com/file/d/1x8mUgbfTvzh7fl8uoZTREgGwXBvrUApG/view?usp=drivesdk",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2026-12-01_14",
+      "date": "2026-12-01",
+      "showroom_code": "KATARIA_NEXA",
+      "footage_link": "https://drive.google.com/drive/folders/17Ga6bdbbXtTmcW4J_vL_r22lt_gG1UyW",
+      "reel_link": "https://drive.google.com/drive/folders/1Jx8EvS6tA9_YqsVswo64gFgGEq0wGa8e",
+      "assigned_user_id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802"
+    }
+  ],
+  "users": [
+    {
+      "id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+      "name": "Mallikarjun"
+    },
+    {
+      "id": "71704079-655e-43f3-8f52-86f2efe2cdca",
+      "name": "Inchara"
+    },
+    {
+      "id": "6c1d0f86-9cf4-4028-9e96-2919800f5190",
+      "name": "Akhil"
+    },
+    {
+      "id": "41b035b1-4391-4347-af95-ae9876328146",
+      "name": "Aman Behera"
+    },
+    {
+      "id": "3db87fe6-bc75-4caf-8848-974815647657",
+      "name": "Bhuvanesan"
+    },
+    {
+      "id": "5b650a1a-cf1d-4512-a7b2-1cfca3c226e7",
+      "name": "Abishek"
+    },
+    {
+      "id": "0b99359e-4a17-4f12-a886-d8a146ed5abe",
+      "name": "Abhigyan"
+    },
+    {
+      "id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953",
+      "name": "Madan"
+    },
+    {
+      "id": "23fb8d28-08e9-4e87-8a77-6e2b3324b872",
+      "name": "Ajmal"
+    },
+    {
+      "id": "0222038c-4753-4f84-8e7d-5abf93c58fb3",
+      "name": "Bibin"
+    },
+    {
+      "id": "52e518e4-1d70-4a9a-b986-c4bf550aa24e",
+      "name": "Bijoy"
+    },
+    {
+      "id": "d5022f45-8660-400c-8cf1-fdf1f7fc00bc",
+      "name": "kavi"
+    },
+    {
+      "id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802",
+      "name": "Moiyadeen"
+    },
+    {
+      "id": "4a7bbaa5-cc6c-4f14-afc7-3be8acb39f69",
+      "name": "Musaib"
+    },
+    {
+      "id": "db61d597-a1db-4ef9-890a-8817e534e0bb",
+      "name": "Rishi"
+    },
+    {
+      "id": "ce7cccb2-72ef-4bab-9eaa-16d7155aafe4",
+      "name": "Samyuktha"
+    },
+    {
+      "id": "4247126e-71f1-4472-98a0-544219a597b9",
+      "name": "Sathick"
+    },
+    {
+      "id": "1667a3a2-fa08-4127-aafd-4c41a5532d0b",
+      "name": "Venkatesh"
+    },
+    {
+      "id": "65edeb44-6506-43d4-8c36-5c33612692d3",
+      "name": "Veshnu"
+    },
+    {
+      "id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+      "name": "Sahith Undru"
+    }
+  ]
+}

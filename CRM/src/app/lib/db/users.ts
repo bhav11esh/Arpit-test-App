@@ -16,12 +16,15 @@ const rowToUser = (row: UserRow): User => ({
   active: row.active,
   phone_number: row.phone_number,
   cluster_code: row.cluster_code ?? undefined,
+  last_active: row.last_active ?? undefined,
+  last_gps_status: row.last_gps_status as any ?? 'UNKNOWN',
+  city: row.city ?? undefined,
 });
 
 // Get all users
 export const getUsers = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<User[]> => {
-  const { data, error } = await supabaseClient
-    .from('users')
+  const { data, error } = await (supabaseClient
+    .from('users') as any)
     .select('*')
     .order('name', { ascending: true });
 
@@ -31,8 +34,8 @@ export const getUsers = async (supabaseClient: SupabaseClient<Database> = supaba
 
 // Get active users only
 export const getActiveUsers = async (): Promise<User[]> => {
-  const { data, error } = await supabase
-    .from('users')
+  const { data, error } = await (supabase
+    .from('users') as any)
     .select('*')
     .eq('active', true)
     .order('name', { ascending: true });
@@ -43,8 +46,8 @@ export const getActiveUsers = async (): Promise<User[]> => {
 
 // Get users by role
 export const getUsersByRole = async (role: UserRole, supabaseClient: SupabaseClient<Database> = supabase): Promise<User[]> => {
-  const { data, error } = await supabaseClient
-    .from('users')
+  const { data, error } = await (supabaseClient
+    .from('users') as any)
     .select('*')
     .eq('role', role)
     .eq('active', true)
@@ -56,8 +59,8 @@ export const getUsersByRole = async (role: UserRole, supabaseClient: SupabaseCli
 
 // Get a single user by ID
 export const getUserById = async (id: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<User | null> => {
-  const { data, error } = await supabaseClient
-    .from('users')
+  const { data, error } = await (supabaseClient
+    .from('users') as any)
     .select('*')
     .eq('id', id)
     .single();
@@ -71,17 +74,16 @@ export const getUserById = async (id: string, supabaseClient: SupabaseClient<Dat
 
 // Get user by email
 export const getUserByEmail = async (email: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<User | null> => {
-  const { data, error } = await supabaseClient
-    .from('users')
+  const { data, error } = await (supabaseClient
+    .from('users') as any)
     .select('*')
     .eq('email', email)
-    .single();
+    .limit(1);
 
-  if (error) {
-    if (error.code === 'PGRST116') return null; // Not found
-    throw error;
-  }
-  return rowToUser(data);
+  if (error) throw error;
+
+  if (!data || data.length === 0) return null;
+  return rowToUser(data[0]);
 };
 
 // Create a new user
@@ -93,11 +95,12 @@ export const createUser = async (user: Omit<User, 'id'> & { email: string }): Pr
     active: user.active ?? true,
     phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
+    city: (user as any).city ?? null,
   };
 
-  const { data, error } = await supabase
-    .from('users')
-    .insert(insert)
+  const { data, error } = await (supabase
+    .from('users') as any)
+    .insert(insert as any)
     .select()
     .single();
 
@@ -115,11 +118,12 @@ export const createUserWithId = async (user: User): Promise<User> => {
     active: user.active ?? true,
     phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
+    city: (user as any).city ?? null,
   };
 
-  const { data, error } = await supabase
-    .from('users')
-    .insert(insert)
+  const { data, error } = await (supabase
+    .from('users') as any)
+    .insert(insert as any)
     .select()
     .single();
 
@@ -136,6 +140,9 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     active: updates.active,
     phone_number: updates.phone_number,
     cluster_code: updates.cluster_code ?? null,
+    last_active: updates.last_active,
+    last_gps_status: updates.last_gps_status,
+    city: (updates as any).city,
   };
 
   // Remove undefined values
@@ -145,8 +152,8 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     }
   });
 
-  const { data, error } = await supabase
-    .from('users')
+  const { data, error } = await (supabase
+    .from('users') as any)
     .update(update)
     .eq('id', id)
     .select()
@@ -158,8 +165,8 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
 
 // Delete a user (soft delete by deactivating)
 export const deleteUser = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('users')
+  const { error } = await (supabase
+    .from('users') as any)
     .update({ active: false })
     .eq('id', id);
 
@@ -168,8 +175,8 @@ export const deleteUser = async (id: string): Promise<void> => {
 
 // Activate a user
 export const activateUser = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('users')
+  const { error } = await (supabase
+    .from('users') as any)
     .update({ active: true })
     .eq('id', id);
 
@@ -178,8 +185,8 @@ export const activateUser = async (id: string): Promise<void> => {
 
 // Get active users in a specific cluster
 export const getActiveUsersByCluster = async (clusterCode: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<User[]> => {
-  const { data, error } = await supabaseClient
-    .from('users')
+  const { data, error } = await (supabaseClient
+    .from('users') as any)
     .select('*')
     .eq('active', true)
     .eq('cluster_code', clusterCode);
@@ -188,3 +195,38 @@ export const getActiveUsersByCluster = async (clusterCode: string, supabaseClien
   return data.map(rowToUser);
 };
 
+// Admin only: Update user password
+export const adminUpdateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+  const { adminSupabase } = await import('../supabase');
+  if (!adminSupabase) {
+    throw new Error('Admin privileges required for this operation. Service role key not configured.');
+  }
+
+  const { error } = await adminSupabase.auth.admin.updateUserById(userId, {
+    password: newPassword
+  });
+
+  if (error) throw error;
+};
+
+// Update user's heartbeat (Last Active) and GPS status
+export const updateUserMonitoring = async (
+  userId: string,
+  gpsStatus: 'ON' | 'OFF' | 'UNKNOWN',
+  supabaseClient: SupabaseClient<Database> = supabase
+): Promise<void> => {
+  try {
+    const { error } = await (supabaseClient
+      .from('users') as any)
+      .update({
+        last_active: new Date().toISOString(),
+        last_gps_status: gpsStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('Heartbeat update failed:', err);
+  }
+};

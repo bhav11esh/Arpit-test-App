@@ -15,6 +15,7 @@ const rowToReelTask = (row: ReelTaskRow): ReelTask => ({
   reel_link: row.reel_link ?? undefined,
   status: row.status as ReelStatus,
   reassigned_reason: row.reassigned_reason ?? undefined,
+  deadline: row.deadline ?? undefined,
 });
 
 // Get reel tasks for a user
@@ -94,10 +95,10 @@ export const createReelTask = async (reelTask: Omit<ReelTask, 'id'>, supabaseCli
     reel_link: reelTask.reel_link ?? null,
     status: reelTask.status,
     reassigned_reason: reelTask.reassigned_reason ?? null,
+    deadline: reelTask.deadline ?? null,
   };
 
-  const { data, error } = await supabaseClient
-    .from('reel_tasks')
+  const { data, error } = await (supabaseClient.from('reel_tasks') as any)
     .insert(insert)
     .select()
     .single();
@@ -114,6 +115,7 @@ export const updateReelTask = async (id: string, updates: Partial<ReelTask>, sup
     reel_link: updates.reel_link ?? null,
     status: updates.status,
     reassigned_reason: updates.reassigned_reason ?? null,
+    deadline: updates.deadline ?? null,
   };
 
   Object.keys(update).forEach(key => {
@@ -122,8 +124,7 @@ export const updateReelTask = async (id: string, updates: Partial<ReelTask>, sup
     }
   });
 
-  const { data, error } = await supabaseClient
-    .from('reel_tasks')
+  const { data, error } = await (supabaseClient.from('reel_tasks') as any)
     .update(update)
     .eq('id', id)
     .select()
@@ -139,6 +140,33 @@ export const deleteReelTask = async (id: string): Promise<void> => {
     .from('reel_tasks')
     .delete()
     .eq('id', id);
+
+  if (error) throw error;
+};
+
+// Delete reel tasks for multiple deliveries
+export const deleteReelTasksByDeliveryIds = async (deliveryIds: string[]): Promise<void> => {
+  if (deliveryIds.length === 0) return;
+  
+  // V5.2 FIX: Chunk deletions to avoid URL length limits in Supabase/PostgREST
+  const chunkSize = 50;
+  for (let i = 0; i < deliveryIds.length; i += chunkSize) {
+    const chunk = deliveryIds.slice(i, i + chunkSize);
+    const { error } = await supabase
+      .from('reel_tasks')
+      .delete()
+      .in('delivery_id', chunk);
+
+    if (error) throw error;
+  }
+};
+
+// Delete all reel tasks (Admin only)
+export const deleteAllReelTasks = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('reel_tasks')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
 
   if (error) throw error;
 };

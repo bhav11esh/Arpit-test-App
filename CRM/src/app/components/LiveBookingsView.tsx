@@ -254,7 +254,6 @@ export function LiveBookingsView() {
             case 'PENDING': return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
             case 'OPTED_IN': return <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">Opted In</Badge>;
             case 'ARRIVED': return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Arrived</Badge>;
-            case 'ARRIVED': return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Arrived</Badge>;
             case 'PAID': return (
                 <div className="flex flex-col gap-1">
                     <Badge className="bg-green-100 text-green-800 border-green-300">Paid!</Badge>

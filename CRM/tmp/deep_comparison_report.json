@@ -1,0 +1,545 @@
+{
+  "summary": {
+    "total_crm": 397,
+    "total_sheet": 397,
+    "matched": 397,
+    "unmatched": 0,
+    "mismatched_fields": 89
+  },
+  "issues": [
+    {
+      "crm_index": 11,
+      "status": "MISMATCH",
+      "crm_id": "524a4a8e-5855-4b65-a53e-f3d73de336f0",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-03-12)"
+    },
+    {
+      "crm_index": 13,
+      "status": "MISMATCH",
+      "crm_id": "2bac7f75-d04d-4755-9ec1-9ba7dd95f667",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-03-08)"
+    },
+    {
+      "crm_index": 33,
+      "status": "MISMATCH",
+      "crm_id": "40ac71b3-1df6-4675-968d-f345bc0bf600",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-02-27)"
+    },
+    {
+      "crm_index": 61,
+      "status": "MISMATCH",
+      "crm_id": "4eb0987b-3a17-495f-a385-14eec93e328b",
+      "details": "Photog: Sheet(Sahith) vs CRM(Sahith Undru)"
+    },
+    {
+      "crm_index": 62,
+      "status": "MISMATCH",
+      "crm_id": "37be4a5b-3ed2-4f9b-9769-d3db901d9084",
+      "details": "Photog: Sheet(Sahith ) vs CRM(Sahith Undru)"
+    },
+    {
+      "crm_index": 80,
+      "status": "MISMATCH",
+      "crm_id": "29042f38-30e7-465e-a3c0-fd7bf67fd48c",
+      "details": "Photog: Sheet(Sahith) vs CRM(Sahith Undru)"
+    },
+    {
+      "crm_index": 81,
+      "status": "MISMATCH",
+      "crm_id": "5680a270-5d1b-4e97-8337-86dbc0a9e8d4",
+      "details": "Photog: Sheet(Sahith) vs CRM(Sahith Undru)"
+    },
+    {
+      "crm_index": 92,
+      "status": "MISMATCH",
+      "crm_id": "826672b9-8ec2-4cd7-940a-77dabce0d221",
+      "details": "Date: Sheet(02/03/2026) vs CRM(2026-02-03)"
+    },
+    {
+      "crm_index": 93,
+      "status": "MISMATCH",
+      "crm_id": "d04b7283-6fc0-4518-96c5-45132c6705bc",
+      "details": "Date: Sheet(02/03/2026) vs CRM(2026-02-03)"
+    },
+    {
+      "crm_index": 94,
+      "status": "MISMATCH",
+      "crm_id": "0579a3d8-7af1-47fe-be22-8d5afd6d381e",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-02-02)"
+    },
+    {
+      "crm_index": 95,
+      "status": "MISMATCH",
+      "crm_id": "e6451629-cdc2-47d5-8bb8-4af406ff6cee",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-02-02)"
+    },
+    {
+      "crm_index": 99,
+      "status": "MISMATCH",
+      "crm_id": "1780af1a-cc85-4d1f-98a1-d182fdcdfc74",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-31)"
+    },
+    {
+      "crm_index": 103,
+      "status": "MISMATCH",
+      "crm_id": "8dd3d99d-b733-4b52-8836-895ec20a35ff",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-30)"
+    },
+    {
+      "crm_index": 119,
+      "status": "MISMATCH",
+      "crm_id": "07ad55b3-ae82-4214-83f5-60469416ee59",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 120,
+      "status": "MISMATCH",
+      "crm_id": "da446b03-e01d-4ff2-9633-ed8bb24f8cf0",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 121,
+      "status": "MISMATCH",
+      "crm_id": "8d91a7e1-6107-4c71-94f0-2704b6e49d45",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 122,
+      "status": "MISMATCH",
+      "crm_id": "ee789f3a-b534-4cbe-b11f-8fb94fb34b7a",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 123,
+      "status": "MISMATCH",
+      "crm_id": "98902204-13e9-4e51-b389-14cd0b0de360",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 124,
+      "status": "MISMATCH",
+      "crm_id": "ebb76ea7-03a4-4429-820d-f847a4c397ed",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 125,
+      "status": "MISMATCH",
+      "crm_id": "39cd3218-7e3d-4968-9aeb-daeae6d910e0",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 126,
+      "status": "MISMATCH",
+      "crm_id": "cd3812c7-5c6c-4965-8a36-fd35d145a370",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 127,
+      "status": "MISMATCH",
+      "crm_id": "03b3858a-7a9f-4682-82ea-98d3b73b48a0",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 128,
+      "status": "MISMATCH",
+      "crm_id": "1f661fa7-e9fe-405b-847b-a64087469e48",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 129,
+      "status": "MISMATCH",
+      "crm_id": "e2ea4315-3512-4de4-b5f0-f3d957143b5f",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 130,
+      "status": "MISMATCH",
+      "crm_id": "b8903e3f-301a-44c6-9cbb-ddd07ee1ec0b",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 131,
+      "status": "MISMATCH",
+      "crm_id": "0bbd0ce4-c09f-4739-b039-785017e61e95",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 132,
+      "status": "MISMATCH",
+      "crm_id": "9728e4b6-41db-4685-9f66-b991a2201d41",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 133,
+      "status": "MISMATCH",
+      "crm_id": "89038809-a93c-4708-bd72-562d0002ccac",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 134,
+      "status": "MISMATCH",
+      "crm_id": "3ce471f8-0435-496e-bca5-00ea4c6a46a6",
+      "details": "Photog: Sheet(Md Kaif) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 150,
+      "status": "MISMATCH",
+      "crm_id": "28301484-ec40-46ad-b0e7-8c5c3099ac28",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-18)"
+    },
+    {
+      "crm_index": 152,
+      "status": "MISMATCH",
+      "crm_id": "4508f27c-9998-4828-9f22-328038b788bf",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-17)"
+    },
+    {
+      "crm_index": 155,
+      "status": "MISMATCH",
+      "crm_id": "894fadd3-9403-4875-83a2-065d884db740",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-16)"
+    },
+    {
+      "crm_index": 165,
+      "status": "MISMATCH",
+      "crm_id": "4d5bc757-ffdb-49ba-8324-987cbbc8081d",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-13)"
+    },
+    {
+      "crm_index": 172,
+      "status": "MISMATCH",
+      "crm_id": "fecde9d8-cf23-4024-a6e4-b04cb2cf7a56",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-10)"
+    },
+    {
+      "crm_index": 176,
+      "status": "MISMATCH",
+      "crm_id": "45bd1b60-a42c-4343-9a51-7960ee2b687e",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-08)"
+    },
+    {
+      "crm_index": 179,
+      "status": "MISMATCH",
+      "crm_id": "3472ff4f-249e-4d29-8143-b3ca5fd82354",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-07)"
+    },
+    {
+      "crm_index": 180,
+      "status": "MISMATCH",
+      "crm_id": "55739ebf-7ac6-43a9-a5ac-8661c3697198",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2026-01-07)"
+    },
+    {
+      "crm_index": 197,
+      "status": "MISMATCH",
+      "crm_id": "9904df22-451b-4b0e-8d16-a51a26049bf4",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-27) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 202,
+      "status": "MISMATCH",
+      "crm_id": "336bab36-8a38-4481-8312-2cdbbb07e8d9",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-24)"
+    },
+    {
+      "crm_index": 207,
+      "status": "MISMATCH",
+      "crm_id": "58654cf2-f76e-4a21-a993-1c6243a3bfd6",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-17)"
+    },
+    {
+      "crm_index": 214,
+      "status": "MISMATCH",
+      "crm_id": "a8f65ae2-21df-44ec-b27b-a9e8ba0578fc",
+      "details": "Photog: Sheet(Abhigyan ) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 222,
+      "status": "MISMATCH",
+      "crm_id": "52228a75-2922-4b55-af9e-a93ca7735914",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-05)"
+    },
+    {
+      "crm_index": 226,
+      "status": "MISMATCH",
+      "crm_id": "1057b946-cc3b-4e89-92db-c604e552c621",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-04) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 227,
+      "status": "MISMATCH",
+      "crm_id": "b9480f53-c515-4ece-a7d4-59aeb2c924ad",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-12-02) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 234,
+      "status": "MISMATCH",
+      "crm_id": "de46fc51-114a-479a-91f8-caa960894495",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-27)"
+    },
+    {
+      "crm_index": 242,
+      "status": "MISMATCH",
+      "crm_id": "f9717efe-0fbb-48a3-9c05-34b016f7a758",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-21)"
+    },
+    {
+      "crm_index": 252,
+      "status": "MISMATCH",
+      "crm_id": "41fedce5-5a1b-41e5-8c2a-969f13ae6f82",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-17)"
+    },
+    {
+      "crm_index": 254,
+      "status": "MISMATCH",
+      "crm_id": "9da2b0ea-fbb9-433e-9583-b9a92ea24009",
+      "details": "Photog: Sheet(Aaron) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 255,
+      "status": "MISMATCH",
+      "crm_id": "bb853b97-452a-438f-8fc6-29a08e236960",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-14)"
+    },
+    {
+      "crm_index": 256,
+      "status": "MISMATCH",
+      "crm_id": "46a73a8b-c23c-4759-9dcd-f4b9272a8a45",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-14)"
+    },
+    {
+      "crm_index": 264,
+      "status": "MISMATCH",
+      "crm_id": "3ed6aa19-2ae9-4e54-b0af-a2d160a4aa5e",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-11-09)"
+    },
+    {
+      "crm_index": 276,
+      "status": "MISMATCH",
+      "crm_id": "28440990-1d66-4414-a5a4-c4415ba22244",
+      "details": "Photog: Sheet(Manoj M) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 279,
+      "status": "MISMATCH",
+      "crm_id": "87b6ff5b-0c6c-44d0-a1fe-bf733187bc1f",
+      "details": "Date: Sheet(4-11-25) vs CRM(2025-11-04)"
+    },
+    {
+      "crm_index": 280,
+      "status": "MISMATCH",
+      "crm_id": "2b2d9e33-db3a-46cf-83da-2adbe5fdf47f",
+      "details": "Date: Sheet(3-11-25) vs CRM(2025-11-03)"
+    },
+    {
+      "crm_index": 281,
+      "status": "MISMATCH",
+      "crm_id": "45099315-7e40-4f4c-a9a2-75b608a8786f",
+      "details": "Date: Sheet(3-11-25) vs CRM(2025-11-03)"
+    },
+    {
+      "crm_index": 282,
+      "status": "MISMATCH",
+      "crm_id": "0b38de83-446f-45ad-8d5b-d0ba9aaa4656",
+      "details": "Date: Sheet(3-11-25) vs CRM(2025-11-03)"
+    },
+    {
+      "crm_index": 294,
+      "status": "MISMATCH",
+      "crm_id": "3ac39296-64e7-493a-8b90-5d5525c56181",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-10-27) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 300,
+      "status": "MISMATCH",
+      "crm_id": "91a9e79b-1ee8-4bb8-b3e6-9de79aeb003e",
+      "details": "Photog: Sheet(Amal) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 301,
+      "status": "MISMATCH",
+      "crm_id": "a6371484-aab6-4d4f-a4db-29ec32d79bff",
+      "details": "Photog: Sheet(Amal) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 313,
+      "status": "MISMATCH",
+      "crm_id": "14aac950-de34-4f59-acbc-7e0bd15073ef",
+      "details": "Date: Sheet(13-10-25) vs CRM(2025-10-13)"
+    },
+    {
+      "crm_index": 314,
+      "status": "MISMATCH",
+      "crm_id": "58c23e8f-d65a-49b5-b14c-5568cbd23b4d",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-10-12) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 318,
+      "status": "MISMATCH",
+      "crm_id": "7dd063da-a49e-4e5b-8928-9d250bfa0744",
+      "details": "Date: Sheet(10-10-25) vs CRM(2025-10-10)"
+    },
+    {
+      "crm_index": 320,
+      "status": "MISMATCH",
+      "crm_id": "79d547cc-b422-4683-a69c-e567d6751346",
+      "details": "Date: Sheet(8-10-25) vs CRM(2025-10-08)"
+    },
+    {
+      "crm_index": 322,
+      "status": "MISMATCH",
+      "crm_id": "4393e217-8644-49e3-981e-f188f7fba2f5",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-10-06) | Photog: Sheet(Mallikarjun) vs CRM(Bibin)"
+    },
+    {
+      "crm_index": 323,
+      "status": "MISMATCH",
+      "crm_id": "f6236d69-212a-4494-9cb7-8bf0fea06ac4",
+      "details": "Date: Sheet(06-10-25) vs CRM(2025-10-06)"
+    },
+    {
+      "crm_index": 327,
+      "status": "MISMATCH",
+      "crm_id": "03fa79dd-1486-4c4d-913b-508a06d28a21",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-10-04) | Photog: Sheet(Mallikarjun) vs CRM(Akhil)"
+    },
+    {
+      "crm_index": 334,
+      "status": "MISMATCH",
+      "crm_id": "23e06a2e-cb2f-4cf9-b58a-fda510f9b919",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-09-30)"
+    },
+    {
+      "crm_index": 335,
+      "status": "MISMATCH",
+      "crm_id": "c5372ba6-1457-4059-9ebe-ba82000ca14b",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-09-30)"
+    },
+    {
+      "crm_index": 336,
+      "status": "MISMATCH",
+      "crm_id": "0df925e4-6c74-43d6-bfd2-2840af8972a5",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-09-30)"
+    },
+    {
+      "crm_index": 343,
+      "status": "MISMATCH",
+      "crm_id": "41fac306-698e-48a2-8efc-299d4cd29852",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-09-18)"
+    },
+    {
+      "crm_index": 361,
+      "status": "MISMATCH",
+      "crm_id": "b3141cb3-a63f-4538-b8b0-3c551d4059bb",
+      "details": "Photog: Sheet(Joseph) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 362,
+      "status": "MISMATCH",
+      "crm_id": "55a58390-404b-4ada-beb5-343bffbca5e8",
+      "details": "Photog: Sheet(Joseph) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 363,
+      "status": "MISMATCH",
+      "crm_id": "e821316d-e8d9-4856-8ad0-3e339d26e5d6",
+      "details": "Photog: Sheet(Joseph) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 364,
+      "status": "MISMATCH",
+      "crm_id": "e9d4cf88-07b2-4881-92f4-c353e221cb54",
+      "details": "Photog: Sheet(Joseph) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 377,
+      "status": "MISMATCH",
+      "crm_id": "8c75c3ef-e733-483d-b4a4-78045e756d34",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 378,
+      "status": "MISMATCH",
+      "crm_id": "f64eca81-a6bd-427c-a444-a0b644ad9a6c",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 379,
+      "status": "MISMATCH",
+      "crm_id": "6734d902-1208-46a9-866c-59e9cbcdb4c0",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 380,
+      "status": "MISMATCH",
+      "crm_id": "95328730-8db8-4177-817f-d28efdcd6d0d",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 381,
+      "status": "MISMATCH",
+      "crm_id": "da39e069-d8ac-4e19-bd48-948ba83ba998",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 382,
+      "status": "MISMATCH",
+      "crm_id": "2f033f63-708a-49e7-afe5-01e05620749d",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 383,
+      "status": "MISMATCH",
+      "crm_id": "9e905c44-8f05-49a5-9dfc-fd828b99326f",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 384,
+      "status": "MISMATCH",
+      "crm_id": "5810e3eb-d671-4628-9bff-2d670f785998",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 385,
+      "status": "MISMATCH",
+      "crm_id": "260dc4f5-6151-4916-aada-8bf4883cf1b8",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 386,
+      "status": "MISMATCH",
+      "crm_id": "bcb0c126-b05e-48d7-94c9-de823fe35f48",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 387,
+      "status": "MISMATCH",
+      "crm_id": "ed00fae2-5e03-4ca8-88ac-b690a34c2365",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 388,
+      "status": "MISMATCH",
+      "crm_id": "a332dce6-eb9d-421b-8afb-fb6b528998c6",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 389,
+      "status": "MISMATCH",
+      "crm_id": "869e7f67-e55b-4369-aaab-f594a02b2ff7",
+      "details": "Photog: Sheet(Nithin) vs CRM(Ajmal)"
+    },
+    {
+      "crm_index": 396,
+      "status": "MISMATCH",
+      "crm_id": "7ffa0acc-500b-4ea5-91fb-bdf464bcb70b",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-01-15)"
+    },
+    {
+      "crm_index": 397,
+      "status": "MISMATCH",
+      "crm_id": "13a3d31c-f850-45cd-9c45-e1af39c1f44d",
+      "details": "Date: Sheet(01-09-2025) vs CRM(2025-01-04)"
+    }
+  ]
+}

@@ -50,6 +50,7 @@ export function PhotographersConfigScreen() {
     phone_number: '',
     password: '',
     active: true,
+    city: '',
   });
 
   // Admin-only access guard
@@ -58,6 +59,11 @@ export function PhotographersConfigScreen() {
     navigate('/');
     return null;
   }
+
+  // Filter photographers by city
+  const filteredPhotographers = user?.city 
+    ? photographers.filter(p => (p as any).city === user.city)
+    : photographers;
 
   const handleOpenDialog = (photographer?: UserType) => {
     if (photographer) {
@@ -68,10 +74,18 @@ export function PhotographersConfigScreen() {
         phone_number: photographer.phone_number || '',
         password: '', // Password is only for new photographers
         active: photographer.active,
+        city: (photographer as any).city || '',
       });
     } else {
       setEditingPhotographer(null);
-      setFormData({ name: '', email: '', phone_number: '', password: '', active: true });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone_number: '', 
+        password: '', 
+        active: true,
+        city: user?.city || '',
+      });
     }
     setDialogOpen(true);
   };
@@ -79,7 +93,7 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', email: '', phone_number: '', password: '', active: true });
+    setFormData({ name: '', email: '', phone_number: '', password: '', active: true, city: '' });
   };
 
   const handleSubmit = async () => {
@@ -101,6 +115,10 @@ export function PhotographersConfigScreen() {
       toast.error('Please enter a valid email address');
       return;
     }
+    if (!formData.city.trim()) {
+      toast.error('City is required');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -110,7 +128,8 @@ export function PhotographersConfigScreen() {
           email: formData.email.trim(),
           phone_number: formData.phone_number.trim() || null,
           active: formData.active,
-        });
+          city: formData.city.toLowerCase().trim(),
+        } as any);
         toast.success('Photographer updated successfully');
       } else {
         await addPhotographer({
@@ -119,7 +138,8 @@ export function PhotographersConfigScreen() {
           phone_number: formData.phone_number.trim() || null,
           password: formData.password.trim(),
           active: formData.active,
-        });
+          city: formData.city.toLowerCase().trim(),
+        } as any);
         toast.success('Photographer added successfully');
       }
       handleCloseDialog();
@@ -213,14 +233,14 @@ export function PhotographersConfigScreen() {
 
       {/* Photographers List */}
       <div className="grid gap-4">
-        {photographers.length === 0 ? (
+        {filteredPhotographers.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
               No photographers configured. Click "Add Photographer" to create one.
             </CardContent>
           </Card>
         ) : (
-          photographers.map(photographer => {
+          filteredPhotographers.map(photographer => {
             const photographerMappingCount = mappings.filter(
               m => m.photographerId === photographer.id
             ).length;
@@ -254,6 +274,11 @@ export function PhotographersConfigScreen() {
                       <div>
                         <div className="flex items-center gap-2">
                           <CardTitle>{photographer.name}</CardTitle>
+                          {(photographer as any).city && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                              {(photographer as any).city}
+                            </Badge>
+                          )}
                           <Badge
                             className={
                               photographer.active
@@ -373,6 +398,16 @@ export function PhotographersConfigScreen() {
                 value={formData.phone_number}
                 onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                 placeholder="e.g., +91 9876543210"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value })}
+                placeholder="e.g., bengaluru"
               />
             </div>
 

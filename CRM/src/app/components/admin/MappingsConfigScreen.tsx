@@ -85,6 +85,26 @@ export function MappingsConfigScreen() {
     );
   }
 
+  // City-based filtering logic
+  const filteredClusters = user?.role === 'ADMIN' && user?.city 
+    ? clusters.filter(c => (c as any).city === user.city)
+    : clusters;
+
+  const filteredDealerships = user?.role === 'ADMIN' && user?.city
+    ? dealerships.filter(d => (d as any).city === user.city)
+    : dealerships;
+
+  const filteredPhotographers = user?.role === 'ADMIN' && user?.city
+    ? photographers.filter(p => (p as any).city === user.city)
+    : photographers;
+
+  const filteredMappings = user?.role === 'ADMIN' && user?.city
+    ? mappings.filter(m => {
+        const cluster = clusters.find(c => c.id === m.clusterId);
+        return (cluster as any)?.city === user.city;
+      })
+    : mappings;
+
   const handleOpenDialog = (mapping?: Mapping) => {
     if (mapping) {
       setEditingMapping(mapping);
@@ -99,7 +119,7 @@ export function MappingsConfigScreen() {
     } else {
       setEditingMapping(null);
       setFormData({
-        clusterId: '',
+        clusterId: filteredClusters.length === 1 ? filteredClusters[0].id : '',
         dealershipId: '',
         photographerId: '',
         mappingType: 'PRIMARY',
@@ -301,14 +321,14 @@ export function MappingsConfigScreen() {
 
       {/* Mappings List */}
       <div className="grid gap-4">
-        {mappings.length === 0 ? (
+        {filteredMappings.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
               No mappings configured. Click "Add Showroom" to create one.
             </CardContent>
           </Card>
         ) : (
-          mappings.map(mapping => {
+          filteredMappings.map(mapping => {
             const isPhotographerActive = mapping.photographerId
               ? getPhotographerActive(mapping.photographerId)
               : true; // No photographer assigned = no active check needed
@@ -419,7 +439,7 @@ export function MappingsConfigScreen() {
                   <SelectValue placeholder="Select cluster" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clusters.map(cluster => (
+                  {filteredClusters.map(cluster => (
                     <SelectItem key={cluster.id} value={cluster.id}>
                       {cluster.name}
                     </SelectItem>
@@ -440,7 +460,7 @@ export function MappingsConfigScreen() {
                   <SelectValue placeholder="Select dealership" />
                 </SelectTrigger>
                 <SelectContent>
-                  {dealerships.map(dealership => (
+                  {filteredDealerships.map(dealership => (
                     <SelectItem key={dealership.id} value={dealership.id}>
                       {dealership.name}
                     </SelectItem>
@@ -518,7 +538,7 @@ export function MappingsConfigScreen() {
                     <SelectValue placeholder="Select photographer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {photographers.map(photographer => (
+                    {filteredPhotographers.map(photographer => (
                       <SelectItem key={photographer.id} value={photographer.id}>
                         {photographer.name}
                         {!photographer.active && ' (Inactive)'}

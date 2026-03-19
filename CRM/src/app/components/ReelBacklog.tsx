@@ -50,25 +50,23 @@ export function ReelBacklog() {
     if (!user) return;
     setLoading(true);
     try {
-      // V1 ADMIN: Use privileged client for admin to bypass RLS
-      const client = user.role === 'ADMIN' ? (adminSupabase || supabase) : supabase;
+      // Standardize on using the public (anon) client for browser-side data loading.
+      // RLS policies now handle access for Admins and Photographers.
+      const client = supabase;
 
       // 1. Fetch relevant reel tasks first
-      const tasksClient = user.role === 'ADMIN' ? (adminSupabase || supabase) : supabase;
       const allTasks = user.role === 'ADMIN'
-        ? await reelsDb.getAllReelTasks(undefined, tasksClient)
-        : await reelsDb.getReelTasksByUser(user.id, tasksClient);
+        ? await reelsDb.getAllReelTasks(undefined, client)
+        : await reelsDb.getReelTasksByUser(user.id, client);
 
       // 2. Extract delivery IDs from tasks
       const deliveryIds = Array.from(new Set(allTasks.map(t => t.delivery_id)));
 
-      // 3. Fetch ONLY those deliveries (using admin client if possible to bypass RLS)
-      // This ensures re-assigned tasks are visible even if the delivery belongs to someone else
-      const deliveryClient = adminSupabase || supabase;
-      const relevantDeliveries = await deliveriesDb.getDeliveriesByIds(deliveryIds, deliveryClient);
+      // 3. Fetch ONLY those deliveries
+      const relevantDeliveries = await deliveriesDb.getDeliveriesByIds(deliveryIds, client);
 
       // 4. Fetch users
-      const allDbUsers = await usersDb.getUsers(tasksClient);
+      const allDbUsers = await usersDb.getUsers(client);
 
       setReelTasks(allTasks);
       setDeliveries(relevantDeliveries);
@@ -89,7 +87,7 @@ export function ReelBacklog() {
 
     try {
       // V1 FIX: Use admin client to allow resolving reassigned tasks (bypass RLS)
-      const client = adminSupabase || supabase;
+      const client = supabase;
 
       await reelsDb.updateReelTask(taskId, {
         reel_link: reelLinkInput,
@@ -129,10 +127,22 @@ export function ReelBacklog() {
     }
 
     try {
+      // V1 FIX: Use admin client for reassignment if admin to bypass RLS
+      const client = supabase;
+
       await reelsDb.updateReelTask(taskId, {
         assigned_user_id: newUserId,
         reassigned_reason: reassignReason,
-      });
+      }, client);
+
+      // V1 FIX: Sync reassignment back to the delivery record
+      const currentTask = reelTasks.find(t => t.id === taskId);
+      if (currentTask && currentTask.delivery_id) {
+        await deliveriesDb.updateDelivery(currentTask.delivery_id, {
+          assigned_user_id: newUserId
+        }, client);
+        console.log(`🎬 Delivery record updated for ${currentTask.delivery_id} -> ${newUserId}`);
+      }
 
       // Update local state
       setReelTasks(prev => prev.map(t =>
@@ -143,7 +153,7 @@ export function ReelBacklog() {
 
       setSelectedTask(null);
       setReassignReason('');
-      toast.success('Reel task reassigned');
+      toast.success('Reel task reassigned and delivery synced');
     } catch (error) {
       console.error('Failed to reassign reel task:', error);
       toast.error('Failed to reassign reel task');

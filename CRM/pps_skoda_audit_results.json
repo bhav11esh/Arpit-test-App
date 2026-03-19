@@ -1,0 +1,190 @@
+{
+  "totalSheetRows": 162,
+  "totalCrmRecords": 162,
+  "perfectMatches": 152,
+  "discrepancies": [],
+  "missingInCRM": [],
+  "multipleMatches": [
+    {
+      "row": 49,
+      "matchCount": 2,
+      "details": [
+        "11-12-2025_1",
+        "https://drive.google.com/drive/folders/1sC9ccjWlBfc4U4_vB8IOOD7IFh-3gTI_?usp=share_link",
+        "https://drive.google.com/drive/folders/1Wz5e808D2D8V3dioy77plTLp4WfSmpVH?usp=share_link",
+        "Pranav muru",
+        " @kush240793",
+        " @Ankush mohan vasishta",
+        "",
+        "",
+        "Done",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 50,
+      "matchCount": 2,
+      "details": [
+        "11-12-2025_2",
+        "https://drive.google.com/drive/folders/1AfON6Y9QBoz2emT8EWFUqERBy_A7WQyV?usp=share_link",
+        "https://drive.google.com/drive/folders/1Jsl9vhJkNH7pjjdWWQzAtqvq4TBJTN1E?usp=share_link",
+        "Pranav muru",
+        "@san_harshal",
+        "",
+        "Santhosh",
+        "Prasanna ",
+        "Done",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 100,
+      "matchCount": 2,
+      "details": [
+        "25-01-2026",
+        "https://drive.google.com/drive/folders/1e63T5W9EDa7Ujh3mObN4N2lA3w2GssCt",
+        "https://drive.google.com/drive/folders/1lOdwIOQyeSCaANNABU3dYNgAajkbiIZc",
+        "bhuvanesan",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 103,
+      "matchCount": 2,
+      "details": [
+        "26-01-2026",
+        "https://drive.google.com/drive/folders/1e63T5W9EDa7Ujh3mObN4N2lA3w2GssCt",
+        "https://drive.google.com/drive/folders/1lOdwIOQyeSCaANNABU3dYNgAajkbiIZc",
+        "bhuvanesan",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 125,
+      "matchCount": 2,
+      "details": [
+        "11-12-2025_1",
+        "https://drive.google.com/drive/folders/1sC9ccjWlBfc4U4_vB8IOOD7IFh-3gTI_?usp=share_link",
+        "https://drive.google.com/drive/folders/1Wz5e808D2D8V3dioy77plTLp4WfSmpVH?usp=share_link",
+        "Pranav Muru",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 126,
+      "matchCount": 2,
+      "details": [
+        "11-12-2025_2",
+        "https://drive.google.com/drive/folders/1AfON6Y9QBoz2emT8EWFUqERBy_A7WQyV?usp=share_link",
+        "https://drive.google.com/drive/folders/1Jsl9vhJkNH7pjjdWWQzAtqvq4TBJTN1E?usp=share_link",
+        "Pranav Muru",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 139,
+      "matchCount": 2,
+      "details": [
+        "20-02-2026_1",
+        "https://drive.google.com/drive/folders/1rQRXq9XtGIt2408bAwRX9Bnk3yq6pcbz",
+        "https://drive.google.com/drive/folders/15M3nag6db3TWiJkAwyrUhnDlm5VAIg5N",
+        "kavi",
+        "",
+        "",
+        "RACHITH ",
+        "MANI",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 150,
+      "matchCount": 2,
+      "details": [
+        "26-02-2026",
+        "https://drive.google.com/drive/folders/1rQRXq9XtGIt2408bAwRX9Bnk3yq6pcbz",
+        "https://drive.google.com/drive/folders/15M3nag6db3TWiJkAwyrUhnDlm5VAIg5N",
+        "Kavi",
+        "Customer dont use the instagram ID ",
+        "",
+        "Padbhanabh",
+        "Prasanna",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 154,
+      "matchCount": 2,
+      "details": [
+        "27-02-2026",
+        "https://drive.google.com/drive/folders/1C7e58pfReqvkM2zCQ3_aApnZjd9nFG4C",
+        "https://drive.google.com/drive/folders/1Eu0nP0MXLbuNGCTOCRxB4zOw6uIsMU6A?usp=drive_link",
+        "Manu",
+        "",
+        "",
+        "Aman Jain",
+        "Aldin",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "row": 155,
+      "matchCount": 2,
+      "details": [
+        "27-02-2026",
+        "https://drive.google.com/drive/folders/1C7e58pfReqvkM2zCQ3_aApnZjd9nFG4C",
+        "https://drive.google.com/drive/folders/17EEqxcznxQ5ZMR3fVMfm6wS7USy-lIiT?usp=drive_link",
+        "Manu",
+        "",
+        "",
+        "Aman Jain",
+        "Aldin",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  ],
+  "extraInCRM": []
+}

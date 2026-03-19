@@ -15,8 +15,8 @@ import { createLogEvent } from '../lib/logging';
 import { createRejection, getDistinctRejections, getUserRejections } from '../lib/db/rejections'; // V1 MATCH
 import { getActiveUsersByCluster } from '../lib/db/users'; // V1 MATCH
 import { getAllLeaves } from '../lib/db/leaves'; // V1 IMPORT
-import { uploadScreenshotFile, createScreenshot } from '../lib/db/screenshots'; // V1 MATCH
-import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString, requestNotificationPermission, sendPushNotification } from '../lib/utils';
+import { uploadScreenshotFile, createScreenshot, getScreenshotsByDeliveries } from '../lib/db/screenshots'; // V1 MATCH
+import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString, requestNotificationPermission, sendPushNotification, getShowroomCode } from '../lib/utils';
 import { supabase, adminSupabase } from '../lib/supabase';
 import {
   shouldShowTimingPrompt,
@@ -33,6 +33,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Calendar, CheckCircle2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { getClusterShortCode } from '../lib/utils'; // V1 IMPORT
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "./ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Plus } from 'lucide-react';
 
 export function HomeScreen() {
   const { user } = useAuth();
@@ -40,9 +56,11 @@ export function HomeScreen() {
   const { dealerships, clusters, mappings } = useConfig();
 
 
+
   // V1 REFACTOR: Restore administrative access check (simplified)
   // We use adminSupabase if available for advanced operations
-  const shouldUseAdmin = !!adminSupabase;
+  // V1 REFACTOR: adminSupabase is forbidden in browsers for data loading.
+  const shouldUseAdmin = false;
 
   // V1 REFACTOR: Infer Cluster from PRIMARY Mapping
   // No more hardcoded email checks or manual cluster_code field
@@ -85,6 +103,17 @@ export function HomeScreen() {
     showroomType: 'PRIMARY' | 'SECONDARY';
   } | null>(null);
 
+  // V1 SPEC: State for Adding External Delivery (cross-cluster)
+  const [selectedExternalCluster, setSelectedExternalCluster] = useState<string>('');
+  const [selectedExternalDealership, setSelectedExternalDealership] = useState<string>('');
+  const [addingExternal, setAddingExternal] = useState(false);
+
+  // V1 FIX: Disable button if on Full Day leave
+  // FetchDeliveries already filtered 'leaves' to today's records for all cluster photographers
+  const myTodayLeaves = leaves.filter(l => l.photographerId === user?.id);
+  const isFullDayLeave = myTodayLeaves.some(l => l.half === 'FIRST_HALF') &&
+    myTodayLeaves.some(l => l.half === 'SECOND_HALF');
+
   useEffect(() => {
     loadData();
 
@@ -111,23 +140,25 @@ export function HomeScreen() {
 
     const fetchDeliveries = async () => {
       try {
+        const { supabase: client } = await import('../lib/supabase');
         const today = getOperationalDateString();
+        const currentHour = new Date().getHours();
 
-        // 1. Get deliveries assigned to current user (for today or any incomplete ones if needed? V1 spec implies daily view usually)
-        // We'll fetch all assigned to user to be safe, or maybe filtered by today? 
-        // Existing mock logic filtered by date? No, mockDeliveries.filter didn't enforce date in the polling loop (lines 73-98), 
-        // but typically we care about today. However, let's fetch pending ones.
-        // Actually, let's fetch *all* explicitly to match the extensive filtering logic:
-
-        // Determine client to use
-        // Determine client to use
-        const client = shouldUseAdmin ? adminSupabase : supabase;
-
-        // V1 CRITICAL: Fetch ALL deliveries for today to ensure we see:
-        // 1. Personally assigned deliveries (even if status changed)
-        // 2. Unassigned deliveries in cluster (Secondary section)
-        // 3. Rejected/Not Chosen items (available for self-assignment)
-        const allToday = await deliveriesDb.getDeliveriesByDate(today, client);
+        // V1 FIX: In the early morning (4 AM to 6 AM), we fetch both Today and Yesterday
+        // This ensures late-night deliveries don't "vanish" at the 4 AM snap-back.
+        let allToday: Delivery[] = [];
+        if (currentHour >= 4 && currentHour < 6) {
+          const yesterday = getOperationalDateString(new Date(Date.now() - 24 * 60 * 60 * 1000)); // Corrected to 24 hours ago for yesterday
+          const [todayDeliveries, yesterdayDeliveries] = await Promise.all([
+            deliveriesDb.getDeliveriesByDate(today, client),
+            deliveriesDb.getDeliveriesByDate(yesterday, client)
+          ]);
+          // Merge and deduplicate by ID
+          const merged = [...todayDeliveries, ...yesterdayDeliveries];
+          allToday = Array.from(new Map(merged.map(d => [d.id, d])).values());
+        } else {
+          allToday = await deliveriesDb.getDeliveriesByDate(today, client);
+        }
 
         // V1 FIX: Fetch leaves for mapping failover logic
         // We need to know who is on leave today to show their showrooms to others in the cluster
@@ -176,43 +207,84 @@ export function HomeScreen() {
         delivery.assigned_user_id === user.id &&
         delivery.timing
       ) {
-        // Resolve target coordinates from mappings
+        // Resolve target coordinates (Universal lookup)
+        let targetLat: number | undefined;
+        let targetLng: number | undefined;
+
+        // V1 FIX: Use getShowroomCode utility for robust matching (handles names without brackets)
+        // Priority 1: Check user's local context mappings first (contains specific geofenced locations)
         const mapping = mappings.find(m => {
           const dealership = dealerships.find(d => d.id === m.dealershipId);
-          // Showroom code matching logic: "Name (CODE)" -> CODE, or fallback to ID
-          const showroomCode = dealership?.name.match(/\(([^)]+)\)/)?.[1] || m.dealershipId;
-          return showroomCode === delivery.showroom_code;
+          return dealership && getShowroomCode(dealership.name) === delivery.showroom_code;
         });
 
         if (mapping) {
+          targetLat = mapping.latitude;
+          targetLng = mapping.longitude;
+        } else {
+          // Priority 2: Universal fallback to global dealership pool
+          const dealer = dealerships.find(d => 
+            getShowroomCode(d.name) === delivery.showroom_code || d.id === delivery.showroom_code
+          );
+          if (dealer) {
+            targetLat = dealer.latitude;
+            targetLng = dealer.longitude;
+          }
+        }
+
+        if (targetLat !== undefined && targetLng !== undefined) {
           const cleanup = scheduleGeofenceCheck(
             delivery,
             user.id,
-            mapping.latitude,
-            mapping.longitude,
+            targetLat,
+            targetLng,
             (breach) => {
               setGeofenceBreach({ breach, delivery });
-              // Log breach to DB with enhanced metadata for Admin notifications
-              const client = shouldUseAdmin ? adminSupabase : supabase;
+              
+              const client = supabase;
+              
+              // 1. Log breach to DB for Admin Audit Trail
               import('../lib/db/logs').then(({ createLogEvent }) => {
                 createLogEvent({
                   type: 'GEOFENCE_BREACH',
                   actor_user_id: user.id,
                   target_id: delivery.id,
                   metadata: {
+                    photographer_name: user.name,
+                    delivery_name: delivery.delivery_name,
+                    showroom_code: delivery.showroom_code,
+                    delivery_time: delivery.timing,
+                    distance_from_target: breach.distance_from_target,
                     latitude: breach.latitude,
                     longitude: breach.longitude,
-                    distance_from_target: breach.distance_from_target,
-                    breach_time: breach.breach_time,
-                    target_lat: mapping.latitude,
-                    target_lng: mapping.longitude,
-                    // V1 ENRICHMENT: For Admin Push Notifications
-                    delivery_name: delivery.delivery_name,
-                    delivery_time: delivery.timing,
-                    photographer_name: user.name,
-                    showroom_code: delivery.showroom_code
+                    threshold: breach.threshold_meters
                   }
                 }, client);
+              });
+
+              // 2. Create Persistent Notifications (In-App Bell)
+              import('../lib/db/notifications').then(async ({ createNotification }) => {
+                const title = '📍 Geofence Breach Alert';
+                const body = `Photographer ${user.name} is ${Math.round(breach.distance_from_target)}m away from ${delivery.showroom_code}.`;
+
+                // Notify Photographer
+                createNotification({
+                  user_id: user.id,
+                  title,
+                  body,
+                  type: 'SYSTEM' as any
+                }, client);
+
+                // Notify All Admins
+                const admins = allUsers.filter(u => u.role === 'ADMIN' && u.active);
+                admins.forEach(admin => {
+                  createNotification({
+                    user_id: admin.id,
+                    title,
+                    body,
+                    type: 'SYSTEM' as any
+                  }, client);
+                });
               });
 
               // V1 SPEC: Send Push Notification to Photographer
@@ -224,6 +296,15 @@ export function HomeScreen() {
                 body: `You are ${distanceKm} away from ${delivery.showroom_code}. Please ensure you are at the correct location for your ${delivery.timing} delivery.`,
                 icon: '/favicon.ico',
                 tag: `breach_${delivery.id}`
+              });
+
+              // V1 ADMIN NOTIFICATION: Send push intent to admins
+              import('../lib/db/push').then(({ sendPushToAdmins }) => {
+                sendPushToAdmins({
+                  title: '📍 Geofence Breach Active!',
+                  body: `${user.name} is ${distanceKm} away from ${delivery.showroom_code} for their ${delivery.timing} delivery.`,
+                  data: { deliveryId: delivery.id, userId: user.id }
+                });
               });
             }
           );
@@ -448,21 +529,38 @@ export function HomeScreen() {
         if (primaryMapping) {
           if (primaryMapping.photographerId === user.id) {
             // Case 1: Current photographer is assigned to the Primary Mapping for this showroom
-            isVisible = true;
-            finalShowroomType = 'PRIMARY';
-          } else {
-            // Case 2: Someone else is the Primary photographer for this showroom
-            // Check if that photographer is on leave today
-            const isPrimaryOnLeave = leaves.some(l =>
-              l.photographerId === primaryMapping.photographerId &&
-              l.date === today
+            // V1 FIX: If I am on leave for the CURRENT shift, don't prompt me (let cluster handle it)
+            const currentHour = new Date().getHours();
+            const currentShift = currentHour < 14 ? 'FIRST_HALF' : 'SECOND_HALF';
+            const iAmOnLeaveForShift = leaves.some(l =>
+              l.photographerId === user.id &&
+              l.date === today &&
+              (l.half === 'FULL_DAY' || l.half === currentShift)
             );
 
-            if (isPrimaryOnLeave) {
+            if (iAmOnLeaveForShift) {
+              isVisible = false;
+            } else {
+              isVisible = true;
+              finalShowroomType = 'PRIMARY';
+            }
+          } else {
+            // Case 2: Someone else is the Primary photographer for this showroom
+            // V1 FIX: Check for Shift-Aware Leave
+            const currentHour = new Date().getHours();
+            const currentShift = currentHour < 14 ? 'FIRST_HALF' : 'SECOND_HALF';
+
+            const isPrimaryOnLeaveForShift = leaves.some(l =>
+              l.photographerId === primaryMapping.photographerId &&
+              l.date === today &&
+              (l.half === 'FULL_DAY' || l.half === currentShift)
+            );
+
+            if (isPrimaryOnLeaveForShift) {
               isVisible = true;
               finalShowroomType = 'SECONDARY';
             } else {
-              // Primary is working -> HIDE for all other cluster members
+              // Primary is working this shift -> HIDE for all other cluster members
               isVisible = false;
             }
           }
@@ -476,9 +574,8 @@ export function HomeScreen() {
 
         // --- Existing Timing Check Logic ---
 
-        // Generate cleaner showroom code
-        const nameBasedCode = dealership.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-        const showroomCode = dealership.name.match(/\(([^)]+)\)/)?.[1] || nameBasedCode || dealership.id;
+        // Generate cleaner showroom code using standard utility
+        const showroomCode = getShowroomCode(dealership.name);
 
         // Resolve cluster info for filter
         const currentCluster = clusters.find(c => c.id === effectiveClusterCode);
@@ -515,14 +612,14 @@ export function HomeScreen() {
           return false;
         });
 
-        const client = shouldUseAdmin ? adminSupabase : supabase;
+        const client = supabase;
         const shouldShow = await shouldShowTimingPrompt(showroomCode, today, showroomDeliveries, client);
 
         if (shouldShow) {
 
           // Find cluster name for display
-          // We already filtered by effectiveClusterCode, so we can use that, or look up strictly
-          const dClusterMapping = mappings.find(m => m.dealershipId === dealership.id);
+          // V1 FIX: Use the mapping we already found for THIS user's cluster
+          const dClusterMapping = currentClusterMapping;
           let cluster = clusters.find(c => c.id === dClusterMapping?.clusterId);
 
           // V1 FALLBACK: If unmapped, use the cluster we resolved earlier from user context
@@ -597,18 +694,14 @@ export function HomeScreen() {
 
       setDeliveries(uniqueDeliveries);
 
-      // Group screenshots (mock screenshots for now, or real if we had them)
-      // For now keep mock screenshots as we haven't implemented real photo uploads fully perhaps?
-      // Or checking if screenshots exist.
-      // The state is setScreenshots(Map).
-      // Let's keep the mock screenshots but mapped to real delivery IDs if possible?
-      // Or just empty map if we assume no screenshots yet.
-      // Since we just wiped mockDeliveries, the IDs won't match mockScreenshots.
-      setScreenshots(new Map());
+      // Fetch all screenshots for these deliveries
+      const deliveryIds = uniqueDeliveries.map(d => d.id);
+      const screenshotsMap = await getScreenshotsByDeliveries(deliveryIds);
+      setScreenshots(screenshotsMap);
 
       // 3. Get Today's Leaves - V1 FIX: Use admin client to bypass RLS
       // This ensures we can see Mallikarjun's leave for failover check
-      const client = adminSupabase || supabase;
+      const client = supabase;
       const { data: allLeavesData, error: leavesError } = await client
         .from('leaves')
         .select('*');
@@ -618,7 +711,7 @@ export function HomeScreen() {
       } else {
         const currentOperationalDate = getOperationalDateString();
         // Map to app types
-        const todayLeaves = (allLeavesData || [])
+        const todayLeaves = ((allLeavesData as any[]) || [])
           .filter(l => l.date === currentOperationalDate)
           .map(l => ({
             id: l.id,
@@ -641,7 +734,7 @@ export function HomeScreen() {
 
   const handleAccept = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       // Optimistic update
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
         status: 'ASSIGNED',
@@ -675,7 +768,7 @@ export function HomeScreen() {
       const { createRejection, getDistinctRejections } = await import('../lib/db/rejections');
       const { getActiveUsersByCluster } = await import('../lib/db/users');
 
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       await createRejection(deliveryId, user?.id || '', client);
 
       // CHECK: Have ALL active photographers in this cluster rejected?
@@ -717,7 +810,7 @@ export function HomeScreen() {
 
   const handleAutoReject = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       // V1 SPEC: Auto-reject = "REJECTED_BY_ALL" -> moves to Not Chosen
       await deliveriesDb.updateDelivery(deliveryId, {
         status: 'REJECTED', // Or whatever strict status DB uses, maybe REJECTED_BY_ALL?
@@ -759,7 +852,7 @@ export function HomeScreen() {
         timing
       );
 
-      const client = adminSupabase || supabase;
+      const client = supabase;
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
         timing: timing,
         delivery_name: newName,
@@ -778,15 +871,73 @@ export function HomeScreen() {
     }
   };
 
-  const handleUpdateFootageLink = async (deliveryId: string, link: string) => {
+  const handleAddExternalDelivery = async () => {
+    if (!selectedExternalCluster || !selectedExternalDealership || !user) return;
+
+    setAddingExternal(true);
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
-      const updated = await deliveriesDb.updateDelivery(deliveryId, {
+      const dealership = dealerships.find(d => d.id === selectedExternalDealership);
+      if (!dealership) throw new Error('Dealership not found');
+
+      const today = getOperationalDateString();
+      const clusterShort = getClusterShortCode(selectedExternalCluster);
+      const showroomCode = getShowroomCode(dealership.name);
+
+      // Get creation index for this showroom today
+      const client = supabase;
+      const index = getNextCreationIndex(showroomCode, today, deliveries);
+
+      const deliveryName = generateDeliveryName(
+        today,
+        showroomCode,
+        clusterShort,
+        null,
+        index
+      );
+
+      const newDelivery = await deliveriesDb.createDelivery({
+        date: today,
+        showroom_code: showroomCode,
+        cluster_code: selectedExternalCluster,
+        showroom_type: 'SECONDARY', // External ones are always treated as secondary pool items
+        timing: null,
+        delivery_name: deliveryName,
+        status: 'ASSIGNED', // Auto-assign to self
+        assigned_user_id: user.id,
+        payment_type: (dealership as any).paymentType || (dealership as any).payment_type || 'CUSTOMER_PAID',
+        creation_index: index,
+        footage_link: null,
+      }, client);
+
+      setDeliveries(prev => [...prev, newDelivery]);
+      toast.success('External delivery added and assigned to you');
+
+      // Reset state
+      setSelectedExternalCluster('');
+      setSelectedExternalDealership('');
+
+      // Close dialog handled by Dialog state (uncontrolled here, so maybe need to control it or user clicks away)
+      // Actually, we should probably control the dialog open state for better UX. 
+      // But let's keep it simple first.
+    } catch (err) {
+      console.error('Failed to add external delivery:', err);
+      toast.error('Failed to add external delivery');
+    } finally {
+      setAddingExternal(false);
+    }
+  };
+
+  const handleUpdateFootageLink = async (deliveryId: string, link: string) => {
+    // V1 OPTIMISTIC: Update local state immediately
+    setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, footage_link: link } : d));
+
+    try {
+      const client = supabase;
+      await deliveriesDb.updateDelivery(deliveryId, {
         footage_link: link,
         updated_at: new Date().toISOString()
       }, client);
 
-      setDeliveries(prev => prev.map(d => d.id === deliveryId ? updated : d));
       toast.success('Footage link updated');
     } catch (error) {
       console.error('Error updating footage link:', error);
@@ -794,38 +945,36 @@ export function HomeScreen() {
     }
   };
 
+  const handleUpdateDeliveryFields = async (deliveryId: string, updates: Partial<Delivery>) => {
+    // V1 OPTIMISTIC: Update local state immediately for snappy UI
+    setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, ...updates } : d));
+
+    try {
+      const client = supabase;
+      // V1 FIX: Fire and forget the update for high-frequency fields.
+      // We don't sync the result back to setDeliveries because older DB responses 
+      // can overwrite newer keystrokes if the user is typing fast.
+      await deliveriesDb.updateDelivery(deliveryId, {
+        ...updates,
+        updated_at: new Date().toISOString()
+      }, client);
+
+    } catch (error) {
+      console.error('Error updating delivery fields:', error);
+      // Optional: Rollback on error if critical, but usually next keystroke fixes it
+    }
+  };
+
   const handleUnassign = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
 
       // V1 FIX: Unassigning acts as an implicit rejection to prevent prompt loop
       // And we PRESERVE timing so others can see the prompt
       await createRejection(deliveryId, user?.id || '', client);
 
-      let newStatus = 'UNASSIGNED';
-      let markedRejectedByAll = false;
-
-      // CHECK: Have ALL active photographers in this cluster now rejected?
-      if (effectiveClusterCode) {
-        const activeUsers = await getActiveUsersByCluster(effectiveClusterCode, client);
-        const rejectedUserIds = await getDistinctRejections(deliveryId, client);
-
-        // Add current user to rejected set (since we just rejected)
-        if (user?.id && !rejectedUserIds.includes(user.id)) {
-          rejectedUserIds.push(user.id);
-        }
-
-        const activeUserIds = activeUsers.map(u => u.id);
-        const allRejected = activeUserIds.every(id => rejectedUserIds.includes(id));
-
-        if (allRejected) {
-          newStatus = 'REJECTED';
-          markedRejectedByAll = true;
-        }
-      }
-
       const updatePayload: any = {
-        status: newStatus,
+        status: 'UNASSIGNED',
         assigned_user_id: null,
         // timing: null, // V1 FIX: Preserve timing so others can accept
         footage_link: null,
@@ -833,11 +982,6 @@ export function HomeScreen() {
         unassignment_timestamp: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
-      if (markedRejectedByAll) {
-        updatePayload.rejected_by_all = true;
-        updatePayload.rejected_by_all_timestamp = new Date().toISOString();
-      }
 
       const updated = await deliveriesDb.updateDelivery(deliveryId, updatePayload, client);
 
@@ -848,11 +992,7 @@ export function HomeScreen() {
         return newMap;
       });
 
-      if (markedRejectedByAll) {
-        toast.info('Delivery unassigned and moved to Not Chosen (rejected by all)');
-      } else {
-        toast.success('Delivery unassigned (open for others)');
-      }
+      toast.success('Delivery unassigned (open for others)');
 
     } catch (error) {
       console.error('Error unassigning:', error);
@@ -862,7 +1002,7 @@ export function HomeScreen() {
 
   const handleAssignSelf = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
         status: 'ASSIGNED',
         assigned_user_id: user?.id,
@@ -878,7 +1018,7 @@ export function HomeScreen() {
 
   const handlePostponedCanceled = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
         status: 'POSTPONED_CANCELED',
         updated_at: new Date().toISOString(),
@@ -893,9 +1033,10 @@ export function HomeScreen() {
 
   const handleRejectedByCustomer = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       const updated = await deliveriesDb.updateDelivery(deliveryId, {
         status: 'REJECTED_CUSTOMER',
+        assigned_user_id: null, // V1 FIX: Terminal state should clear assignee to avoid leave logic overwrites
         updated_at: new Date().toISOString(),
       }, client);
       setDeliveries(prev => prev.map(d => d.id === deliveryId ? updated : d));
@@ -906,7 +1047,7 @@ export function HomeScreen() {
     }
   };
 
-  const handleUploadScreenshot = async (deliveryId: string, type: any, file: File) => {
+  const handleUploadScreenshot = async (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', file: File) => {
     try {
       // V1 FIX: Persist screenshot to Storage + DB (using top-level imports)
 
@@ -915,7 +1056,7 @@ export function HomeScreen() {
       const filePath = `${fileName}`; // Bucket root or subfolder? Root is fine for now
 
       // V1 FIX: Use admin client to bypass RLS for uploads
-      const client = adminSupabase || supabase;
+      const client = supabase;
 
       const publicUrl = await uploadScreenshotFile(file, filePath, client);
 
@@ -991,21 +1132,30 @@ export function HomeScreen() {
         targetMappingType = 'PRIMARY';
       }
 
-      // If I am the primary, assign to me. If someone else is primary, assign to them.
-      // If no primary, it is UNASSIGNED.
-      // V1 FIX: If I am creating this as a SECONDARY prompt (Backup/Failover), forces UNASSIGNED
-      // This allows the delivery to appear in the "Secondary / Unassigned" list for everyone
-      let assignedUserId = primaryPhotographerId;
-      if (currentShowroomPrompt.showroomType === 'SECONDARY') {
+      // V1 UX FIX: Correct assignment logic based on Primary vs Secondary roles
+      // 1. If I am adding the delivery AND I am the primary photographer -> Assigned to me
+      //    (targetMappingType stays PRIMARY, assignedUserId = me)
+      // 2. If I am adding the delivery BUT someone else is primary -> It must go to the pool
+      //    (targetMappingType becomes SECONDARY, assignedUserId = null, status = UNASSIGNED)
+      // 3. If there is no primary -> It must go to the pool
+      //    (targetMappingType becomes SECONDARY, assignedUserId = null, status = UNASSIGNED)
+
+      let assignedUserId: string | null = null;
+      let initialStatus = 'ASSIGNED';
+      let deliveryShowroomType: 'PRIMARY' | 'SECONDARY' = 'SECONDARY';
+
+      if (primaryPhotographerId === user.id) {
+        // I am the primary, assign to me
+        assignedUserId = user.id;
+        deliveryShowroomType = 'PRIMARY';
+      } else {
+        // I am covering/secondary, it goes to the unassigned pool
         assignedUserId = null;
+        initialStatus = 'UNASSIGNED';
+        deliveryShowroomType = 'SECONDARY';
       }
 
-      const initialStatus = assignedUserId ? 'ASSIGNED' : 'UNASSIGNED';
-
-      // Showroom Type for the DELIVERY depends on its classification in DB
-      const deliveryShowroomType = assignedUserId ? 'PRIMARY' : 'SECONDARY';
-
-      const client = adminSupabase || supabase;
+      const client = supabase;
 
       const newDelivery = await deliveriesDb.createDelivery({
         date: today,
@@ -1037,7 +1187,7 @@ export function HomeScreen() {
 
   const handleDeleteDelivery = async (deliveryId: string) => {
     try {
-      const client = shouldUseAdmin ? adminSupabase : supabase;
+      const client = supabase;
       await deliveriesDb.deleteDelivery(deliveryId, client);
 
       // Update local state
@@ -1112,7 +1262,7 @@ export function HomeScreen() {
     // This ensures they stay in the Active list instead of vanishing to Not Chosen
     try {
       // V1 FIX: Always use admin client for rescue updates to bypass RLS
-      const client = adminSupabase || supabase;
+      const client = supabase;
       const showroomDeliveriesToRescue = deliveries.filter(d =>
         d.showroom_code === currentShowroomPrompt.showroomCode &&
         d.date === today &&
@@ -1155,8 +1305,7 @@ export function HomeScreen() {
 
     // V1 CRITICAL: Global Finalization (stops prompt for everyone in cluster)
     // Log the event to DB so other photographers see it's done
-    // V1 FIX: Always use admin client for system logs to bypass RLS
-    const clientForLog = adminSupabase || supabase;
+    const clientForLog = supabase;
     import('../lib/db/logs').then(({ createLogEvent }) => {
       createLogEvent({
         type: 'SHOWROOM_FINALIZED',
@@ -1221,11 +1370,23 @@ export function HomeScreen() {
     return mappings.some(m => {
       if (m.mappingType !== 'PRIMARY' || m.photographerId !== user?.id) return false;
 
+      // V1 FIX: If I am on leave for THIS delivery's shift, it's NOT my primary task today
+      if (delivery.timing) {
+        const hours = parseInt(delivery.timing.split(':')[0]);
+        const shift = hours < 14 ? 'FIRST_HALF' : 'SECOND_HALF';
+        const onLeave = leaves.some(l =>
+          l.photographerId === user?.id &&
+          l.date === delivery.date &&
+          (l.half === 'FULL_DAY' || l.half === shift)
+        );
+        if (onLeave) return false;
+      }
+
       const dealer = dealerships.find(d => d.id === m.dealershipId);
       if (!dealer) return false;
 
       const dealerName = dealer.name;
-      const codeInParens = dealerName.match(/\(([^)]+)\)/)?.[1];
+      const codeInParens = getShowroomCode(dealerName);
       const deliveryCode = delivery.showroom_code;
 
       // Robust check:
@@ -1248,13 +1409,18 @@ export function HomeScreen() {
     .filter(m => m.mappingType === 'PRIMARY' && m.photographerId === user?.id)
     .map(m => {
       const d = dealerships.find(deal => deal.id === m.dealershipId);
-      return d?.name.match(/\(([^)]+)\)/)?.[1] || d?.name || m.dealershipId;
+      return getShowroomCode(d?.name || '') || m.dealershipId;
     });
+
 
   // PRIMARY SECTION:
   // - Show if ASSIGNED to me (Primary or claimed Secondary) - WAIT, existing logic said "showroom_type=PRIMARY".
   // - AND: Show if UNASSIGNED but belongs to MY primary showroom (so I can reclaim it).
   const primaryDeliveries = deliveries.filter(d => {
+    // V1 FIX: If on full-day leave, you have NO primary deliveries today.
+    // They should be in Secondary for others to pick up.
+    if (isFullDayLeave) return false;
+
     if (d.showroom_type !== 'PRIMARY') return false;
 
     // 1. Assigned to me AND it is my primary
@@ -1291,10 +1457,37 @@ export function HomeScreen() {
       // Move expired ones to Not Chosen instead
       if (d.timing && isPromptExpired(d)) return false;
 
-      // V1 FIX: If it is MY primary, don't show here (it's in Primary section)
-      // Re-use logic:
+      // V1 FIX: If it is MY primary (and I am NOT on leave for this shift), 
+      // it stays in the Primary section.
       const isMine = isMyPrimary(d);
       if (isMine) return false;
+
+      // V1 FIX: If it belongs to a PRIMARY showroom of someone else on leave for this shift,
+      // it should show here in Secondary for me to pick up.
+      if (d.showroom_type === 'PRIMARY') {
+        const primaryMapping = mappings.find(m => {
+          if (m.mappingType !== 'PRIMARY') return false;
+          // Matching logic for showroom code...
+          const dealer = dealerships.find(deal => deal.id === m.dealershipId);
+          if (!dealer) return false;
+          const code = getShowroomCode(dealer.name);
+          return normalizeShowroom(code) === normalizeShowroom(d.showroom_code);
+        });
+
+        if (primaryMapping) {
+          // Check if that primary is on leave for this shift
+          if (d.timing) {
+            const hours = parseInt(d.timing.split(':')[0]);
+            const shift = hours < 14 ? 'FIRST_HALF' : 'SECOND_HALF';
+            const primaryOnLeave = leaves.some(l =>
+              l.photographerId === primaryMapping.photographerId &&
+              l.date === d.date &&
+              (l.half === 'FULL_DAY' || l.half === shift)
+            );
+            if (!primaryOnLeave) return false; // Primary is working, hide from my secondary list
+          }
+        }
+      }
 
       return true;
     }
@@ -1352,11 +1545,6 @@ export function HomeScreen() {
     !['CANCELED', 'POSTPONED_CANCELED'].includes(d.status)
   );
 
-  // V1 FIX: Disable button if on Full Day leave
-  // FetchDeliveries already filtered 'leaves' to today's records for all cluster photographers
-  const myTodayLeaves = leaves.filter(l => l.photographerId === user?.id);
-  const isFullDayLeave = myTodayLeaves.some(l => l.half === 'FIRST_HALF') &&
-    myTodayLeaves.some(l => l.half === 'SECOND_HALF');
 
   if (loading) {
     return (
@@ -1378,18 +1566,20 @@ export function HomeScreen() {
             setDeliveriesFinishedClicked(false);
           }}
           onUpdateFootageLink={handleUpdateFootageLink}
+          onUpdateDeliveryFields={handleUpdateDeliveryFields}
           onUploadScreenshot={handleUploadScreenshot}
           onComplete={async (updatedDeliveries) => {
             console.log('HomeScreen: onComplete called with', updatedDeliveries.length, 'deliveries');
 
             try {
               // Update all deliveries to DONE in DB
-              const client = shouldUseAdmin ? adminSupabase : supabase;
+              const client = supabase;
               const updatePromises = updatedDeliveries.map(d =>
                 deliveriesDb.updateDelivery(d.id, {
                   status: 'DONE',
                   // Preserve any other changes passed from SendUpdateScreen
                   footage_link: d.footage_link,
+                  received_amount: d.received_amount,
                   updated_at: new Date().toISOString()
                 }, client)
               );
@@ -1399,24 +1589,35 @@ export function HomeScreen() {
               // Update local state deliveries to DONE status
               setDeliveries(prev => prev.map(d => {
                 const updated = updatedDeliveries.find(ud => ud.id === d.id);
-                return updated ? { ...d, status: 'DONE', footage_link: updated.footage_link } : d;
+                return updated ? { ...d, status: 'DONE', footage_link: updated.footage_link, received_amount: updated.received_amount } : d;
               }));
 
               // V1 SPEC: Create reel tasks for each completed delivery in DB
               // Using Promise.all to handle them concurrently
               await Promise.all(updatedDeliveries.map(async (delivery) => {
-                const client = shouldUseAdmin ? adminSupabase : supabase;
+                const client = supabase;
 
                 // Check if task already exists in DB
                 const existingTask = await reelsDb.getReelTaskByDelivery(delivery.id, client);
 
                 if (!existingTask) {
+                  // V1 SPEC: Calculate deadline based on received_amount
+                  // - > 700 (1200, 1500, 2000): Same day EOD
+                  // - 700: Next day EOD
+                  const [year, month, day] = delivery.date.split('-').map(Number);
+                  const deadlineDate = new Date(year, month - 1, day, 23, 59, 59);
+                  if (delivery.received_amount === 700) {
+                    deadlineDate.setDate(deadlineDate.getDate() + 1);
+                  }
+                  const deadline = deadlineDate.toISOString();
+
                   await reelsDb.createReelTask({
                     delivery_id: delivery.id,
                     assigned_user_id: user?.id || '',
                     reel_link: null,
                     status: 'PENDING',
                     reassigned_reason: null,
+                    deadline: deadline,
                   }, client);
                   console.log(`🎬 Created Reel Task for delivery ${delivery.id}`);
                 }
@@ -1429,6 +1630,28 @@ export function HomeScreen() {
               // Mark end of day in local storage/system
               if (user?.id) {
                 markEndOfDay(user.id, updatedDeliveries.length);
+
+                // V1 FIX: Log day closure to DB for Admin Audit visibility
+                // This ensures that even with 0 deliveries, the admin knows the photographer was active.
+                const logClient = supabase;
+                const { createLogEvent: dbLog } = await import('../lib/db/logs');
+                await dbLog({
+                  type: 'SEND_UPDATE_COMPLETED',
+                  actor_user_id: user.id,
+                  target_id: user.id,
+                  metadata: {
+                    serviced_count: updatedDeliveries.length,
+                    deliveries: updatedDeliveries.map(d => ({
+                      id: d.id,
+                      name: d.delivery_name,
+                      received_amount: d.received_amount || 0,
+                      payment_type: d.payment_type
+                    })),
+                    date: getOperationalDateString(),
+                    cluster: typeof effectiveClusterCode === 'string' ? effectiveClusterCode : 'UNKNOWN'
+                  }
+                }, logClient);
+                console.log('🎬 Logged SEND_UPDATE_COMPLETED to DB');
               }
 
               // Close the send update screen and reset button state
@@ -1436,13 +1659,14 @@ export function HomeScreen() {
               setDeliveriesFinishedClicked(false);
 
               console.log('HomeScreen: State updated, showSendUpdate set to false');
-              toast.success(`Day completed! ${updatedDeliveries.length} deliveries covered.`);
+              toast.success(`Day closed successfully! 🎉 ${updatedDeliveries.length} deliveries covered.`);
 
             } catch (error) {
               console.error('Error closing day:', error);
               toast.error('Failed to close day. Please try again.');
             }
           }}
+          userClusterCode={effectiveClusterCode}
         />
       ) : (photographerDayState as string) === 'CLOSED' ? (
         <div className="space-y-6 pb-24">
@@ -1485,6 +1709,7 @@ export function HomeScreen() {
                   </div>
                   <CheckCircle2 className="h-14 w-14 text-gray-400" />
                 </div>
+                {!adminSupabase && <p className="mt-1">Standard permissions active. Admin tools are restricted in browser for security.</p>}
               </CardContent>
             </Card>
           </div>
@@ -1576,7 +1801,10 @@ export function HomeScreen() {
               clusterCode={currentShowroomPrompt.clusterCode}
               date={getOperationalDateString()}
               existingDeliveries={deliveries.filter(
-                d => d.showroom_code === currentShowroomPrompt.showroomCode && d.date === getOperationalDateString()
+                d => d.showroom_code === currentShowroomPrompt.showroomCode &&
+                  d.date === getOperationalDateString() &&
+                  d.status !== 'POSTPONED_CANCELED' &&
+                  d.status !== 'CANCELED'
               )}
               onAddDelivery={handleAddDelivery}
               onDeleteDelivery={handleDeleteDelivery}
@@ -1603,168 +1831,250 @@ export function HomeScreen() {
             <h1 className="text-2xl font-bold mt-1">{user?.name}</h1>
           </div>
 
-          {/* SECTION 1: Deliveries Serviced Today - Count Only */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="h-1 w-1 rounded-full bg-[#16A34A]"></div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Deliveries Serviced Today</h2>
+          {/* V1 FIX: If on Full Day Leave, show a dedicated message and skip everything else */}
+          {isFullDayLeave ? (
+            <div className="py-12 px-6 text-center">
+              <div className="inline-flex items-center justify-center p-4 bg-blue-100 rounded-full mb-4">
+                <Calendar className="h-8 w-8 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">On Full Day Leave</h2>
+              <p className="text-gray-600 mt-2">
+                You are on leave today. No deliveries are assigned to you, and regular showroom prompts are disabled.
+              </p>
+              <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <p className="text-sm text-gray-500 italic">
+                  "Enjoy your day off! The system has unassigned your primary deliveries for others to handle."
+                </p>
+              </div>
             </div>
-            <Card className="bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-gray-600">Completed</div>
-                    <div className="text-5xl font-bold mt-1 text-gray-800">{servicedCount}</div>
+          ) : (
+            <>
+              {/* SECTION 1: Deliveries Serviced Today - Count Only */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-1 w-1 rounded-full bg-[#16A34A]"></div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Deliveries Serviced Today</h2>
+                </div>
+                <Card className="bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 shadow-sm">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-gray-600">Completed</div>
+                        <div className="text-5xl font-bold mt-1 text-gray-800">{servicedCount}</div>
+                      </div>
+                      <CheckCircle2 className="h-14 w-14 text-gray-400" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* SECTION 2: Primary Deliveries */}
+              <TooltipProvider>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1 w-1 rounded-full bg-[#2563EB]"></div>
+                      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Primary Deliveries</h2>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button className="ml-1">
+                            <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Showrooms that are permanently assigned to you in the system. These are your regular showrooms.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50">
+                          <Plus className="h-4 w-4" />
+                          Add External
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Add External Delivery</DialogTitle>
+                          <div className="text-xs text-muted-foreground">
+                            Adding a delivery from a cluster other than your own.
+                            This will be auto-assigned to you.
+                          </div>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground uppercase">Select Cluster</label>
+                            <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select Cluster" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {clusters.map(cluster => (
+                                  <SelectItem key={cluster.id} value={cluster.name}>
+                                    {cluster.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground uppercase">Select Dealership</label>
+                            <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select Dealership" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {dealerships.map(dealership => (
+                                  <SelectItem key={dealership.id} value={dealership.id}>
+                                    {dealership.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            onClick={handleAddExternalDelivery}
+                            disabled={!selectedExternalCluster || !selectedExternalDealership || addingExternal}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            {addingExternal ? 'Adding...' : 'Add Delivery'}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Badge className="bg-[#2563EB] text-white ml-auto">{primaryDeliveries.length}</Badge>
                   </div>
-                  <CheckCircle2 className="h-14 w-14 text-gray-400" />
+                  {primaryDeliveries.length > 0 ? (
+                    <div className="space-y-3">
+                      {primaryDeliveries.map(delivery => (
+                        <DeliveryCard
+                          key={delivery.id}
+                          delivery={delivery}
+                          screenshots={screenshots.get(delivery.id) || []}
+                          onUpdateTiming={handleUpdateTiming}
+                          onUpdateFootageLink={handleUpdateFootageLink}
+                          onUploadScreenshot={handleUploadScreenshot}
+                          onUnassign={handleUnassign}
+                          onSelfAssign={handleAssignSelf}
+                          onPostpone={handlePostponedCanceled}
+                          onRejectedByCustomer={handleRejectedByCustomer}
+                          currentUserId={user?.id}
+                          dayCompleted={photographerDayState === 'CLOSED'}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <Card className="border-dashed border-2 border-gray-200">
+                      <CardContent className="py-8 text-center">
+                        <p className="text-gray-400 text-sm">No primary deliveries assigned</p>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </TooltipProvider>
 
-          {/* SECTION 2: Primary Deliveries */}
-          <TooltipProvider>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-1 w-1 rounded-full bg-[#2563EB]"></div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Primary Deliveries</h2>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="ml-1">
-                      <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Showrooms that are permanently assigned to you in the system. These are your regular showrooms.</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Badge className="bg-[#2563EB] text-white ml-auto">{primaryDeliveries.length}</Badge>
-              </div>
-              {primaryDeliveries.length > 0 ? (
+              {/* SECTION 3: Secondary Deliveries */}
+              <TooltipProvider>
                 <div className="space-y-3">
-                  {primaryDeliveries.map(delivery => (
-                    <DeliveryCard
-                      key={delivery.id}
-                      delivery={delivery}
-                      screenshots={screenshots.get(delivery.id) || []}
-                      onUpdateTiming={handleUpdateTiming}
-                      onUpdateFootageLink={handleUpdateFootageLink}
-                      onUploadScreenshot={handleUploadScreenshot}
-                      onUnassign={handleUnassign}
-                      onSelfAssign={handleAssignSelf}
-                      onPostpone={handlePostponedCanceled}
-                      onRejectedByCustomer={handleRejectedByCustomer}
-                      currentUserId={user?.id}
-                      dayCompleted={photographerDayState === 'CLOSED'}
-                    />
-                  ))}
+                  <div className="flex items-center gap-2">
+                    <div className="h-1 w-1 rounded-full bg-[#F59E0B]"></div>
+                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Secondary Deliveries (Today)</h2>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="ml-1">
+                          <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Showrooms not permanently assigned to you. This includes showrooms assigned to other photographers or showrooms with no primary photographer in your cluster.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Badge variant="outline" className="border-[#F59E0B] text-[#F59E0B] ml-auto">{secondaryDeliveries.length}</Badge>
+                  </div>
+                  {secondaryDeliveries.length > 0 ? (
+                    <div className="space-y-3">
+                      {secondaryDeliveries.map(delivery => (
+                        <DeliveryCard
+                          key={delivery.id}
+                          delivery={delivery}
+                          screenshots={screenshots.get(delivery.id) || []}
+                          onUpdateTiming={handleUpdateTiming}
+                          onUpdateFootageLink={handleUpdateFootageLink}
+                          onUploadScreenshot={handleUploadScreenshot}
+                          onUnassign={handleUnassign}
+                          onSelfAssign={handleAssignSelf}
+                          onPostpone={handlePostponedCanceled}
+                          onRejectedByCustomer={handleRejectedByCustomer}
+                          currentUserId={user?.id}
+                          dayCompleted={(photographerDayState as string) === 'CLOSED'}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <Card className="border-dashed border-2 border-gray-200">
+                      <CardContent className="py-8 text-center">
+                        <p className="text-gray-400 text-sm">No secondary deliveries available</p>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
-              ) : (
-                <Card className="border-dashed border-2 border-gray-200">
-                  <CardContent className="py-8 text-center">
-                    <p className="text-gray-400 text-sm">No primary deliveries assigned</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TooltipProvider>
+              </TooltipProvider>
 
-          {/* SECTION 3: Secondary Deliveries */}
-          <TooltipProvider>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-1 w-1 rounded-full bg-[#F59E0B]"></div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Secondary Deliveries (Today)</h2>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="ml-1">
-                      <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Showrooms not permanently assigned to you. This includes showrooms assigned to other photographers or showrooms with no primary photographer in your cluster.</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Badge variant="outline" className="border-[#F59E0B] text-[#F59E0B] ml-auto">{secondaryDeliveries.length}</Badge>
-              </div>
-              {secondaryDeliveries.length > 0 ? (
-                <div className="space-y-3">
-                  {secondaryDeliveries.map(delivery => (
-                    <DeliveryCard
-                      key={delivery.id}
-                      delivery={delivery}
-                      screenshots={screenshots.get(delivery.id) || []}
-                      onUpdateTiming={handleUpdateTiming}
-                      onUpdateFootageLink={handleUpdateFootageLink}
-                      onUploadScreenshot={handleUploadScreenshot}
-                      onUnassign={handleUnassign}
-                      onSelfAssign={handleAssignSelf}
-                      onPostpone={handlePostponedCanceled}
-                      onRejectedByCustomer={handleRejectedByCustomer}
-                      currentUserId={user?.id}
-                      dayCompleted={(photographerDayState as string) === 'CLOSED'}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Card className="border-dashed border-2 border-gray-200">
-                  <CardContent className="py-8 text-center">
-                    <p className="text-gray-400 text-sm">No secondary deliveries available</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TooltipProvider>
-
-          {/* SECTION 4: Not Chosen Deliveries */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-1 w-1 rounded-full bg-amber-400"></div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Not Chosen Deliveries</h2>
-              <Badge variant="outline" className="bg-amber-50 border-amber-300 text-amber-700 ml-auto">{notChosenDeliveries.length}</Badge>
-            </div>
-
-            {/* V1 SPEC: Explain what Not Chosen means and self-assignability rules */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-              <p className="text-xs text-amber-800">
-                <strong>Not Chosen includes:</strong> Deliveries rejected by all photographers, unassigned primary deliveries after reject cycle, canceled/postponed by admin.
-              </p>
-              <p className="text-xs text-red-700 font-semibold">
-                🚫 You CANNOT self-assign: Customer-rejected, Postponed, or Cancelled deliveries.
-              </p>
-            </div>
-
-            {notChosenDeliveries.length > 0 ? (
+              {/* SECTION 4: Not Chosen Deliveries */}
               <div className="space-y-3">
-                {notChosenDeliveries.map(delivery => (
-                  <DeliveryCard
-                    key={delivery.id}
-                    delivery={delivery}
-                    screenshots={screenshots.get(delivery.id) || []}
-                    showAssignability={true}
-                    onSelfAssign={handleAssignSelf}
-                    onPostpone={handlePostponedCanceled}
-                    onRejectedByCustomer={handleRejectedByCustomer}
-                    onUpdateTiming={handleUpdateDeliveryTiming}
-                    currentUserId={user?.id}
-                    dayCompleted={photographerDayState === 'CLOSED'}
-                  />
-                ))}
+                <div className="flex items-center gap-2">
+                  <div className="h-1 w-1 rounded-full bg-amber-400"></div>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Not Chosen Deliveries</h2>
+                  <Badge variant="outline" className="bg-amber-50 border-amber-300 text-amber-700 ml-auto">{notChosenDeliveries.length}</Badge>
+                </div>
+
+                {/* V1 SPEC: Explain what Not Chosen means and self-assignability rules */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                  <p className="text-xs text-amber-800">
+                    <strong>Not Chosen includes:</strong> Deliveries rejected by all photographers, unassigned primary deliveries after reject cycle, canceled/postponed by admin.
+                  </p>
+                  <p className="text-xs text-red-700 font-semibold">
+                    🚫 You CANNOT self-assign: Customer-rejected, Postponed, or Cancelled deliveries.
+                  </p>
+                </div>
+
+                {notChosenDeliveries.length > 0 ? (
+                  <div className="space-y-3">
+                    {notChosenDeliveries.map(delivery => (
+                      <DeliveryCard
+                        key={delivery.id}
+                        delivery={delivery}
+                        screenshots={screenshots.get(delivery.id) || []}
+                        showAssignability={true}
+                        onSelfAssign={handleAssignSelf}
+                        onPostpone={handlePostponedCanceled}
+                        onRejectedByCustomer={handleRejectedByCustomer}
+                        onUpdateTiming={handleUpdateDeliveryTiming}
+                        currentUserId={user?.id}
+                        dayCompleted={photographerDayState === 'CLOSED'}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-dashed border-2 border-gray-200">
+                    <CardContent className="py-8 text-center">
+                      <p className="text-gray-400 text-sm">No deliveries in this category</p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            ) : (
-              <Card className="border-dashed border-2 border-gray-200">
-                <CardContent className="py-8 text-center">
-                  <p className="text-gray-400 text-sm">No deliveries in this category</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
 
       {/* Bottom Sticky Button - V1 SPEC: Always enabled to allow day closure even with zero deliveries */}
-      {!showSendUpdate && photographerDayState === 'ACTIVE' && (
-        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white border-t shadow-lg">
+      {!showSendUpdate && (photographerDayState as string) === 'ACTIVE' && (
+        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white border-t shadow-lg z-50">
           <Button
             className="w-full h-16 bg-[#2563EB] hover:bg-blue-700 text-white font-semibold shadow-md flex flex-col items-center justify-center gap-1"
             disabled={isFullDayLeave}
@@ -1778,7 +2088,7 @@ export function HomeScreen() {
             </span>
             <span className="text-xs font-normal opacity-90">
               {isFullDayLeave
-                ? 'Button disabled due to full day leave'
+                ? 'Prompts disabled'
                 : 'Close day and send update to admin'}
             </span>
           </Button>

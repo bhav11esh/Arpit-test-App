@@ -1,0 +1,96 @@
+--- STARTING IMPORT VERIFICATION (PURE JS) ---
+Total records found for NANDI_TOYOTA: 397
+
+--- INTEGRITY SUMMARY ---
+Total Count: 397
+Date Range: 2025-01-04 to 2026-03-14
+Missing Footage: 26
+Missing Reel: 0
+Missing Photog: 0
+
+Photographer Breakdown: {
+  "Mallikarjun": 259,
+  "Sahith Undru": 4,
+  "Akhil": 50,
+  "Ajmal": 38,
+  "Rishi": 1,
+  "Venkatesh": 4,
+  "kavi": 1,
+  "Bibin": 36,
+  "Veshnu": 2,
+  "Madan": 2
+}
+
+Sample Rows (Top/Bottom):
+[
+  {
+    "index": 1,
+    "date": "2026-03-14",
+    "photog": "Mallikarjun",
+    "footage": "MISSING",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 2,
+    "date": "2026-03-14",
+    "photog": "Mallikarjun",
+    "footage": "MISSING",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 3,
+    "date": "2026-03-13",
+    "photog": "Mallikarjun",
+    "footage": "MISSING",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 4,
+    "date": "2026-03-13",
+    "photog": "Mallikarjun",
+    "footage": "MISSING",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 5,
+    "date": "2026-03-13",
+    "photog": "Mallikarjun",
+    "footage": "MISSING",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 393,
+    "date": "2025-01-15",
+    "photog": "Mallikarjun",
+    "footage": "https://drive.google.com/drive...",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 394,
+    "date": "2025-01-15",
+    "photog": "Mallikarjun",
+    "footage": "https://drive.google.com/drive...",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 395,
+    "date": "2025-01-15",
+    "photog": "Mallikarjun",
+    "footage": "https://drive.google.com/drive...",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 396,
+    "date": "2025-01-15",
+    "photog": "Mallikarjun",
+    "footage": "Only Photos ...",
+    "reel": "https://drive.google.com/drive..."
+  },
+  {
+    "index": 397,
+    "date": "2025-01-04",
+    "photog": "Mallikarjun",
+    "footage": "Only Photos ...",
+    "reel": "https://drive.google.com/drive..."
+  }
+]

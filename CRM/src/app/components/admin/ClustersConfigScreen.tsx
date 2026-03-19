@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Badge } from '../ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ export function ClustersConfigScreen() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
+    city: '',
   });
 
   // Admin-only access guard
@@ -45,10 +47,14 @@ export function ClustersConfigScreen() {
       setEditingCluster(cluster);
       setFormData({
         name: cluster.name,
+        city: (cluster as any).city || '',
       });
     } else {
       setEditingCluster(null);
-      setFormData({ name: '' });
+      setFormData({ 
+        name: '',
+        city: user?.city || '' // Default to admin's city
+      });
     }
     setDialogOpen(true);
   };
@@ -56,7 +62,7 @@ export function ClustersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingCluster(null);
-    setFormData({ name: '' });
+    setFormData({ name: '', city: '' });
   };
 
   const handleSubmit = () => {
@@ -65,16 +71,22 @@ export function ClustersConfigScreen() {
       toast.error('Cluster name is required');
       return;
     }
+    if (!formData.city.trim()) {
+      toast.error('City is required');
+      return;
+    }
 
     if (editingCluster) {
       updateCluster(editingCluster.id, {
         name: formData.name.trim(),
-      });
+        city: formData.city.trim(),
+      } as any);
       toast.success('Cluster updated successfully');
     } else {
       addCluster({
         name: formData.name.trim(),
-      });
+        city: formData.city.trim(),
+      } as any);
       toast.success('Cluster added successfully');
     }
 
@@ -103,6 +115,11 @@ export function ClustersConfigScreen() {
     }
   };
 
+  // Filter by city
+  const filteredClusters = user?.role === 'ADMIN' && user?.city
+    ? clusters.filter(c => (c as any).city === user.city)
+    : clusters;
+
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
@@ -130,14 +147,14 @@ export function ClustersConfigScreen() {
 
       {/* Clusters List */}
       <div className="grid gap-4">
-        {clusters.length === 0 ? (
+        {filteredClusters.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
               No clusters configured. Click "Add Cluster" to create one.
             </CardContent>
           </Card>
         ) : (
-          clusters.map(cluster => {
+          filteredClusters.map(cluster => {
             const clusterMappingCount = mappings.filter(
               m => m.clusterId === cluster.id
             ).length;
@@ -151,7 +168,14 @@ export function ClustersConfigScreen() {
                         <MapPin className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <CardTitle>{cluster.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle>{cluster.name}</CardTitle>
+                          {(cluster as any).city && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                              {(cluster as any).city}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600 mt-1 space-y-1">
                           <div className="text-blue-600">
                             {clusterMappingCount} mapping(s) configured
@@ -191,7 +215,7 @@ export function ClustersConfigScreen() {
               {editingCluster ? 'Edit Cluster' : 'Add New Cluster'}
             </DialogTitle>
             <DialogDescription>
-              Configure cluster name and geographic coordinates
+              Configure cluster name, city, and geographic location
             </DialogDescription>
           </DialogHeader>
 
@@ -204,6 +228,16 @@ export function ClustersConfigScreen() {
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g., North Delhi"
               />
+            </div>
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value.toLowerCase() })}
+                placeholder="e.g., bengaluru"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Use lowercase, e.g., "bengaluru", "mumbai"</p>
             </div>
           </div>
 

@@ -53,6 +53,23 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
 }
 
 /**
+ * Check the current geolocation permission status
+ */
+export async function checkGeolocationPermission(): Promise<PermissionState> {
+  if (!navigator.permissions || !navigator.permissions.query) {
+    return 'prompt'; // Fallback for browsers that don't support permissions API
+  }
+
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    return status.state;
+  } catch (error) {
+    console.error('Permission query failed:', error);
+    return 'prompt';
+  }
+}
+
+/**
  * Check if user is within geofence for a delivery
  */
 export async function checkGeofence(
@@ -120,7 +137,12 @@ export function getTimeUntilGeofenceCheck(delivery: Delivery): number | null {
 
   const timeUntilCheck = checkTime.getTime() - now.getTime();
 
-  // Return null if check time has passed
+  // V1 FIX: If we are within the 15-minute window before delivery, return 0 for immediate check
+  if (now.getTime() >= checkTime.getTime() && now.getTime() < deliveryDateTime.getTime()) {
+    return 0;
+  }
+
+  // Return null if delivery has already started or it's too early
   return timeUntilCheck > 0 ? timeUntilCheck : null;
 }
 

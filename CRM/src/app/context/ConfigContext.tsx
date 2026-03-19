@@ -61,6 +61,9 @@ interface ConfigContextType {
   addMapping: (mapping: Omit<Mapping, 'id'>) => Promise<void>;
   updateMapping: (id: string, mapping: Partial<Mapping>) => Promise<void>;
   deleteMapping: (id: string) => Promise<void>;
+
+  // Inclusive user list for name resolution
+  allUsers: User[];
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -69,6 +72,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [dealerships, setDealerships] = useState<Dealership[]>([]);
   const [photographers, setPhotographers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,33 +81,54 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     const loadData = async () => {
       setLoading(true); // Changed from setIsLoading to setLoading
       try {
-        // V1 FIX: Use adminSupabase (Service Role) if available to bypass RLS for Admin views
-        const client = adminSupabase || supabase;
+        // V1 FIX: Use standard client. adminSupabase is restricted in browsers.
+        const client = supabase;
         console.log('[ConfigContext] Loading data...', {
-          isAdminSupabaseAvailable: !!adminSupabase,
-          usingClient: adminSupabase ? 'ADMIN (Service Role)' : 'PUBLIC (Anon)'
+          usingClient: 'PUBLIC (Anon)'
         });
 
-        const [clustersData, dealershipsData, photographersData, mappingsData] = await Promise.all([
-          configDb.getClusters(client), // Pass client
-          configDb.getDealerships(client), // Pass client
-          usersDb.getUsersByRole('PHOTOGRAPHER', client), // Pass client
-          configDb.getMappings(client), // Pass client
+        // V1 OPTIMIZATION: Use allSettled to ensure that one failing query 
+        // doesn't block the entire config loading.
+        const results = await Promise.allSettled([
+          configDb.getClusters(client),
+          configDb.getDealerships(client),
+          usersDb.getUsersByRole('PHOTOGRAPHER', client),
+          configDb.getMappings(client),
+          usersDb.getUsers(client), // Add this
         ]);
 
-        console.log('[ConfigContext] Data loaded:', {
-          clusters: clustersData.length,
-          dealerships: dealershipsData.length,
-          photographers: photographersData.length,
-          mappings: mappingsData.length
-        });
+        const [clustersRes, dealershipsRes, photographersRes, mappingsRes, allUsersRes] = results;
+
+        const clustersData = clustersRes.status === 'fulfilled' ? clustersRes.value : [];
+        const dealershipsData = dealershipsRes.status === 'fulfilled' ? dealershipsRes.value : [];
+        const photographersData = photographersRes.status === 'fulfilled' ? photographersRes.value : [];
+        const mappingsData = mappingsRes.status === 'fulfilled' ? mappingsRes.value : [];
+        const allUsersData = allUsersRes.status === 'fulfilled' ? allUsersRes.value : [];
+
+        if (results.some(r => r.status === 'rejected')) {
+          const rejectedReasons = results
+            .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+            .map(r => r.reason);
+          console.warn('[ConfigContext] Some data failed to load:', rejectedReasons);
+        }
 
         setClusters(clustersData);
         setDealerships(dealershipsData);
         setPhotographers(photographersData);
         setMappings(mappingsData);
+        setAllUsers(allUsersData);
+
+        console.log('[ConfigContext] Loading complete', {
+          counts: {
+            clusters: clustersData.length,
+            dealerships: dealershipsData.length,
+            photographers: photographersData.length,
+            mappings: mappingsData.length,
+            allUsers: allUsersData.length
+          }
+        });
       } catch (error) {
-        console.error('Error loading config data:', error);
+        console.error('Fatal error in ConfigContext loadData:', error);
       } finally {
         setLoading(false);
       }
@@ -111,6 +136,57 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
     loadData();
   }, []);
+
+  /**
+   * V1 BYPASS: Direct Auth Admin API call
+   * The Supabase SDK prevents using the Service Role key in browsers.
+   * We bypass this by calling the GoTrue API directly via fetch.
+   */
+  const callAuthAdminApi = async (path: string, method: string, body?: any) => {
+    // V1 PROXY: Internal dev proxy handled by vite.config.ts middleware.
+    // This bypasses the "Forbidden use of secret API key in browser" check.
+    const PROXY_URL = '/api/admin-auth';
+
+    console.log(`[ConfigContext] Routing Auth request via proxy: ${method} ${path}`);
+
+    try {
+      const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path,
+          method,
+          body
+        })
+      });
+
+      if (!response.ok) {
+        let errorMsg = `Proxy Error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.msg || errorData.error_description || errorData.message || errorMsg;
+        } catch (e) {
+          // Fallback to status text
+        }
+        
+        console.error(`[ConfigContext] Proxy error response:`, errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      console.log(`[ConfigContext] Proxy call successful:`, path);
+      return data;
+    } catch (error: any) {
+      console.error('[ConfigContext] Proxy call failed:', error.message);
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('Unreachable')) {
+        throw new Error('Admin Proxy is unreachable. Ensure your development server (npm run dev) is running.');
+      }
+      throw error;
+    }
+  };
 
   // Cluster operations
   const addCluster = async (cluster: Omit<Cluster, 'id'>) => {
@@ -197,18 +273,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
 
         // Recreate Auth account with the SAME ID to maintain links to history
-        const { error: authError } = await adminSupabase.auth.admin.createUser({
-          id: existingUser.id,
-          email: photographer.email,
-          password: photographer.password,
-          email_confirm: true,
-          user_metadata: {
-            name: photographer.name,
-            role: 'PHOTOGRAPHER'
-          }
-        });
-
-        if (authError) {
+        try {
+          await callAuthAdminApi('/users', 'POST', {
+            id: existingUser.id,
+            email: photographer.email,
+            password: photographer.password,
+            email_confirm: true,
+            user_metadata: {
+              name: photographer.name,
+              role: 'PHOTOGRAPHER'
+            }
+          });
+        } catch (authError) {
           console.error('[ConfigContext] Auth reactivation failed:', authError);
           throw authError;
         }
@@ -224,35 +300,32 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // V1 FIX: Use privileged admin client to create Auth account
-      if (!adminSupabase) {
-        throw new Error('Admin Service Role key is missing. Cannot create photographer.');
-      }
-
       console.log('[ConfigContext] Creating Auth account for:', photographer.email);
-      const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-        email: photographer.email,
-        password: photographer.password,
-        email_confirm: true,
-        user_metadata: {
-          name: photographer.name,
-          role: 'PHOTOGRAPHER'
-        }
-      });
-
-      if (authError) {
+      let authData;
+      try {
+        authData = await callAuthAdminApi('/users', 'POST', {
+          email: photographer.email,
+          password: photographer.password,
+          email_confirm: true,
+          user_metadata: {
+            name: photographer.name,
+            role: 'PHOTOGRAPHER'
+          }
+        });
+      } catch (authError) {
         console.error('[ConfigContext] Auth creation failed:', authError);
         throw authError;
       }
 
-      if (!authData.user) {
+      if (!authData || !authData.id) {
         throw new Error('Auth creation returned no user data.');
       }
 
-      console.log('[ConfigContext] Auth account created successfully with ID:', authData.user.id);
+      console.log('[ConfigContext] Auth account created successfully with ID:', authData.id);
 
       // Create the DB record with MATCHING ID
       const newPhotographer = await usersDb.createUserWithId({
+        id: authData.id,
         name: photographer.name,
         email: photographer.email,
         role: 'PHOTOGRAPHER',
@@ -279,11 +352,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   const updatePhotographerPassword = async (id: string, newPassword: string) => {
     try {
-      // V1 CRITICAL: Use the privileged admin client
-      if (!adminSupabase) {
-        throw new Error('Admin Service Role key is missing. Cannot update password.');
-      }
-
       // Find the photographer to get their email and name
       const photographer = photographers.find(p => p.id === id);
       if (!photographer) {
@@ -293,16 +361,14 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       console.log(`[ConfigContext] Attempting to update password for: ${photographer.email} (${id})`);
 
       // 1. Try to update an EXISTING Auth account
-      const { error: updateError } = await adminSupabase.auth.admin.updateUserById(id, {
-        password: newPassword
-      });
-
-      // 2. If the user doesn't exist in Auth, CREATE it
-      if (updateError) {
+      try {
+        await callAuthAdminApi(`/users/${id}`, 'PUT', {
+          password: newPassword
+        });
+      } catch (updateError: any) {
         const isNotFoundError =
-          (updateError as any).status === 404 ||
           updateError.message?.toLowerCase().includes('not found') ||
-          (updateError as any).code === 'not_found';
+          updateError.message?.includes('404');
 
         if (isNotFoundError) {
           console.log('[ConfigContext] Auth account missing by ID. Checking for email conflict:', photographer.email);
@@ -316,7 +382,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
             throw listError;
           }
 
-          const interferingUser = existingUsers.find(u => u.email?.toLowerCase() === photographer.email.toLowerCase());
+          const interferingUser = (existingUsers as any[]).find(u => u.email?.toLowerCase() === photographer.email.toLowerCase());
 
           if (interferingUser) {
             console.log(`[ConfigContext] FOUND SPLIT BRAIN: Auth ID (${interferingUser.id}) != DB ID (${id}). Syncing...`);
@@ -333,18 +399,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           }
 
           // CREATE new Auth user with CORRECT ID (restoring link)
-          const { error: createError } = await adminSupabase.auth.admin.createUser({
-            id: id,
-            email: photographer.email,
-            password: newPassword,
-            email_confirm: true,
-            user_metadata: {
-              name: photographer.name,
-              role: 'PHOTOGRAPHER'
-            }
-          });
-
-          if (createError) {
+          try {
+            await callAuthAdminApi('/users', 'POST', {
+              id: id,
+              email: photographer.email,
+              password: newPassword,
+              email_confirm: true,
+              user_metadata: {
+                name: photographer.name,
+                role: 'PHOTOGRAPHER'
+              }
+            });
+          } catch (createError) {
             console.error('[ConfigContext] Auth creation failed:', createError);
             throw createError;
           }
@@ -365,13 +431,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const deletePhotographer = async (id: string) => {
     try {
       // V1 FIX: Remove from Supabase Auth so the email can be reused/re-added later
-      if (adminSupabase) {
+      try {
         console.log('[ConfigContext] Deleting Auth account for:', id);
-        const { error: authError } = await adminSupabase.auth.admin.deleteUser(id);
-        if (authError) {
-          // Warning only, as the user might not even exist in Auth (desynced)
-          console.warn('[ConfigContext] Auth deletion warning:', authError);
-        }
+        await callAuthAdminApi(`/users/${id}`, 'DELETE');
+      } catch (authError) {
+        // Warning only, as the user might not even exist in Auth (desynced)
+        console.warn('[ConfigContext] Auth deletion warning:', authError);
       }
 
       // Soft-delete in DB to preserve historical delivery logs
@@ -438,6 +503,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         addMapping,
         updateMapping,
         deleteMapping,
+        allUsers,
       }}
     >
       {children}

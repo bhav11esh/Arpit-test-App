@@ -1,0 +1,6 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+Verifying Triumph Popular dealership sync URL...
+Verification Result: {
+  "name": "Triumph Popular",
+  "google_sync_url": "https://script.google.com/macros/s/AKfycbw0zg5p8UVjpI69bWvKZHiSStuLdcnlUSPoLKzEK9bIQQC4PQmVAwxx-1aiwNT3CIBOmA/exec"
+}

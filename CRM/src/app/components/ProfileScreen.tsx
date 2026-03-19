@@ -114,8 +114,8 @@ export function ProfileScreen() {
             <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
               <Award className="h-5 w-5 text-green-600" />
               <div className="text-sm">
-                <div className="font-medium text-green-900">Incentive Tracker</div>
-                <div className="text-green-700">Check your eligibility in Incentives tab</div>
+                <div className="font-medium text-green-900">Earnings Tracker</div>
+                <div className="text-green-700">Check your period earnings in Earnings tab</div>
               </div>
             </div>
 

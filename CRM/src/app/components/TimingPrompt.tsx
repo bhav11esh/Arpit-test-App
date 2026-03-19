@@ -118,7 +118,6 @@ export function TimingPrompt({
     // This is recorded as delivery with null timing
     onAddDelivery(null);
     setShowAddForm(false);
-    toast.info('Delivery added without timing. You can update timing later from Home screen.');
   };
 
   const deliveryCount = existingDeliveries.length;

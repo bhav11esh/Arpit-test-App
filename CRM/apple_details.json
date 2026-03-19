@@ -1,0 +1,15 @@
+[
+  {
+    "id": "4e2d6e16-bb54-4071-9e75-bf55d37d6684",
+    "name": "Apple Auto Volkswagen",
+    "latitude": 0,
+    "longitude": 0,
+    "payment_type": "DEALER_PAID",
+    "created_at": "2026-02-03T16:49:42.256575+00:00",
+    "updated_at": "2026-03-18T22:18:59.897673+00:00",
+    "google_sheet_id": "15W2h5GAgVeMPGCscmX_7izo0wB73l5IHTEeLqENMZlA",
+    "rate_per_delivery": 500,
+    "city": "bengaluru",
+    "google_sync_url": "https://script.google.com/macros/s/AKfycbw0iMcJa6Eyhx4r5ybp2iBHRukHIJBM4yAxp0ndNoPscjiI96aMa7Q8ZM2l3-RBb9xe/exec"
+  }
+]

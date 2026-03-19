@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -15,17 +14,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
 
 async function check() {
-    console.log('Checking database...');
-    const start = Date.now();
+    console.log('Verifying Triumph Popular dealership sync URL...');
     try {
-        const { data, error } = await supabase.from('users').select('*');
-        const duration = Date.now() - start;
+        const { data, error } = await supabase
+            .from('dealerships')
+            .select('name, google_sync_url')
+            .eq('name', 'Triumph Popular')
+            .single();
 
         if (error) {
             console.error('Database error:', error);
         } else {
-            console.log(`Found ${data?.length || 0} users in ${duration}ms`);
-            data?.forEach(u => console.log(`- ${u.name} (${u.role}, active: ${u.active})`));
+            console.log('Verification Result:', JSON.stringify(data, null, 2));
         }
     } catch (e) {
         console.error('Fetch caught error:', e);

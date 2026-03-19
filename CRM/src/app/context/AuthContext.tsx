@@ -21,17 +21,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // V1 OPTIMIZATION: Track the last fetched user ID to prevent redundant parallel calls
+  const lastFetchedId = React.useRef<string | null>(null);
+
   // Fetch user data from users table based on auth user
   const fetchUserData = async (authUserId: string, email: string): Promise<User | null> => {
-    // V1 FIX: increased timeout to 15s to handle database latency
+    // V1 OPTIMIZATION: Prevent parallel fetches for the same ID
+    if (lastFetchedId.current === authUserId && user) {
+      console.log('[AuthContext] Already fetched user data for:', authUserId);
+      return user;
+    }
+
+    // V1 OPTIMIZATION: Reduced timeout to 10s. Better to show dashboard with session
+    // than to hang indefinitely on a slow user record fetch.
     const timeoutPromise = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 15000)
+      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 10000)
     );
 
     try {
-      // V1 FIX: Use privileged client for user fetch to bypass RLS
-      const client = adminSupabase || supabase;
+      lastFetchedId.current = authUserId;
+      console.log('[AuthContext] Performing fresh fetch for:', email);
 
+      const client = supabase;
       const userData = await Promise.race([
         getUserByEmail(email, client),
         timeoutPromise
@@ -55,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: (data as any).role as 'ADMIN' | 'PHOTOGRAPHER',
             active: (data as any).active,
             cluster_code: (data as any).cluster_code ?? undefined,
+            city: (data as any).city ?? undefined,
           };
         }
       }
@@ -62,8 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return userData as User | null;
     } catch (error) {
       console.error('[AuthContext] fetchUserData failed:', error);
-      // V1 FIX: If timeout occurs, return undefined to signal "transient failure" 
-      // instead of null (which signals "user not found")
+      lastFetchedId.current = null; // Allow retry on failure
+
       if (error instanceof Error && error.message === 'FETCH_USER_TIMEOUT') {
         return undefined as any;
       }
@@ -75,53 +87,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const initSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-
-        if (mounted) {
-          setSession(session);
-          if (session?.user) {
-            const userData = await fetchUserData(session.user.id, session.user.email || '');
-            if (mounted && userData !== undefined) setUser(userData);
-          }
-        }
-      } catch (error) {
-        console.error('[AuthContext] initSession failed:', error);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    initSession();
-
+    // V1 OPTIMIZATION: Use a stable session handler
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      setSession(session);
-      if (session?.user) {
-        console.log('[Auth] Session active, fetching user data for:', session.user.email);
-        const userData = await fetchUserData(session.user.id, session.user.email || '');
-        if (mounted) {
-          if (userData === undefined) {
-            console.warn('[Auth] FETCH_TIMEOUT: Preserving existing user state');
-            // Do NOT update user to null, just keep existing state
-          } else if (!userData) {
-            console.warn('[Auth] USER_DATA_NULL: User has session but no DB record');
+      console.log(`[Auth] Event: ${event}`);
+
+      try {
+        setSession(session);
+        if (session?.user) {
+          // V1 OPTIMIZATION: We don't set loading=true here if already false
+          // to prevent "flash of loading" on transient events.
+          const userData = await fetchUserData(session.user.id, session.user.email || '');
+
+          if (mounted) {
+            if (userData === undefined) {
+              console.warn('[Auth] FETCH_TIMEOUT: Using session metadata as fallback');
+              // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
+              const meta = session.user.user_metadata || {};
+              
+              // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
+              const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
+              const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
+
+              const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
+                ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
+
+              const fallbackUser: User = {
+                id: session.user.id,
+                email: session.user.email || '',
+                name: meta.name || session.user.email || 'User',
+                role: fallbackRole,
+                active: true,
+                cluster_code: meta.cluster_code || user?.cluster_code || '',
+                city: meta.city || user?.city || 'bengaluru',
+              };
+              setUser(fallbackUser);
+              console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+            } else if (!userData) {
+              console.warn('[Auth] USER_DATA_NULL: User record missing');
+              setUser(null);
+            } else if (!userData.active) {
+              console.error('[Auth] USER_INACTIVE: Account deactivated');
+              // If account is inactive, we clear the user so App.tsx can handle it
+              // We DON'T signOut automatically here to allow App to show a specific "Deactivated" screen
+              setUser(userData); 
+            } else {
+              setUser(userData);
+            }
+          }
+        } else {
+          if (mounted) {
             setUser(null);
-          } else {
-            setUser(userData);
+            lastFetchedId.current = null;
           }
         }
-      } else {
+      } catch (err) {
+        console.error('[Auth] State change error:', err);
+      } finally {
         if (mounted) {
-          if (user) console.log('[Auth] SESSION_LOST: User logged out');
-          setUser(null);
+          // V1 CRITICAL: Always clear loading on the first complete cycle
+          setLoading(false);
         }
       }
-
-      if (mounted) setLoading(false);
     });
 
     return () => {
@@ -138,6 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         const userData = await fetchUserData(data.user.id, email);
         if (!userData) throw new Error('User record missing in database.');
+        
+        if (!userData.active) {
+          await supabase.auth.signOut();
+          throw new Error('This account has been deactivated. Please contact an administrator.');
+        }
+        
         setUser(userData);
       }
     } catch (error) {

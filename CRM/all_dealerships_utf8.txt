@@ -1,0 +1,27 @@
+﻿[dotenv@17.2.3] injecting env (3) from .env -- tip: ≡ƒöÉ encrypt with Dotenvx: https://dotenvx.com
+[
+  {
+    "id": "92f642a5-563f-471e-a804-173fbadc71a3",
+    "name": "Nandi toyota"
+  },
+  {
+    "id": "724e0be7-58cf-445d-a9fe-eba9b34470fd",
+    "name": "Bimal Nexa"
+  },
+  {
+    "id": "4e2d6e16-bb54-4071-9e75-bf55d37d6684",
+    "name": "Apple Auto Volkswagen"
+  },
+  {
+    "id": "a61d3a21-b946-4d0a-986e-9991448e1074",
+    "name": "PPS Mahindra"
+  },
+  {
+    "id": "a93bf6ee-7698-47ea-bd32-1fe441ae3486",
+    "name": "Royal Enfield Teknik Motors"
+  },
+  {
+    "id": "272cf8fb-ced5-45ce-974d-17fb9db65d38",
+    "name": "Khivraj Triumph"
+  }
+]

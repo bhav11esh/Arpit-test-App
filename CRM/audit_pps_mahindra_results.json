@@ -1,0 +1,154 @@
+{
+  "totalSheetRows": 376,
+  "totalCrmRecords": 376,
+  "perfectMatches": 374,
+  "discrepancies": [
+    {
+      "row": 164,
+      "crmId": "7bcfcdf1-73a8-496d-b18b-8fb5e94e60b4",
+      "errors": [
+        "Date mismatch: Sheet(18- 12- 2025) vs CRM(2025-12-18)"
+      ],
+      "sheetDetails": {
+        "date": "18- 12- 2025",
+        "phone": "",
+        "photographer": "bhuvanesan"
+      },
+      "crmDetails": {
+        "date": "2025-12-18",
+        "phone": null,
+        "photographer": "Bhuvanesan"
+      }
+    },
+    {
+      "row": 314,
+      "crmId": "5e89c2d6-db6c-42bd-92e8-1a94587cf16b",
+      "errors": [
+        "Photographer mismatch: Sheet(\"amjith\") vs CRM(\"rishi\")"
+      ],
+      "sheetDetails": {
+        "date": "13-12-25_1",
+        "phone": "chandhan",
+        "photographer": "Amjith"
+      },
+      "crmDetails": {
+        "date": "2025-12-13",
+        "phone": null,
+        "photographer": "Rishi"
+      }
+    }
+  ],
+  "missingInCRM": [],
+  "multipleMatches": [
+    {
+      "row": 72,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1CgFN-IPn5N-g7j_SvWSnby0gfT2vnXia?usp=drive_link"
+      },
+      "ids": [
+        "dd1897e0-8eb7-4d7d-95c9-d18fdce14a06",
+        "22405242-4328-404d-99ac-0328491336b1"
+      ]
+    },
+    {
+      "row": 73,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1Y_G_MlSp2VK8aBnllgQpQhpgT2SkW-7C?usp=drive_link"
+      },
+      "ids": [
+        "01ff1170-3f48-4761-bba5-81ce5fdb7953",
+        "a75e86f1-5b52-4a27-9bf2-e297f9aa6fe3"
+      ]
+    },
+    {
+      "row": 74,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1djAImimbckggsDFXWDstEmMWuGFlhOZ7?usp=drive_link"
+      },
+      "ids": [
+        "260fbf9a-6716-4a0e-b6f4-4473bcf0e8c4",
+        "cb81678d-e3e3-473e-9d26-848303cd93ab"
+      ]
+    },
+    {
+      "row": 142,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1CgFN-IPn5N-g7j_SvWSnby0gfT2vnXia?usp=drive_link"
+      },
+      "ids": [
+        "dd1897e0-8eb7-4d7d-95c9-d18fdce14a06",
+        "22405242-4328-404d-99ac-0328491336b1"
+      ]
+    },
+    {
+      "row": 143,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1Y_G_MlSp2VK8aBnllgQpQhpgT2SkW-7C?usp=drive_link"
+      },
+      "ids": [
+        "01ff1170-3f48-4761-bba5-81ce5fdb7953",
+        "a75e86f1-5b52-4a27-9bf2-e297f9aa6fe3"
+      ]
+    },
+    {
+      "row": 144,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1djAImimbckggsDFXWDstEmMWuGFlhOZ7?usp=drive_link"
+      },
+      "ids": [
+        "260fbf9a-6716-4a0e-b6f4-4473bcf0e8c4",
+        "cb81678d-e3e3-473e-9d26-848303cd93ab"
+      ]
+    },
+    {
+      "row": 240,
+      "matchCount": 2,
+      "details": {
+        "footage": ""
+      },
+      "ids": [
+        "41167368-05b4-4490-9ba5-abdc06be84e1",
+        "852b7944-08e5-4a15-a74b-97a444c85b7f"
+      ]
+    },
+    {
+      "row": 241,
+      "matchCount": 2,
+      "details": {
+        "footage": ""
+      },
+      "ids": [
+        "41167368-05b4-4490-9ba5-abdc06be84e1",
+        "852b7944-08e5-4a15-a74b-97a444c85b7f"
+      ]
+    },
+    {
+      "row": 313,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1d7rRJPhTc-ep6ogif9sAwsZWM3IPxDJF?usp=drive_link"
+      },
+      "ids": [
+        "5e89c2d6-db6c-42bd-92e8-1a94587cf16b",
+        "b7409e1d-9f26-451b-bfb3-0ab1f8974ee2"
+      ]
+    },
+    {
+      "row": 314,
+      "matchCount": 2,
+      "details": {
+        "footage": "https://drive.google.com/drive/folders/1d7rRJPhTc-ep6ogif9sAwsZWM3IPxDJF?usp=drive_link"
+      },
+      "ids": [
+        "5e89c2d6-db6c-42bd-92e8-1a94587cf16b",
+        "b7409e1d-9f26-451b-bfb3-0ab1f8974ee2"
+      ]
+    }
+  ]
+}

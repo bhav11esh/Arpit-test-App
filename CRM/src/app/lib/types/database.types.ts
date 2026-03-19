@@ -20,6 +20,9 @@ export interface Database {
           created_at: string
           updated_at: string
           phone_number: string | null
+          last_active: string | null
+          last_gps_status: 'ON' | 'OFF' | 'UNKNOWN' | null
+          city: string | null
         }
         Insert: {
           id?: string
@@ -31,6 +34,9 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          last_active?: string | null
+          last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
+          city?: string | null
         }
         Update: {
           id?: string
@@ -42,6 +48,9 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          last_active?: string | null
+          last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
+          city?: string | null
         }
       }
       clusters: {
@@ -52,6 +61,7 @@ export interface Database {
           longitude: number
           created_at: string
           updated_at: string
+          city: string | null
         }
         Insert: {
           id?: string
@@ -60,6 +70,7 @@ export interface Database {
           longitude: number
           created_at?: string
           updated_at?: string
+          city?: string | null
         }
         Update: {
           id?: string
@@ -68,6 +79,7 @@ export interface Database {
           longitude?: number
           created_at?: string
           updated_at?: string
+          city?: string | null
         }
       }
       dealerships: {
@@ -77,8 +89,12 @@ export interface Database {
           latitude: number
           longitude: number
           payment_type: 'CUSTOMER_PAID' | 'DEALER_PAID'
+          rate_per_delivery: number | null
+          google_sheet_id: string | null
+          google_sync_url: string | null
           created_at: string
           updated_at: string
+          city: string | null
         }
         Insert: {
           id?: string
@@ -86,8 +102,12 @@ export interface Database {
           latitude: number
           longitude: number
           payment_type: 'CUSTOMER_PAID' | 'DEALER_PAID'
+          rate_per_delivery?: number | null
+          google_sheet_id?: string | null
+          google_sync_url?: string | null
           created_at?: string
           updated_at?: string
+          city?: string | null
         }
         Update: {
           id?: string
@@ -95,8 +115,12 @@ export interface Database {
           latitude?: number
           longitude?: number
           payment_type?: 'CUSTOMER_PAID' | 'DEALER_PAID'
+          rate_per_delivery?: number | null
+          google_sheet_id?: string | null
+          google_sync_url?: string | null
           created_at?: string
           updated_at?: string
+          city?: string | null
         }
       }
       mappings: {
@@ -156,6 +180,10 @@ export interface Database {
           unassignment_timestamp: string | null
           unassignment_by: string | null
           creation_index: number | null
+          received_amount: number | null
+          customer_phone: string | null
+          rapido_charge: number | null
+          deleted_at: string | null
         }
         Insert: {
           id?: string
@@ -178,6 +206,10 @@ export interface Database {
           unassignment_timestamp?: string | null
           unassignment_by?: string | null
           creation_index?: number | null
+          received_amount?: number | null
+          customer_phone?: string | null
+          rapido_charge?: number | null
+          deleted_at?: string | null
         }
         Update: {
           id?: string
@@ -200,6 +232,10 @@ export interface Database {
           unassignment_timestamp?: string | null
           unassignment_by?: string | null
           creation_index?: number | null
+          received_amount?: number | null
+          customer_phone?: string | null
+          rapido_charge?: number | null
+          deleted_at?: string | null
         }
       }
       screenshots: {
@@ -207,7 +243,7 @@ export interface Database {
           id: string
           delivery_id: string
           user_id: string
-          type: 'PAYMENT' | 'FOLLOW'
+          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
           file_url: string
           thumbnail_url: string
           uploaded_at: string
@@ -217,7 +253,7 @@ export interface Database {
           id?: string
           delivery_id: string
           user_id: string
-          type: 'PAYMENT' | 'FOLLOW'
+          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
           file_url: string
           thumbnail_url: string
           uploaded_at?: string
@@ -227,7 +263,7 @@ export interface Database {
           id?: string
           delivery_id?: string
           user_id?: string
-          type?: 'PAYMENT' | 'FOLLOW'
+          type?: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
           file_url?: string
           thumbnail_url?: string
           uploaded_at?: string
@@ -244,6 +280,7 @@ export interface Database {
           reassigned_reason: string | null
           created_at: string
           updated_at: string
+          deadline: string | null
         }
         Insert: {
           id?: string
@@ -254,6 +291,7 @@ export interface Database {
           reassigned_reason?: string | null
           created_at?: string
           updated_at?: string
+          deadline?: string | null
         }
         Update: {
           id?: string
@@ -264,6 +302,7 @@ export interface Database {
           reassigned_reason?: string | null
           created_at?: string
           updated_at?: string
+          deadline?: string | null
         }
       }
       leaves: {
@@ -350,6 +389,67 @@ export interface Database {
           distance_from_target?: number
         }
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          body: string
+          type: 'DAY_CLOSURE' | 'REEL_BACKLOG' | 'SYSTEM'
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          body: string
+          type: 'DAY_CLOSURE' | 'REEL_BACKLOG' | 'SYSTEM'
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          body?: string
+          type?: 'DAY_CLOSURE' | 'REEL_BACKLOG' | 'SYSTEM'
+          read_at?: string | null
+          created_at?: string
+        }
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          subscription_json: Json
+          p256dh: string
+          auth: string
+          endpoint: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          subscription_json: Json
+          p256dh: string
+          auth: string
+          endpoint: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subscription_json?: Json
+          p256dh?: string
+          auth?: string
+          endpoint?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -361,7 +461,7 @@ export interface Database {
       user_role: 'ADMIN' | 'PHOTOGRAPHER'
       delivery_status: 'ASSIGNED' | 'UNASSIGNED' | 'REJECTED' | 'POSTPONED_CANCELED' | 'DONE'
       decision_state: 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL'
-      screenshot_type: 'PAYMENT' | 'FOLLOW'
+      screenshot_type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
       payment_type: 'CUSTOMER_PAID' | 'DEALER_PAID'
       showroom_type: 'PRIMARY' | 'SECONDARY'
       reel_status: 'PENDING' | 'RESOLVED'

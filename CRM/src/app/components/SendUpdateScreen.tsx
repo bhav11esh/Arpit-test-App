@@ -21,8 +21,10 @@ interface SendUpdateScreenProps {
   screenshots: Map<string, Screenshot[]>;
   onBack: () => void;
   onUpdateFootageLink: (deliveryId: string, link: string) => void;
-  onUploadScreenshot: (deliveryId: string, type: 'PAYMENT' | 'FOLLOW', file: File) => void;
+  onUpdateDeliveryFields: (deliveryId: string, updates: Partial<Delivery>) => void;
+  onUploadScreenshot: (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', file: File) => void;
   onComplete: (deliveries: Delivery[]) => void;
+  userClusterCode?: string;
 }
 
 export function SendUpdateScreen({
@@ -30,12 +32,11 @@ export function SendUpdateScreen({
   screenshots,
   onBack,
   onUpdateFootageLink,
+  onUpdateDeliveryFields,
   onUploadScreenshot,
-  onComplete
+  onComplete,
+  userClusterCode
 }: SendUpdateScreenProps) {
-  const [footageLinks, setFootageLinks] = useState<Map<string, string>>(
-    new Map(deliveries.map(d => [d.id, d.footage_link || '']))
-  );
   const [editingFootage, setEditingFootage] = useState<string | null>(null);
   const [tempFootageLink, setTempFootageLink] = useState('');
 
@@ -63,12 +64,11 @@ export function SendUpdateScreen({
     }
 
     onUpdateFootageLink(deliveryId, tempFootageLink);
-    setFootageLinks(prev => new Map(prev).set(deliveryId, tempFootageLink));
     setEditingFootage(null);
     setTempFootageLink('');
   };
 
-  const handleFileUpload = (deliveryId: string, type: 'PAYMENT' | 'FOLLOW', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -96,13 +96,31 @@ export function SendUpdateScreen({
   };
 
   const isDeliveryComplete = (delivery: Delivery): boolean => {
-    const link = footageLinks.get(delivery.id) || delivery.footage_link;
+    const link = delivery.footage_link;
     if (!link) return false;
 
     if (delivery.payment_type === 'CUSTOMER_PAID') {
       const deliveryScreenshots = screenshots.get(delivery.id) || [];
       const hasPayment = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
-      return hasPayment;
+      const hasAmount = (delivery.received_amount || 0) > 0;
+      const hasPhone = (delivery.customer_phone || '').length >= 10;
+
+      // Rapido check
+      const charge = delivery.rapido_charge || 0;
+      if (charge > 0) {
+        const hasRapidoScreenshot = deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at);
+        if (!hasRapidoScreenshot) return false;
+      }
+
+      return hasPayment && hasAmount && hasPhone;
+    }
+
+    // Rapido check for Dealer Paid too
+    const charge = delivery.rapido_charge || 0;
+    if (charge > 0) {
+      const deliveryScreenshots = screenshots.get(delivery.id) || [];
+      const hasRapidoScreenshot = deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at);
+      if (!hasRapidoScreenshot) return false;
     }
 
     return true;
@@ -115,7 +133,6 @@ export function SendUpdateScreen({
     // V1 SPEC: Handle zero deliveries case - allow immediate day closure
     if (deliveries.length === 0) {
       console.log('SendUpdateScreen: Handling zero deliveries, calling onComplete([])');
-      toast.success('Day closed successfully! 🎉');
       onComplete([]);
       return;
     }
@@ -142,12 +159,9 @@ export function SendUpdateScreen({
     const updatedDeliveries = deliveries.map(d => ({
       ...d,
       status: 'DONE' as const,
-      // Update footage_link from local state if it was edited
-      footage_link: footageLinks.get(d.id) || d.footage_link,
       updated_at: new Date().toISOString()
     }));
 
-    toast.success('Day closed successfully! 🎉');
     onComplete(updatedDeliveries);
   };
 
@@ -201,7 +215,7 @@ export function SendUpdateScreen({
         {hasDeliveries ? (
           deliveries.map(delivery => {
             const deliveryScreenshots = screenshots.get(delivery.id) || [];
-            const hasFootage = footageLinks.get(delivery.id) || delivery.footage_link;
+            const hasFootage = delivery.footage_link;
             const hasPaymentScreenshot = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
             const hasFollowScreenshot = deliveryScreenshots.some(s => s.type === 'FOLLOW' && !s.deleted_at);
             const isComplete = isDeliveryComplete(delivery);
@@ -271,7 +285,7 @@ export function SendUpdateScreen({
                         <div className="flex gap-2">
                           {hasFootage ? (
                             <div className="flex-1 px-3 py-2 bg-gray-50 rounded border text-sm truncate">
-                              {footageLinks.get(delivery.id) || delivery.footage_link}
+                              {delivery.footage_link}
                             </div>
                           ) : (
                             <div className="flex-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-600 flex items-center gap-2">
@@ -284,7 +298,7 @@ export function SendUpdateScreen({
                             variant="outline"
                             onClick={() => {
                               setEditingFootage(delivery.id);
-                              setTempFootageLink(footageLinks.get(delivery.id) || delivery.footage_link || '');
+                              setTempFootageLink(delivery.footage_link || '');
                             }}
                           >
                             {hasFootage ? 'Edit' : 'Add'}
@@ -331,6 +345,70 @@ export function SendUpdateScreen({
                       </div>
                     )}
 
+                    {/* Amount Received - Only for Customer Paid */}
+                    {isCustomerPaid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium flex items-center gap-1">
+                            Amount Received (INR)
+                            <span className="text-red-500">*</span>
+                          </Label>
+                          {(delivery.received_amount || 0) > 0 ? (
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        <select
+                          className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={String(delivery.received_amount || '')}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            onUpdateDeliveryFields(delivery.id, { received_amount: val });
+                          }}
+                        >
+                          <option value="">Select Amount</option>
+                          <option value="2000">2000 INR</option>
+                          <option value="1500">1500 INR</option>
+                          <option value="1200">1200 INR</option>
+                          <option value="700">700 INR</option>
+                        </select>
+                        {!(delivery.received_amount || 0) && (
+                          <p className="text-xs text-red-600">Dropdown selection required</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Customer Phone - Only for Customer Paid */}
+                    {isCustomerPaid && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium flex items-center gap-1">
+                            Customer Phone Number
+                            <span className="text-red-500">*</span>
+                          </Label>
+                          {(delivery.customer_phone || '').length >= 10 ? (
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        <Input
+                          type="tel"
+                          placeholder="Enter 10-digit phone number"
+                          className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={delivery.customer_phone || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            onUpdateDeliveryFields(delivery.id, { customer_phone: val });
+                          }}
+                        />
+                        {!(delivery.customer_phone || '').length && (
+                          <p className="text-xs text-red-600">Phone number required</p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Follow Screenshot - Only for Customer Paid, Optional */}
                     {isCustomerPaid && (
                       <div className="space-y-2">
@@ -360,6 +438,66 @@ export function SendUpdateScreen({
                               onChange={(e) => handleFileUpload(delivery.id, 'FOLLOW', e)}
                             />
                           </label>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Rapido Charge Section (Visible for Cross-Cluster Deliveries) */}
+                    {delivery.showroom_type === 'SECONDARY' && delivery.cluster_code !== userClusterCode && (
+                      <div className="pt-4 border-t border-dashed border-gray-200 space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-blue-700 flex items-center gap-1">
+                            Rapido Charge (Optional)
+                            <Badge variant="outline" className="text-[10px] h-4 bg-blue-50 text-blue-600 border-blue-200 ml-1">CROSS-CLUSTER</Badge>
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="Enter Rapido fare"
+                            className="w-full h-10 px-3 bg-white border border-blue-200 rounded-md text-sm focus:ring-blue-500"
+                            value={delivery.rapido_charge || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              onUpdateDeliveryFields(delivery.id, { rapido_charge: val });
+                            }}
+                          />
+                        </div>
+
+                        {/* Rapido Screenshot - Mandatory if charge added */}
+                        {(delivery.rapido_charge || 0) > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium flex items-center gap-1">
+                                <Upload className="h-4 w-4" />
+                                Rapido Screenshot
+                                <span className="text-red-500">*</span>
+                              </Label>
+                              {deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at) ? (
+                                <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </div>
+                            {deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at) ? (
+                              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
+                                <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                                <span className="text-sm text-green-700">Rapido proof uploaded</span>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer transition-colors">
+                                  <Upload className="h-4 w-4" />
+                                  <span className="text-sm font-medium">Upload Rapido Screenshot</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleFileUpload(delivery.id, 'RAPIDO', e)}
+                                  />
+                                </label>
+                                <p className="text-xs text-red-600">Proof is mandatory since you added a charge</p>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}

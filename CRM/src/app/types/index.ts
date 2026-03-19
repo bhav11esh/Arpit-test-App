@@ -50,7 +50,7 @@ export type DecisionState = 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL';
 // - CLOSED: Photographer has triggered SEND UPDATE - no further actions allowed
 export type PhotographerDayState = 'ACTIVE' | 'CLOSED';
 
-export type ScreenshotType = 'PAYMENT' | 'FOLLOW';
+export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO';
 
 export type PaymentType = 'CUSTOMER_PAID' | 'DEALER_PAID';
 
@@ -66,6 +66,9 @@ export interface User {
   active: boolean;
   phone_number?: string | null;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
+  last_active?: string; // ISO timestamp of last app check-in
+  last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
+  city?: string; // V6.0: For city-level admin isolation
 }
 
 export interface Delivery {
@@ -102,6 +105,10 @@ export interface Delivery {
   unassignment_timestamp?: string;
   unassignment_by?: string;
   creation_index?: number; // V1 SPEC: _1/_2/_3 is permanent creation index, never changes, even when timing is added
+  received_amount?: number;
+  customer_phone?: string;
+  rapido_charge?: number;
+  deleted_at?: string; // V6.0: For 'Safe Delete' flow
 }
 
 export interface Screenshot {
@@ -122,6 +129,7 @@ export interface ReelTask {
   reel_link: string | null;
   status: ReelStatus;
   reassigned_reason: string | null;
+  deadline?: string;
 }
 
 export interface LogEvent {
@@ -155,6 +163,7 @@ export interface AcceptRejectPrompt {
 export interface Cluster {
   id: string;
   name: string;
+  city?: string; // V6.0: For city-level isolation
 }
 
 export interface Dealership {
@@ -162,6 +171,11 @@ export interface Dealership {
   name: string;
   paymentType: PaymentType;
   googleSheetId?: string;
+  googleSyncUrl?: string;
+  ratePerDelivery?: number;
+  latitude?: number;
+  longitude?: number;
+  city?: string; // V6.0: For showroom-level branch identification
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';

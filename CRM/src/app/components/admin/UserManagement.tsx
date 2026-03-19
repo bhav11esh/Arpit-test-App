@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as usersDb from '../../lib/db/users';
+import { adminSupabase } from '../../lib/supabase';
 import type { User, UserRole } from '../../types';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -23,8 +24,10 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Users, Plus, Edit, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Badge } from '../ui/badge';
+import { Users, Plus, Edit, Trash2, AlertCircle, CheckCircle2, Key, Clock, MapPin, MapPinOff, Signal, SignalLow } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
@@ -37,9 +40,7 @@ export function UserManagement() {
     email: '',
     role: 'PHOTOGRAPHER' as UserRole,
     active: true,
-    role: 'PHOTOGRAPHER' as UserRole,
-    active: true,
-    // cluster_code: '', // V1 REMOVED: Inferred from mappings
+    city: '',
   });
 
   useEffect(() => {
@@ -60,7 +61,9 @@ export function UserManagement() {
   };
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   const handleOpenDialog = (user?: User) => {
     if (user) {
@@ -70,8 +73,7 @@ export function UserManagement() {
         email: '', // Email shouldn't be editable
         role: user.role,
         active: user.active,
-        active: user.active,
-        // cluster_code: user.cluster_code || '', // V1 REMOVED
+        city: user.city || '',
       });
     } else {
       setEditingUser(null);
@@ -80,8 +82,7 @@ export function UserManagement() {
         email: '',
         role: 'PHOTOGRAPHER',
         active: true,
-        active: true,
-        // cluster_code: '', // V1 REMOVED
+        city: currentUser?.city || '', // Default to current admin's city
       });
     }
     setIsDialogOpen(true);
@@ -95,8 +96,7 @@ export function UserManagement() {
       email: '',
       role: 'PHOTOGRAPHER',
       active: true,
-      active: true,
-      // cluster_code: '', // V1 REMOVED
+      city: '',
     });
   };
 
@@ -107,13 +107,25 @@ export function UserManagement() {
     setSubmitting(true);
     try {
       if (editingUser) {
+        // 1. Update DB
         await usersDb.updateUser(editingUser.id, {
           name: formData.name,
           role: formData.role,
           active: formData.active,
-          active: formData.active,
-          // cluster_code: formData.cluster_code || undefined, // V1 REMOVED
+          city: formData.city.toLowerCase().trim() || undefined,
         });
+
+        // 2. V6.0 SYNC: Update Auth Metadata to prevent flickering Fallbacks
+        if (adminSupabase && editingUser.id) {
+          await adminSupabase.auth.admin.updateUserById(editingUser.id, {
+            user_metadata: {
+              role: formData.role,
+              city: formData.city.toLowerCase().trim()
+            }
+          });
+          console.log('✅ Auth metadata synced for', editingUser.email);
+        }
+
         toast.success('User updated successfully');
       } else {
         if (!formData.email) {
@@ -125,16 +137,28 @@ export function UserManagement() {
         // V1 FIX: Pre-check for existing user to give better error message
         const existingUser = await usersDb.getUserByEmail(formData.email);
         if (existingUser) {
-          throw new Error(`A user with email ${formData.email} already exists.`);
+          throw new Error('A user with this email already exists.');
         }
 
-        await usersDb.createUser({
+        // 1. Create in DB
+        const newUser = await usersDb.createUser({
           name: formData.name,
           email: formData.email,
           role: formData.role,
           active: formData.active,
-          // cluster_code removed
+          city: formData.city.toLowerCase().trim() || undefined,
         });
+
+        // 2. V6.0 SYNC: Update Metadata if adminSupabase is available (might need to wait for auth trigger)
+        if (adminSupabase && newUser.id) {
+          await adminSupabase.auth.admin.updateUserById(newUser.id, {
+            user_metadata: {
+              role: formData.role,
+              city: formData.city.toLowerCase().trim()
+            }
+          });
+        }
+
         toast.success('User created successfully');
       }
       handleCloseDialog();
@@ -160,6 +184,23 @@ export function UserManagement() {
       loadUsers();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update user status');
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !newPassword) return;
+
+    setSubmitting(true);
+    try {
+      await usersDb.adminUpdateUserPassword(editingUser.id, newPassword);
+      toast.success(`Password updated for ${editingUser.name}`);
+      setIsPasswordDialogOpen(false);
+      setNewPassword('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -217,6 +258,11 @@ export function UserManagement() {
                         }`}>
                         {user.role}
                       </span>
+                      {user.city && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                          {user.city}
+                        </Badge>
+                      )}
                       {user.active ? (
                         <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
@@ -228,11 +274,49 @@ export function UserManagement() {
                         </span>
                       )}
                     </div>
-                    {user.cluster_code && (
-                      <p className="text-sm text-gray-600 mt-1">Cluster: {user.cluster_code}</p>
-                    )}
+                    {/* User info display */}
+                    <div className="flex flex-wrap items-center gap-4 mt-2">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          {user.last_active
+                            ? `Active ${formatDistanceToNow(new Date(user.last_active), { addSuffix: true })}`
+                            : 'Never active'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        {user.last_gps_status === 'ON' ? (
+                          <span className="text-green-600 flex items-center gap-1">
+                            <Signal className="h-4 w-4" />
+                            GPS ON
+                          </span>
+                        ) : user.last_gps_status === 'OFF' ? (
+                          <span className="text-red-600 flex items-center gap-1">
+                            <MapPinOff className="h-4 w-4" />
+                            GPS OFF
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 flex items-center gap-1">
+                            <SignalLow className="h-4 w-4" />
+                            GPS UNKNOWN
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingUser(user);
+                        setIsPasswordDialogOpen(true);
+                      }}
+                      title="Change Password"
+                    >
+                      <Key className="h-4 w-4 text-amber-600" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -313,7 +397,15 @@ export function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* V1 REMOVED: Cluster Code Input - now inferred from mappings */}
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="e.g., bengaluru"
+                />
+              </div>
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -338,6 +430,42 @@ export function UserManagement() {
                 ) : (
                   <>{editingUser ? 'Update' : 'Create'}</>
                 )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{editingUser?.name}</strong> ({editingUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePasswordReset}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new secure password"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting || !newPassword}>
+                {submitting ? 'Updating...' : 'Update Password'}
               </Button>
             </DialogFooter>
           </form>

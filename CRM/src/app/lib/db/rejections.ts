@@ -24,7 +24,7 @@ export const createRejection = async (
     };
 
     const { data, error } = await (supabaseClient.from('delivery_rejections') as any)
-        .insert(insert)
+        .upsert(insert, { onConflict: 'delivery_id,user_id' })
         .select()
         .single();
 

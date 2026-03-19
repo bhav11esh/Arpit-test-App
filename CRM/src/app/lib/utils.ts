@@ -11,19 +11,19 @@ export function getLocalDateString(date: Date = new Date()): string {
 
 /**
  * Get the "operational date" string.
- * V1 RULE: Operational day shifts at 8 AM local time.
- * Before 8 AM, we are still on the previous calendar day's operational shift.
+ * V1 RULE: Operational day shifts at 4 AM local time.
+ * Before 4 AM, we are still on the previous calendar day's operational shift.
  */
 export function getOperationalDateString(now: Date = new Date()): string {
   const currentHour = now.getHours();
 
-  if (currentHour < 8) {
-    // It's before 8 AM, so the operational date is still "yesterday"
+  if (currentHour < 4) {
+    // It's before 4 AM, so the operational date is still "yesterday"
     const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
     return getLocalDateString(yesterday);
   }
 
-  // It's 8 AM or later, use the actual local date
+  // It's 4 AM or later, use the actual local date
   return getLocalDateString(now);
 }
 
@@ -46,61 +46,18 @@ export function isPromptExpired(
 
 /**
  * V1 CRITICAL: Centralized self-assign eligibility check
- * A photographer may self-assign a delivery ONLY if ALL conditions are true:
- * - status === REJECTED (photographer-rejected, not by customer)
- * - NOT REJECTED_CUSTOMER
- * - NOT CANCELLED
- * - NOT POSTPONED
- * - Photographer has NOT clicked SEND UPDATE (photographerDayState === 'ACTIVE')
- * 
- * @param delivery - The delivery to check
- * @param photographerDayState - Current photographer's day state ('ACTIVE' | 'CLOSED')
- * @returns true if photographer can self-assign this delivery
  */
 export function canSelfAssign(
   delivery: Delivery,
   photographerDayState: 'ACTIVE' | 'CLOSED'
 ): boolean {
-  // V1 RULE: Self-assign ONLY for photographer-rejected deliveries
-  if (delivery.status !== 'REJECTED') {
-    return false;
-  }
-
-  // V1 RULE: Cannot self-assign if photographer already closed their day
-  if (photographerDayState === 'CLOSED') {
-    return false;
-  }
-
-
-
+  if (delivery.status !== 'REJECTED') return false;
+  if (photographerDayState === 'CLOSED') return false;
   return true;
 }
 
 /**
- * V1 SPEC: Generate delivery name based on date, showroom code, timing, and creation index
- * 
- * CRITICAL - Naming Rules (Identity Suffixes, NOT Ordering):
- * - _1/_2/_3 suffixes are PERMANENT IDENTITY MARKERS for each delivery instance
- * - These suffixes are assigned at delivery creation and NEVER change
- * - When timing is added, the _X suffix is replaced by _HH_MM format
- * - There is NO concept of reordering deliveries based on timing
- * - Multiple unknown-timing deliveries for same showroom/date get _1, _2, _3 to distinguish them
- * 
- * Examples:
- *   Creation (no timing):
- *     First delivery → 10-10-2026_KHTR_WH_1
- *     Second delivery → 10-10-2026_KHTR_WH_2
- *     Third delivery → 10-10-2026_KHTR_WH_3
- * 
- *   After timing added:
- *     10-10-2026_KHTR_WH_1 + timing 12:00 → 10-10-2026_KHTR_WH_12_00
- *     10-10-2026_KHTR_WH_2 + timing 17:00 → 10-10-2026_KHTR_WH_17_00
- * 
- *   ❌ WRONG: Do NOT renumber _2 to _1 even if its timing is earlier
- *   ✅ CORRECT: Each delivery's _X identity is permanent until timing is specified
- * 
- * When timing is present: DD-MM-YYYY_SHOWROOMCODE_CLUSTERSHORT_HH_MM
- * When no timing: DD-MM-YYYY_SHOWROOMCODE_CLUSTERSHORT_X (where X = creation_index)
+ * V1 SPEC: Generate delivery name
  */
 export function generateDeliveryName(
   date: string,
@@ -112,15 +69,10 @@ export function generateDeliveryName(
   const [year, month, day] = date.split('-');
 
   if (timing) {
-    // Timing exists: use full format with time (replaces identity suffix _1/_2/_3)
-    // V1 SPEC STRICT: Zero-pad hours and minutes (e.g. 9:5 -> 09_05)
     const [hours, minutes] = timing.split(':');
     const pad = (n: string) => n.padStart(2, '0');
     return `${day}-${month}-${year}_${showroomCode}_${clusterShortCode}_${pad(hours)}_${pad(minutes)}`;
   } else {
-    // No timing: use incremental suffix based on creation_index
-    // V1 SPEC: Always append index for non-timed deliveries for uniqueness
-    // Format: DD-MM-YYYY_SHOWROOM_CLUSTER_INDEX
     const index = creationIndex || 1;
     return `${day}-${month}-${year}_${showroomCode}_${clusterShortCode}_${index}`;
   }
@@ -128,31 +80,16 @@ export function generateDeliveryName(
 
 /**
  * Check if a single delivery can be sent in the update
- * V1 SPEC:
- * - Footage link: mandatory for ALL deliveries
- * - Payment screenshot: mandatory ONLY for CUSTOMER_PAID
- * - Follow screenshot: optional, never blocks
  */
 export function canSendUpdate(
   delivery: Delivery,
   screenshots: any[]
 ): boolean {
-  // V1 SPEC: Footage link mandatory for all
-  if (!delivery.footage_link) {
-    return false;
-  }
-
-  // V1 SPEC: Payment screenshot mandatory for customer-paid only
+  if (!delivery.footage_link) return false;
   if (delivery.payment_type === 'CUSTOMER_PAID') {
-    const hasPaymentScreenshot = screenshots.some(
-      s => s.type === 'PAYMENT' && !s.deleted_at
-    );
-    if (!hasPaymentScreenshot) {
-      return false;
-    }
+    const hasPaymentScreenshot = screenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
+    if (!hasPaymentScreenshot) return false;
   }
-
-  // V1 SPEC: Follow screenshot is optional - never blocks
   return true;
 }
 
@@ -171,11 +108,7 @@ export function calculateIncentive(
     d => d.assigned_user_id === userId && d.status === 'DONE'
   );
 
-  // Check if deliveries span at least 7 consecutive calendar days
   const dateRange = getDateRange(startDate, endDate);
-
-  // Spec: 7 consecutive calendar days with >= 20 total deliveries
-  // Leave days (0 deliveries) do NOT break streak
   const totalDays = dateRange.length;
   const totalCount = userCompletedDeliveries.length;
 
@@ -196,7 +129,7 @@ function getDateRange(start: string, end: string): string[] {
   const startDate = new Date(start);
   const endDate = new Date(end);
 
-  for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     dates.push(d.toISOString().split('T')[0]);
   }
 
@@ -213,32 +146,21 @@ export function formatTiming(timing: string | null): string {
 
 /**
  * Get status badge color
- * V1 SPEC: Differentiate REJECTED (operational, reversible) from REJECTED_CUSTOMER (final)
  */
 export function getStatusColor(status: string): string {
   switch (status) {
-    case 'UNASSIGNED':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'ASSIGNED':
-      return 'bg-blue-100 text-blue-800';
-    case 'REJECTED':
-      return 'bg-red-100 text-red-800';
-    case 'POSTPONED_CANCELED':
-      return 'bg-orange-100 text-orange-800';
-    case 'DONE':
-      return 'bg-green-100 text-green-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
+    case 'UNASSIGNED': return 'bg-yellow-100 text-yellow-800';
+    case 'ASSIGNED': return 'bg-blue-100 text-blue-800';
+    case 'REJECTED': return 'bg-red-100 text-red-800';
+    case 'REJECTED_CUSTOMER': return 'bg-red-200 text-red-900 font-bold';
+    case 'POSTPONED_CANCELED': return 'bg-orange-100 text-orange-800';
+    case 'DONE': return 'bg-green-100 text-green-800';
+    default: return 'bg-gray-100 text-gray-800';
   }
 }
 
 /**
  * V1 SPEC: Check if delivery should show Accept/Reject prompt
- * Prompt appears when:
- * - delivery has a timing
- * - current time is within [delivery_time - 30min, delivery_time)
- * - delivery is unassigned
- * - photographer is in same cluster
  */
 export function shouldShowAcceptRejectPrompt(
   delivery: { timing: string | null; status: string; date: string; cluster_code: string },
@@ -249,41 +171,30 @@ export function shouldShowAcceptRejectPrompt(
   if (delivery.status !== 'UNASSIGNED') return false;
   if (delivery.cluster_code !== userClusterCode) return false;
 
-  // Parse delivery date and timing
   const [year, month, day] = delivery.date.split('-').map(Number);
   const [hours, minutes] = delivery.timing.split(':').map(Number);
 
   const deliveryTime = new Date(year, month - 1, day, hours, minutes);
   const thirtyMinsBefore = new Date(deliveryTime.getTime() - 30 * 60 * 1000);
 
-  // Check if current time is in [T-30, T)
   return currentTime >= thirtyMinsBefore && currentTime < deliveryTime;
 }
 
 /**
- * V1 SPEC: Generate Short Code for Cluster (e.g., Nelamangala -> NE, Whitefield Indiranagar -> WH_IN)
- * Used for delivery naming convention.
+ * V1 SPEC: Short Code for Cluster
  */
 export function getClusterShortCode(clusterName: string): string {
   if (!clusterName) return 'XX';
-
   const words = clusterName.trim().split(/\s+/);
-
-  if (words.length === 1) {
-    // Single word: First 2 chars uppercase
-    return words[0].substring(0, 2).toUpperCase();
-  } else {
-    // Multiple words: First 2 chars of each word, joined by _
-    return words.map(w => w.substring(0, 2).toUpperCase()).join('_');
-  }
+  if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+  return words.map(w => w.substring(0, 2).toUpperCase()).join('_');
 }
+
 /**
  * Request browser notification permission
  */
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
-  if (!('Notification' in window)) {
-    return 'denied';
-  }
+  if (!('Notification' in window)) return 'denied';
   if (Notification.permission === 'granted') return 'granted';
   return await Notification.requestPermission();
 }
@@ -292,12 +203,67 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
  * Send a browser push notification
  */
 export function sendPushNotification(title: string, options?: NotificationOptions): void {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    return;
-  }
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     new Notification(title, options);
   } catch (err) {
     console.error('Failed to send push notification:', err);
   }
+}
+
+/**
+ * V5.2 FIX: Convert Base64 VAPID key to Uint8Array for browser compatibility
+ */
+export const urlBase64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
+
+/**
+ * V5.1 FIX: Format YYYY-MM-DD to DD/MM/YYYY for Google Sheets compatibility
+ */
+export function formatDateForSheet(dateStr: string): string {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * V5.0 SIGNATURE LOGIC: Generate a hidden fingerprint for a delivery row
+ * V5.2 CORRECTED: Match GAS Script v6.0 exactly.
+ */
+export function getDeliverySignature(delivery: any, photographerName: string = ''): string {
+  const parts = [
+    formatDateForSheet(delivery.date || '').trim(),
+    String(delivery.footage_link || '').trim(),
+    String((delivery as any).reel_link || '').trim(), // REEL BEFORE PHOTOGRAPHER
+    String(photographerName).trim(),
+    String(delivery.received_amount || '').trim(),
+    String(delivery.customer_phone || '').trim(),
+    String(delivery.rapido_charge || '').trim()
+  ];
+  return parts.join('|').toLowerCase();
+}
+
+/**
+ * V1 SPEC: Standardized Showroom Code generator
+ * Extract (CODE) from "Name (CODE)" or sanitize name to UPPER_SNAKE_CASE
+ */
+export function getShowroomCode(dealershipName: string): string {
+  if (!dealershipName) return 'UNKNOWN';
+  
+  // 1. Try to extract code from brackets: "Nandi Toyota (NANDI_TOYOTA)" -> "NANDI_TOYOTA"
+  const matches = dealershipName.match(/\(([^)]+)\)/);
+  if (matches && matches[1]) return matches[1].toUpperCase();
+
+  // 2. Fallback: Sanitize name to UPPER_SNAKE_CASE
+  return dealershipName.toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
