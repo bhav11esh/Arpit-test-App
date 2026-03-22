@@ -361,10 +361,21 @@ export function SendUpdateScreen({
                         </div>
                         <select
                           className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={String(delivery.received_amount || '')}
+                          value={
+                            delivery.received_amount && [2000, 1500, 1200, 700].includes(delivery.received_amount)
+                              ? String(delivery.received_amount)
+                              : delivery.received_amount !== undefined && delivery.received_amount !== 0
+                                ? "other"
+                                : ""
+                          }
                           onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            onUpdateDeliveryFields(delivery.id, { received_amount: val });
+                            const val = e.target.value;
+                            if (val === "other") {
+                              // Just set it to something it can't match to trigger the input
+                              onUpdateDeliveryFields(delivery.id, { received_amount: 0 });
+                            } else {
+                              onUpdateDeliveryFields(delivery.id, { received_amount: parseInt(val) || 0 });
+                            }
                           }}
                         >
                           <option value="">Select Amount</option>
@@ -372,9 +383,28 @@ export function SendUpdateScreen({
                           <option value="1500">1500 INR</option>
                           <option value="1200">1200 INR</option>
                           <option value="700">700 INR</option>
+                          <option value="other">Other (Write Custom)</option>
                         </select>
+
+                        {/* Custom Amount Input */}
+                        {(delivery.received_amount === 0 || (delivery.received_amount && ![2000, 1500, 1200, 700].includes(delivery.received_amount))) && (
+                          <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                            <Label className="text-[10px] text-gray-500 mb-1 block">Enter Custom Amount (INR)</Label>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 500"
+                              className="h-10"
+                              value={delivery.received_amount || ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                onUpdateDeliveryFields(delivery.id, { received_amount: val });
+                              }}
+                            />
+                          </div>
+                        )}
+
                         {!(delivery.received_amount || 0) && (
-                          <p className="text-xs text-red-600">Dropdown selection required</p>
+                          <p className="text-xs text-red-600">Please select or enter an amount</p>
                         )}
                       </div>
                     )}
