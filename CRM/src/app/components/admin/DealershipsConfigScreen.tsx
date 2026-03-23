@@ -48,6 +48,7 @@ export function DealershipsConfigScreen() {
     name: '',
     paymentType: 'CUSTOMER_PAID' as PaymentType,
     googleSheetId: '',
+    googleSyncUrl: '',
     ratePerDelivery: '',
     city: '',
   });
@@ -64,6 +65,7 @@ export function DealershipsConfigScreen() {
         name: dealership.name,
         paymentType: dealership.paymentType,
         googleSheetId: dealership.googleSheetId || '',
+        googleSyncUrl: dealership.googleSyncUrl || '',
         ratePerDelivery: dealership.ratePerDelivery?.toString() || '',
         city: (dealership as any).city || '',
       });
@@ -73,6 +75,7 @@ export function DealershipsConfigScreen() {
         name: '',
         paymentType: 'CUSTOMER_PAID',
         googleSheetId: '',
+        googleSyncUrl: '',
         ratePerDelivery: '',
         city: user?.city || '', // Default to admin's city
       });
@@ -87,6 +90,7 @@ export function DealershipsConfigScreen() {
       name: '',
       paymentType: 'CUSTOMER_PAID',
       googleSheetId: '',
+      googleSyncUrl: '',
       ratePerDelivery: '',
       city: '',
     });
@@ -108,6 +112,7 @@ export function DealershipsConfigScreen() {
         name: formData.name.trim(),
         paymentType: formData.paymentType,
         googleSheetId: formData.googleSheetId.trim() || undefined,
+        googleSyncUrl: formData.googleSyncUrl.trim() || undefined,
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
       } as any);
@@ -117,6 +122,7 @@ export function DealershipsConfigScreen() {
         name: formData.name.trim(),
         paymentType: formData.paymentType,
         googleSheetId: formData.googleSheetId.trim() || undefined,
+        googleSyncUrl: formData.googleSyncUrl.trim() || undefined,
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
       } as any);
@@ -215,7 +221,16 @@ export function DealershipsConfigScreen() {
   };
 
   const handleImportFromSheet = async (dealership: Dealership) => {
+    console.log('🚀 [Refresh Trace] Starting handleImportFromSheet for:', dealership?.name);
+    
+    if (!dealership || !dealership.id) {
+      console.error('❌ [Refresh Trace] Invalid dealership object:', dealership);
+      toast.error('Cannot import: Invalid dealership data');
+      return;
+    }
+
     if (!dealership.googleSheetId) {
+      console.warn('⚠️ [Refresh Trace] Missing Sheet ID for:', dealership.name);
       toast.error('No Google Sheet ID configured for this dealership.');
       return;
     }
@@ -223,34 +238,54 @@ export function DealershipsConfigScreen() {
     const confirm = window.confirm(
       `CRITICAL ACTION: This will delete ALL current CRM records for "${dealership.name}" and re-import them fresh from Google Sheets. Continue?`
     );
-    if (!confirm) return;
+    if (!confirm) {
+      console.log('ℹ️ [Refresh Trace] User cancelled import');
+      return;
+    }
 
     const syncUrl = dealership.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
     if (!syncUrl) {
+      console.error('❌ [Refresh Trace] Missing sync URL');
       toast.error('Google Sync URL not configured.');
       return;
     }
 
     const toastId = toast.loading(`Refreshing records for ${dealership.name}...`);
+    console.log('ℹ️ [Refresh Trace] Toast started, loading...');
 
     try {
       // 1. Precise Wipe for this dealership
-      const getShowroomCode = (name: string) => {
+      const getShowroomCodeLocal = (name: string) => {
+        if (!name) return 'UNKNOWN';
         const matches = name.match(/\(([^)]+)\)/);
         return matches ? matches[1].toUpperCase() : name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
       };
-      const showroomCode = getShowroomCode(dealership.name);
       
-      const { data: targetDeliveries } = await supabase.from('deliveries').select('id').eq('showroom_code', showroomCode);
-      const deliveryIds = (targetDeliveries as any[])?.map(d => d.id) || [];
+      const showroomCode = getShowroomCodeLocal(dealership.name);
+      console.log('ℹ️ [Refresh Trace] Showroom Code:', showroomCode);
+      
+      console.log('ℹ️ [Refresh Trace] Fetching existing deliveries to wipe...');
+      const { data: targetDeliveries, error: fetchError } = await supabase.from('deliveries').select('id').eq('showroom_code', showroomCode);
+      if (fetchError) {
+        console.error('❌ [Refresh Trace] Supabase Fetch Error:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('ℹ️ [Refresh Trace] Existing records found:', targetDeliveries?.length || 0);
+      const deliveryIds = (targetDeliveries || []).filter((d: any) => d && d.id).map((d: any) => d.id);
       
       if (deliveryIds.length > 0) {
+        console.log('ℹ️ [Refresh Trace] Deleting associated records for', deliveryIds.length, 'IDs');
         await reelsDb.deleteReelTasksByDeliveryIds(deliveryIds);
         await screenshotsDb.deleteScreenshotsByDeliveryIds(deliveryIds, supabase);
         await deliveriesDb.deleteDeliveriesByShowroomCode(showroomCode);
+        console.log('✅ [Refresh Trace] Wipe complete');
+      } else {
+        console.log('ℹ️ [Refresh Trace] No records to wipe');
       }
 
       // 2. Fetch from Sheet
+      console.log('ℹ️ [Refresh Trace] Fetching from Sheet via Sync Bridge...');
       const response = await fetch(syncUrl, {
         method: 'POST',
         headers: {
@@ -261,42 +296,62 @@ export function DealershipsConfigScreen() {
           sheetId: dealership.googleSheetId
         })
       });
+      console.log('ℹ️ [Refresh Trace] Sheet Response status:', response.status);
+      
       const result = await response.json();
+      console.log('ℹ️ [Refresh Trace] Sheet parse complete. Status:', result?.status);
 
-      if (result.status !== 'success' || !Array.isArray(result.data)) {
-        throw new Error(result.message || 'Failed to fetch sheet data');
+      if (!result || result.status !== 'success' || !Array.isArray(result.data)) {
+        console.error('❌ [Refresh Trace] Sheet Data Error:', result?.message);
+        throw new Error(result?.message || 'Failed to fetch sheet data');
       }
 
+      console.log('ℹ️ [Refresh Trace] Raw data rows received:', result.data.length);
       let rawRows = result.data;
       
       // V7.8 FIX: If Apps Script returns raw Array of Arrays, convert to Array of Objects
       if (Array.isArray(rawRows) && rawRows.length > 0 && Array.isArray(rawRows[0])) {
+        console.log('ℹ️ [Refresh Trace] Converting Array of Arrays to objects');
         const headers = rawRows[0];
-        rawRows = rawRows.slice(1).map(row => {
+        rawRows = rawRows.slice(1).map((row: any) => {
           const obj: any = {};
-          headers.forEach((h: string, i: number) => {
-            if (h) obj[h] = row[i];
-          });
+          if (Array.isArray(row)) {
+            headers.forEach((h: string, i: number) => {
+              if (h) obj[h.trim()] = row[i];
+            });
+          }
           return obj;
         });
       }
 
       // 🛠️ V8.3 Normalization: Trim all keys and values to defend against "Date " or " Chassis Number"
+      console.log('ℹ️ [Refresh Trace] Normalizing rows...');
       const rows = rawRows.map((r: any) => {
+        if (!r || typeof r !== 'object') return {};
         const normalized: any = {};
         Object.keys(r).forEach(key => {
-          const cleanKey = key.trim();
-          normalized[cleanKey] = typeof r[key] === 'string' ? r[key].trim() : r[key];
+          if (key) {
+            const cleanKey = key.trim();
+            normalized[cleanKey] = typeof r[key] === 'string' ? r[key].trim() : r[key];
+          }
         });
         return normalized;
       });
 
-      const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id);
-      const cluster = dealershipMappings.length > 0 ? clusters.find(c => (c as any).id === dealershipMappings[0].clusterId) : null;
+      console.log('ℹ️ [Refresh Trace] Looking up mappings and clusters...');
+      const dealershipMappings = (mappings || []).filter(m => m && m.dealershipId === (dealership?.id || ''));
+      console.log('ℹ️ [Refresh Trace] Found mappings:', dealershipMappings.length);
+      
+      const cluster = (dealershipMappings.length > 0 && (clusters || []).length > 0) 
+        ? (clusters || []).find(c => c && c.id === dealershipMappings[0].clusterId) 
+        : null;
+      console.log('ℹ️ [Refresh Trace] Target Cluster:', cluster?.name || 'UNKNOWN');
+      
       const mapping = dealershipMappings[0];
 
       // 3. Map and Batch Insert
-      const parseDate = (dStr: any) => {
+      console.log('ℹ️ [Refresh Trace] Parsing dates and mapping rows...');
+      const parseDateLocal = (dStr: any) => {
         if (!dStr) return null;
         
         // Handle numeric dates (Google Sheets/Excel format)
@@ -308,7 +363,7 @@ export function DealershipsConfigScreen() {
         }
 
         const trimmed = typeof dStr === 'string' ? dStr.trim() : String(dStr);
-        let result: string | null = null;
+        let resultParsed: string | null = null;
         
         // Pre-normalize dashes (handle en-dash \u2013 and em-dash \u2014)
         const normalizedTrimmed = trimmed.replace(/[\u2013\u2014]/g, '-');
@@ -318,58 +373,62 @@ export function DealershipsConfigScreen() {
         if (dmyMatch) {
           let [_, d, m, y] = dmyMatch;
           if (y.length === 2) y = '20' + y;
-          result = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          resultParsed = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
 
         // 2. Handle ISO strings produced by GAS
-        if (!result && trimmed.includes('T') && trimmed.includes('Z')) {
+        if (!resultParsed && trimmed.includes('T') && trimmed.includes('Z')) {
           try {
             const date = new Date(trimmed);
             if (!isNaN(date.getTime())) {
               const localDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
-              result = localDate.toISOString().split('T')[0];
+              resultParsed = localDate.toISOString().split('T')[0];
             }
           } catch (e) {}
         }
 
         // 3. Final fallback: try native Date parsing
-        if (!result) {
+        if (!resultParsed) {
           try {
             const nativeDate = new Date(normalizedTrimmed);
             if (!isNaN(nativeDate.getTime())) {
-              result = nativeDate.toISOString().split('T')[0];
+              resultParsed = nativeDate.toISOString().split('T')[0];
             }
           } catch (e) {}
         }
 
         // Year Guardrail (2020-2100)
-        if (result) {
-          const yearNum = parseInt(result.split('-')[0]);
+        if (resultParsed) {
+          const yearNum = parseInt(resultParsed.split('-')[0]);
           if (yearNum < 2020 || yearNum > 2100) return null;
         }
 
-        return result;
+        return resultParsed;
       };
 
-      const getValue = (row: any, ...keys: string[]) => {
+      const getValueLocal = (row: any, ...keys: string[]) => {
+        if (!row || typeof row !== 'object') return null;
         for (const key of keys) {
+          if (!key) continue;
           if (row[key] !== undefined) return row[key];
           // Try case-insensitive search
-          const foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+          const foundKey = Object.keys(row).find(k => k && k.toLowerCase() === key.toLowerCase());
           if (foundKey) return row[foundKey];
         }
         return null;
       };
 
       const mappedRows = rows.filter((row: any) => {
-        const rawDate = getValue(row, "Date", "date") || "";
-        const parsedDate = parseDate(rawDate);
+        if (!row) return false;
+        const rawDate = getValueLocal(row, "Date", "date") || "";
+        const parsedDate = parseDateLocal(rawDate);
         
         // Skip if header row or if date is invalid/empty
-        if (!parsedDate || parsedDate.toLowerCase().includes('date')) return false;
+        if (!parsedDate || (typeof parsedDate === 'string' && parsedDate.toLowerCase().includes('date'))) return false;
         
         // Ensure at least one other column has data
         const hasData = Object.keys(row).some(key => {
+          if (!key) return false;
           if (key.toLowerCase() === 'date' || key === '_parsedDate') return false;
           return !!row[key];
         });
@@ -377,10 +436,12 @@ export function DealershipsConfigScreen() {
         row._parsedDate = parsedDate;
         return hasData;
       }).map((row: any, index: number) => {
-        const photographerName = (getValue(row, "Photographer", "Photographer name", "Photographer Name") || "").trim();
-        const photographer = photographers.find(p => 
-          p.name.toLowerCase().includes(photographerName.toLowerCase()) || 
-          photographerName.toLowerCase().includes(p.name.toLowerCase())
+        const photographerName = (getValueLocal(row, "Photographer", "Photographer name", "Photographer Name") || "").trim();
+        const photographer = (photographers || []).find(p => 
+          p && p.name && photographerName && (
+            p.name.toLowerCase().includes(photographerName.toLowerCase()) || 
+            photographerName.toLowerCase().includes(p.name.toLowerCase())
+          )
         );
 
         return {
@@ -389,35 +450,45 @@ export function DealershipsConfigScreen() {
           cluster_code: cluster?.name || 'UNKNOWN',
           showroom_type: mapping?.mappingType || 'SECONDARY',
           timing: 'TBD',
-          delivery_name: getValue(row, "Customer Name", "Customer") || `Delivery_${row._parsedDate}_${index}`,
+          delivery_name: getValueLocal(row, "Customer Name", "Customer") || `Delivery_${row._parsedDate}_${index}`,
           status: 'DONE',
           assigned_user_id: photographer?.id || null,
-          payment_type: dealership.paymentType,
-          footage_link: getValue(row, "Footage Link", "Footage link") || null,
-          reel_link: getValue(row, "Reel Link", "Reel link") || null,
-          received_amount: getValue(row, "Amount Received", "Received Amount") || null,
-          customer_phone: getValue(row, "Phone Number", "Customer Phone") || null,
-          rapido_charge: getValue(row, "Rapido Charge") || null
+          payment_type: dealership?.paymentType || 'CUSTOMER_PAID',
+          footage_link: getValueLocal(row, "Footage Link", "Footage link") || null,
+          reel_link: getValueLocal(row, "Reel Link", "Reel link") || null,
+          received_amount: getValueLocal(row, "Amount Received", "Received Amount") || null,
+          customer_phone: getValueLocal(row, "Phone Number", "Customer Phone") || null,
+          rapido_charge: getValueLocal(row, "Rapido Charge") || null
         };
       });
 
+      console.log('ℹ️ [Refresh Trace] Mapped valid rows:', mappedRows.length);
+
       if (mappedRows.length > 0) {
+        console.log('ℹ️ [Refresh Trace] Batch inserting to deliveries table...');
         const chunkSize = 100;
         for (let i = 0; i < mappedRows.length; i += chunkSize) {
           const chunk = mappedRows.slice(i, i + chunkSize);
-          const { error } = await supabase.from('deliveries').insert(chunk);
-          if (error) throw error;
+          const { error: insertError } = await supabase.from('deliveries').insert(chunk);
+          if (insertError) {
+            console.error('❌ [Refresh Trace] Batch Insert Error:', insertError);
+            throw insertError;
+          }
         }
+        console.log('✅ [Refresh Trace] Database update successful');
       }
 
       toast.success(`Successfully refreshed ${mappedRows.length} records for ${dealership.name}!`, { id: toastId });
+      console.log('🎉 [Refresh Trace] Refresh sequence complete. Reloading...');
       setTimeout(() => window.location.reload(), 1000);
       
     } catch (error: any) {
-      console.error('Refresh failed:', error);
-      toast.error(`Failed: ${error.message || 'Unknown error'}`, { id: toastId });
+      console.error('❌ [Refresh Trace] FATAL ERROR:', error);
+      console.error('❌ [Refresh Trace] Stack Trace:', error?.stack);
+      toast.error(`Refresh failed: ${error?.message || 'Unknown error. Check console for details.'}`, { id: toastId });
     }
   };
+
 
   return (
     <div className="space-y-6 pb-20">
@@ -452,8 +523,8 @@ export function DealershipsConfigScreen() {
           </Card>
         ) : (
           filteredDealerships.map(dealership => {
-            const dealershipMappingCount = mappings.filter(
-              m => m.dealershipId === dealership.id
+            const dealershipMappingCount = (mappings || []).filter(
+              m => m && m.dealershipId === dealership.id
             ).length;
 
             return (
@@ -473,6 +544,7 @@ export function DealershipsConfigScreen() {
                             </Badge>
                           )}
                         </div>
+
                         <div className="text-sm text-gray-600 mt-1 space-y-1">
                           <div className="flex items-center gap-2">
                             <Badge
@@ -499,6 +571,12 @@ export function DealershipsConfigScreen() {
                             <div className="flex items-center gap-1 text-xs text-blue-600 font-mono">
                               <span className="opacity-70 text-[10px] uppercase tracking-wider">Sync:</span>
                               <span className="truncate max-w-[200px]">{dealership.googleSheetId}</span>
+                            </div>
+                          )}
+                          {dealership.googleSyncUrl && (
+                            <div className="flex items-center gap-1 text-[10px] text-green-600 font-mono italic">
+                              <Code className="h-3 w-3" />
+                              <span className="truncate max-w-[250px]">{dealership.googleSyncUrl}</span>
                             </div>
                           )}
                         </div>
@@ -608,6 +686,20 @@ export function DealershipsConfigScreen() {
               />
               <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-tighter">
                 Paste the ID from the sheet URL between /d/ and /edit
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="googleSyncUrl">Google Sync URL (Optional Override)</Label>
+              <Input
+                id="googleSyncUrl"
+                value={formData.googleSyncUrl}
+                onChange={e => setFormData({ ...formData, googleSyncUrl: e.target.value })}
+                placeholder="https://script.google.com/macros/s/.../exec"
+                className="font-mono text-sm"
+              />
+              <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-tighter">
+                Specific Apps Script URL for this dealership. Leaves blank to use global default.
               </p>
             </div>
 

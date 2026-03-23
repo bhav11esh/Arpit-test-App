@@ -780,7 +780,9 @@ export function ViewScreen() {
       const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(conflictDelivery.showroom_code));
       if (!dealership?.googleSheetId) throw new Error('No Google Sheet ID found');
 
-      const SYNC_URL = import.meta.env.VITE_GOOGLE_SYNC_URL;
+      const SYNC_URL = dealership.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
+      if (!SYNC_URL) throw new Error('No Google Sync URL configured');
+      
       const response = await fetch(SYNC_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -861,21 +863,24 @@ export function ViewScreen() {
   const handleTriggerBulkSync = async (deliveriesToSync: any[]) => {
     if (!deliveriesToSync.length) return;
 
-    const SYNC_URL = import.meta.env.VITE_GOOGLE_SYNC_URL;
-    if (!SYNC_URL) return;
-
-    // 1. Group by Google Sheet ID
-    const groups: Record<string, any[]> = {};
+    // 1. Group by Google Sheet ID AND Sync URL
+    const groups: Record<string, { deliveries: any[], url: string }> = {};
     for (const d of deliveriesToSync) {
       const deal = dealerships.find(deal => getShowroomCode(deal.name) === getShowroomCode(d.showroom_code));
       if (deal?.googleSheetId) {
-        if (!groups[deal.googleSheetId]) groups[deal.googleSheetId] = [];
-        groups[deal.googleSheetId].push(d);
+        const syncUrl = deal.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
+        if (!syncUrl) continue;
+        
+        const key = `${deal.googleSheetId}_${syncUrl}`;
+        if (!groups[key]) groups[key] = { deliveries: [], url: syncUrl };
+        groups[key].deliveries.push(d);
       }
     }
 
     // 2. Process each group
-    for (const [sheetId, groupDeliveries] of Object.entries(groups)) {
+    for (const [key, group] of Object.entries(groups)) {
+      const sheetId = key.split('_')[0];
+      const { deliveries: groupDeliveries, url: SYNC_URL } = group;
       try {
         console.log(`📦 [Bulk Sync] Sending ${groupDeliveries.length} rows to sheet: ${sheetId}`);
         
@@ -884,8 +889,10 @@ export function ViewScreen() {
           sheetId,
           deliveries: groupDeliveries.map(d => {
             const photographer = allUsers.find(p => p.id === d.assigned_user_id);
-            return {
+            // V13.0 FIX: Ensure signature is included for robust de-duplication in bulk mode
+            const deliveryPayload = {
               id: d.id,
+              signature: getDeliverySignature(d, photographer?.name || ''),
               date: formatDateForSheet(d.date),
               photographer_name: photographer?.name || '',
               delivery_name: d.delivery_name || '',
@@ -896,8 +903,10 @@ export function ViewScreen() {
               rapido_charge: d.rapido_charge || '',
               updated_at: d.updated_at || new Date().toISOString()
             };
+            return deliveryPayload;
           })
         };
+        console.log('[Sync Debug] Sending bulk payload:', payload);
 
         const response = await fetch(SYNC_URL, {
           method: 'POST',
@@ -934,12 +943,18 @@ export function ViewScreen() {
     if (isSyncingBulk || filteredDeliveries.length === 0) return;
     
     const count = filteredDeliveries.length;
-    if (!confirm(`⚠️ WARNING: You are about to sync ALL ${count} visible rows to Google Sheets.\n\nThis optimized version (V7.7) will automatically match existing rows by ID or Footage Link to prevent duplicates.\n\nProceed?`)) {
+    const dateLabel = showAllTime ? "ALL TIME" : spreadSheetDate;
+    
+    if (count > 50) {
+      if (!confirm(`🚨 LARGE SYNC WARNING: You are about to sync ${count} rows for ${dateLabel}.\n\nThis may take some time and could affect Google Sheets performance. Are you sure you want to proceed?`)) {
+        return;
+      }
+    } else if (!confirm(`⚠️ Confirm: Sync all ${count} visible rows (${dateLabel}) to Google Sheets?`)) {
       return;
     }
 
     setIsSyncingBulk(true);
-    toast.info(`Starting high-speed bulk sync for ${count} rows...`);
+    toast.info(`Starting bulk sync for ${count} rows...`);
     
     try {
       await handleTriggerBulkSync(filteredDeliveries);
@@ -1444,9 +1459,10 @@ export function ViewScreen() {
                         size="sm" 
                         variant="default"
                         className="gap-2 bg-blue-600 hover:bg-blue-700"
+                        title={showAllTime ? "Sync all historical records" : `Sync records for ${spreadSheetDate}`}
                       >
                         <RefreshCw className={`h-4 w-4 ${isSyncingBulk ? "animate-spin" : ""}`} />
-                        Sync {filteredDeliveries.length} Visible
+                        Sync {filteredDeliveries.length} {showAllTime ? 'Total' : 'for Today'}
                       </Button>
                       <Button onClick={handleExportCSV} size="sm" className="gap-2">
                         <Download className="h-4 w-4" />
