@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
+import { useLeave } from '../context/LeaveContext';
 import { useNavigate } from 'react-router-dom';
 import { mockScreenshots, simulateApiDelay } from '../lib/mockData';
 import * as deliveriesDb from '../lib/db/deliveries';
@@ -39,6 +40,7 @@ import { AlertTriangle } from 'lucide-react';
 export function ViewScreen() {
   const { user } = useAuth();
   const { dealerships, clusters, mappings, photographers, allUsers } = useConfig();
+  const { isPhotographerOnLeave } = useLeave();
   const navigate = useNavigate();
 
   // DEBUG: Track render count
@@ -805,10 +807,11 @@ export function ViewScreen() {
           
           // Update DB with sheet data
           const updates: any = {
+            delivery_name: sheetRow['Delivery Name'] || sheetRow['delivery_name'] || sheetRow['Customer Name'] || sheetRow['Customer'] || sheetRow['customer_name'] || conflictDelivery.delivery_name,
             footage_link: sheetRow['Footage Link'] || sheetRow['footage link'],
             reel_link: sheetRow['Reel Link'] || sheetRow['reel link'],
             received_amount: parseFloat(sheetRow['Amount'] || sheetRow['amount'] || '0') || null,
-            customer_phone: sheetRow['Phone'] || sheetRow['phone'],
+            customer_phone: sheetRow['Phone'] || sheetRow['phone'] || sheetRow['Customer Phone'] || sheetRow['phone_number'],
             rapido_charge: parseFloat(sheetRow['Rapido'] || sheetRow['rapido'] || '0') || null,
             updated_at: sheetRow['Updated At'] || sheetRow['updated at'] || new Date().toISOString()
           };
@@ -871,7 +874,7 @@ export function ViewScreen() {
         const syncUrl = deal.googleSyncUrl || import.meta.env.VITE_GOOGLE_SYNC_URL;
         if (!syncUrl) continue;
         
-        const key = `${deal.googleSheetId}_${syncUrl}`;
+        const key = `${deal.googleSheetId}|||${syncUrl}`;
         if (!groups[key]) groups[key] = { deliveries: [], url: syncUrl };
         groups[key].deliveries.push(d);
       }
@@ -879,7 +882,7 @@ export function ViewScreen() {
 
     // 2. Process each group
     for (const [key, group] of Object.entries(groups)) {
-      const sheetId = key.split('_')[0];
+      const sheetId = key.split('|||')[0];
       const { deliveries: groupDeliveries, url: SYNC_URL } = group;
       try {
         console.log(`📦 [Bulk Sync] Sending ${groupDeliveries.length} rows to sheet: ${sheetId}`);
@@ -1531,6 +1534,7 @@ export function ViewScreen() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Delivery Name</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Footage Link</TableHead>
                         <TableHead>Reel Link</TableHead>
@@ -1569,6 +1573,44 @@ export function ViewScreen() {
 
                           return (
                             <TableRow key={delivery.id}>
+                              {/* Delivery Name (Editable for Admin) */}
+                              <TableCell className="text-sm font-medium">
+                                {editingCell?.deliveryId === delivery.id && editingCell?.field === 'delivery_name' ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      className="h-7 text-xs w-[150px]"
+                                      placeholder="Customer Name"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveEdit();
+                                        if (e.key === 'Escape') handleCancelEdit();
+                                      }}
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleCancelEdit}>
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`flex items-center gap-2 p-1 rounded group ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'delivery_name', delivery.delivery_name || '')}
+                                    title={isAdmin ? "Click to edit delivery/customer name" : ""}
+                                  >
+                                    <span className="truncate max-w-[150px]">
+                                      {delivery.delivery_name}
+                                    </span>
+                                    {isAdmin && (
+                                      <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+
                               <TableCell className="text-sm">
                                 {(() => {
                                   if (!delivery.date || typeof delivery.date !== 'string') return 'N/A';
@@ -1661,14 +1703,26 @@ export function ViewScreen() {
                                       value={editValue}
                                       onValueChange={setEditValue}
                                     >
-                                      <SelectTrigger className="h-7 text-xs w-[140px]">
-                                        <SelectValue placeholder="Select" />
+                                      <SelectTrigger className="h-7 text-xs w-[180px]">
+                                        <SelectValue placeholder="Select Photographer" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="unassigned">Unassigned</SelectItem>
-                                        {photographers.map(p => (
-                                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                        ))}
+                                        {photographers.map(p => {
+                                          // Determine leave status
+                                          let isLeft = false;
+                                          if (delivery.date) {
+                                            const hours = delivery.timing ? parseInt(delivery.timing.split(':')[0]) : 9;
+                                            const half = hours < 14 ? 'FIRST_HALF' : 'SECOND_HALF';
+                                            isLeft = isPhotographerOnLeave(p.id, delivery.date, half);
+                                          }
+
+                                          return (
+                                            <SelectItem key={p.id} value={p.id} className={isLeft ? "text-red-500 font-medium" : ""}>
+                                              {p.name} {isLeft ? '(On Leave)' : ''}
+                                            </SelectItem>
+                                          );
+                                        })}
                                       </SelectContent>
                                     </Select>
                                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveEdit}>
