@@ -1,9 +1,9 @@
 /**
- * V16.3 HUNTER-PRIORITY SYNC SERVICE (THE BIMAL FINAL)
+ * V16.7 UNIVERSAL "DOUBLE-LOCK" SYNC SERVICE
  * FEATURES: 
+ * - Multi-Layer Date Fix: Overcomes US/India locale mismatch by reading Display Values.
  * - Hunter Priority: Matches by Google Drive ID BEFORE checking any dates.
  * - ID-Extract: Strips everything but the unique folder code for matching.
- * - Timezone-Safe: Uses Utilities.formatDate as a secondary fallback.
  */
 
 function doPost(e) {
