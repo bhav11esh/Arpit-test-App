@@ -352,9 +352,62 @@ export function DealershipsConfigScreen() {
       
       const mapping = dealershipMappings[0];
 
+      const getValueLocal = (row: any, ...keys: string[]) => {
+        if (!row || typeof row !== 'object') return null;
+        for (const key of keys) {
+          if (!key) continue;
+          if (row[key] !== undefined) return row[key];
+        }
+        return null;
+      };
+
+      const parseDateLocal = (dStr: any, detectedFormat?: string | null) => {
+        if (!dStr) return null;
+
+        // 1. Excel Number Handler
+        if (typeof dStr === 'number') {
+          try {
+            const date = new Date(Math.round((dStr - 25569) * 86400 * 1000));
+            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+          } catch (e) {}
+        }
+
+        const trimmed = String(dStr).trim();
+
+        // 2. ISO/YYYY-MM-DD Handler (Highest Priority - from our V16.7 GAS)
+        if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) {
+          const parts = trimmed.split('T')[0].split('-');
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+
+        // 3. Local Format Handler (Regex based)
+        const dmyMatch = trimmed.match(/^(\d{1,2})\s*[\s\-\.\/]\s*(\d{1,2})\s*[\s\-\.\/]\s*(\d{2,4})/);
+        if (dmyMatch) {
+          let [_, v1, v2, y] = dmyMatch;
+          if (y.length === 2) y = '20' + y;
+          
+          if (detectedFormat === 'MDY') {
+            return `${y}-${v1.padStart(2, '0')}-${v2.padStart(2, '0')}`;
+          } else {
+            // Default to India (DMY)
+            return `${y}-${v2.padStart(2, '0')}-${v1.padStart(2, '0')}`;
+          }
+        }
+
+        // 4. Native Date Handler
+        try {
+          const nativeDate = new Date(trimmed.replace(/-/g, '/'));
+          if (!isNaN(nativeDate.getTime())) {
+            const result = nativeDate.toISOString().split('T')[0];
+            const yearNum = parseInt(result.split('-')[0]);
+            if (yearNum >= 1900 && yearNum <= 2100) return result;
+          }
+        } catch (e) {}
+        return null;
+      };
+
       // 3. Map and Batch Insert
       console.log('ℹ️ [Refresh Trace] Parsing dates and mapping rows...');
-      // V27: DEMOCRATIC AUTO-DETECT (Vote-based MDY vs DMY detection for 100% precision)
       let dmyVotes = 0;
       let mdyVotes = 0;
       rows.slice(0, 500).forEach((row: any) => {
@@ -373,74 +426,10 @@ export function DealershipsConfigScreen() {
       // TEMP DIAGNOSTIC: REMOVE AFTER FIXING
       if (rows.length > 0) window.alert(`Date detection results for this batch:\nDMY (India) Votes: ${dmyVotes}\nMDY (US) Votes: ${mdyVotes}\nFinal Choice: ${detectedFormat || 'Default (DMY)'}`);
 
-      const parseDateLocal = (dStr: any) => {
-        if (!dStr) return null;
-
-        // 1. Excel Number Handler
-        if (typeof dStr === 'number') {
-          try {
-            const date = new Date(Math.round((dStr - 25569) * 86400 * 1000));
-            if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
-          } catch (e) {}
-        }
-
-        const trimmed = String(dStr).trim();
-
-        // 2. ISO/YYYY-MM-DD Handler (Highest Priority - from our V16.5 GAS)
-        if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) {
-          const parts = trimmed.split('T')[0].split('-');
-          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-        }
-
-        // 3. Local Format Handler (Regex based)
-        const dmyMatch = trimmed.match(/^(\d{1,2})\s*[\s\-\.\/]\s*(\d{1,2})\s*[\s\-\.\/]\s*(\d{2,4})/);
-        if (dmyMatch) {
-          let [_, v1, v2, y] = dmyMatch;
-          if (y.length === 2) y = '20' + y;
-          
-          if (detectedFormat === 'MDY') {
-            return `${y}-${v1.padStart(2, '0')}-${v2.padStart(2, '0')}`;
-          } else {
-            // Default to India (DMY): v1=Day, v2=Month
-            return `${y}-${v2.padStart(2, '0')}-${v1.padStart(2, '0')}`;
-          }
-        }
-
-        // 4. Native Date Handler (Last resort, uses slash replacement to help browser)
-        try {
-          const nativeDate = new Date(trimmed.replace(/-/g, '/'));
-          if (!isNaN(nativeDate.getTime())) {
-            const result = nativeDate.toISOString().split('T')[0];
-            const yearNum = parseInt(result.split('-')[0]);
-            if (yearNum >= 1900 && yearNum <= 2100) return result;
-          }
-        } catch (e) {}
-
-        return null;
-      };
-
-      const getValueLocal = (row: any, ...keys: string[]) => {
-        if (!row || typeof row !== 'object') return null;
-        for (const key of keys) {
-          if (!key) continue;
-          if (row[key] !== undefined) return row[key];
-          // Try fuzzy search: remove spaces and symbols
-          const target = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const foundKey = Object.keys(row).find(k => {
-            const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-            // V23: Only exact matches or startsWith, no includes(target) which leads to mismatch
-            return cleanK === target;
-          });
-          if (foundKey) return row[foundKey];
-        }
-        return null;
-      };
-
-
       const mappedRows = rows.filter((row: any) => {
         if (!row) return false;
         const rawDate = getValueLocal(row, "Date", "date") || "";
-        const parsedDate = parseDateLocal(rawDate);
+        const parsedDate = parseDateLocal(rawDate, detectedFormat);
         
         // Skip if header row or if date is invalid/empty
         if (!parsedDate || (typeof parsedDate === 'string' && parsedDate.toLowerCase().includes('date'))) return false;
