@@ -134,7 +134,21 @@ export function ProfileScreen() {
 
       {/* Leave Management for Photographers */}
       {user.role === 'PHOTOGRAPHER' && (
-        <LeaveManagement photographerId={user.id} />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-700 ml-1">Leave Management</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-blue-600 gap-1.5 h-8"
+              onClick={() => navigate('/leave')}
+            >
+              <Calendar className="h-4 w-4" />
+              Manage Detailed
+            </Button>
+          </div>
+          <LeaveManagement photographerId={user.id} />
+        </div>
       )}
 
       {/* Logout Button */}

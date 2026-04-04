@@ -7,6 +7,8 @@ const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SU
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbz-D007jknhmLPVNHlZWB0US34a2WGNG0xTti9m3fo0SVp8GKaGuMO9U65Hc3mXDcA8Sg/exec';
 const SHEET_ID = '1i-NFzqjMMwu42taRUhDVfS-XUryKP9p4ej-I4IKq_yU';
 const SHOWROOM_CODE = 'BIMAL_NEXA';
+const MAPPING_IDS = ['d41ba006-fed3-45c8-b922-efd3bcca954b', '7b2e7ece-ac79-4fe1-b27a-aabe2815d2e5'];
+
 
 async function runAudit() {
   console.log('--- Starting Bimal Nexa Audit (13 Rows) ---');
@@ -16,8 +18,9 @@ async function runAudit() {
   const { data: crmData, error: crmError } = await supabase
     .from('deliveries')
     .select('*, users!assigned_user_id(name)')
-    .eq('showroom_code', SHOWROOM_CODE)
+    .or(`showroom_code.eq.${SHOWROOM_CODE},showroom_code.in.(${MAPPING_IDS.join(',')})`)
     .order('date', { ascending: true });
+
 
   if (crmError) {
     console.error('CRM Fetch Error:', crmError);
@@ -42,7 +45,9 @@ async function runAudit() {
   let sheetRows = response.data.data;
   if (Array.isArray(sheetRows) && sheetRows.length > 0 && Array.isArray(sheetRows[0])) {
     const headers = sheetRows[0];
+    console.log('Sheet Headers:', headers);
     sheetRows = sheetRows.slice(1).map(row => {
+
       const obj = {};
       headers.forEach((h, i) => { if (h) obj[h.trim()] = row[i]; });
       return obj;

@@ -129,13 +129,10 @@ export function SendUpdateScreen({
   const allDeliveriesComplete = deliveries.length === 0 || deliveries.every(d => isDeliveryComplete(d));
   const hasDeliveries = deliveries.length > 0;
 
-  const handleSendUpdate = () => {
-    // V1 SPEC: Handle zero deliveries case - allow immediate day closure
-    if (deliveries.length === 0) {
-      console.log('SendUpdateScreen: Handling zero deliveries, calling onComplete([])');
-      onComplete([]);
-      return;
-    }
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSendUpdate = async () => {
+    if (isSubmitting) return;
 
     // V1 SPEC: SEND UPDATE is TRANSACTIONAL - ALL deliveries must meet requirements
     // This is an atomic closeout operation, not a soft submit
@@ -150,19 +147,26 @@ export function SendUpdateScreen({
       return;
     }
 
-    // V1 SPEC: SEND UPDATE is a hard boundary - irreversible day close
-    // After this point:
-    // - All deliveries marked as DONE
-    // - No further edits allowed
-    // - Home screen cleared
-    // - Corrections require admin ops only
-    const updatedDeliveries = deliveries.map(d => ({
-      ...d,
-      status: 'DONE' as const,
-      updated_at: new Date().toISOString()
-    }));
+    setIsSubmitting(true);
+    try {
+      // V1 SPEC: SEND UPDATE is a hard boundary - irreversible day close
+      // After this point:
+      // - All deliveries marked as DONE
+      // - No further edits allowed
+      // - Home screen cleared
+      // - Corrections require admin ops only
+      const updatedDeliveries = deliveries.map(d => ({
+        ...d,
+        status: 'DONE' as const,
+        updated_at: new Date().toISOString()
+      }));
 
-    onComplete(updatedDeliveries);
+      await onComplete(updatedDeliveries);
+    } catch (error) {
+      console.error('Error in handleSendUpdate:', error);
+      setIsSubmitting(false);
+      toast.error('Failed to send update. Please try again.');
+    }
   };
 
   return (
@@ -555,10 +559,15 @@ export function SendUpdateScreen({
       <div className="fixed bottom-16 left-0 right-0 p-4 bg-white border-t shadow-lg">
         <Button
           className="w-full h-14 bg-[#16A34A] hover:bg-green-700 text-white font-semibold text-lg shadow-md disabled:bg-gray-300 disabled:text-gray-500"
-          disabled={!allDeliveriesComplete}
+          disabled={!allDeliveriesComplete || isSubmitting}
           onClick={handleSendUpdate}
         >
-          {allDeliveriesComplete ? (
+          {isSubmitting ? (
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              SENDING UPDATE...
+            </div>
+          ) : allDeliveriesComplete ? (
             <>
               <CheckCircle2 className="h-5 w-5 mr-2" />
               SEND UPDATE & Close Day

@@ -196,6 +196,7 @@ export function DealershipsConfigScreen() {
             const photographer = photographers.find(p => p.id === d.assigned_user_id);
             const sig = getDeliverySignature(d, photographer?.name || '');
             return {
+              id: d.id,
               signature: sig,
               oldSignature: sig,
               delivery_name: d.delivery_name,
@@ -293,7 +294,8 @@ export function DealershipsConfigScreen() {
         },
         body: JSON.stringify({
           action: 'read',
-          sheetId: dealership.googleSheetId
+          sheetId: dealership.googleSheetId,
+          sheetName: dealership.name
         })
       });
       console.log('ℹ️ [Refresh Trace] Sheet Response status:', response.status);
@@ -311,13 +313,16 @@ export function DealershipsConfigScreen() {
       
       // V7.8 FIX: If Apps Script returns raw Array of Arrays, convert to Array of Objects
       if (Array.isArray(rawRows) && rawRows.length > 0 && Array.isArray(rawRows[0])) {
-        console.log('ℹ️ [Refresh Trace] Converting Array of Arrays to objects');
+        console.log('ℹ️ [Refresh Trace] Converting Array of Arrays to objects using headers:', rawRows[0]);
         const headers = rawRows[0];
-        rawRows = rawRows.slice(1).map((row: any) => {
+        rawRows = rawRows.slice(1).map((row: any, rowIndex: number) => {
           const obj: any = {};
           if (Array.isArray(row)) {
             headers.forEach((h: string, i: number) => {
-              if (h) obj[h.trim()] = row[i];
+              if (h) {
+                const cleanKey = h.toString().trim();
+                obj[cleanKey] = row[i];
+              }
             });
           }
           return obj;
@@ -340,21 +345,38 @@ export function DealershipsConfigScreen() {
 
       console.log('ℹ️ [Refresh Trace] Looking up mappings and clusters...');
       const dealershipMappings = (mappings || []).filter(m => m && m.dealershipId === (dealership?.id || ''));
-      console.log('ℹ️ [Refresh Trace] Found mappings:', dealershipMappings.length);
       
       const cluster = (dealershipMappings.length > 0 && (clusters || []).length > 0) 
         ? (clusters || []).find(c => c && c.id === dealershipMappings[0].clusterId) 
         : null;
-      console.log('ℹ️ [Refresh Trace] Target Cluster:', cluster?.name || 'UNKNOWN');
       
       const mapping = dealershipMappings[0];
 
       // 3. Map and Batch Insert
       console.log('ℹ️ [Refresh Trace] Parsing dates and mapping rows...');
+      // V27: DEMOCRATIC AUTO-DETECT (Vote-based MDY vs DMY detection for 100% precision)
+      let dmyVotes = 0;
+      let mdyVotes = 0;
+      rows.slice(0, 500).forEach((row: any) => {
+        const dStr = getValueLocal(row, "Date", "date");
+        if (typeof dStr !== 'string') return;
+        const match = dStr.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})/);
+        if (match) {
+          const v1 = parseInt(match[1]);
+          const v2 = parseInt(match[2]);
+          if (v1 > 12 && v2 <= 12) dmyVotes++;
+          else if (v2 > 12 && v1 <= 12) mdyVotes++;
+        }
+      });
+      const detectedFormat = (dmyVotes > mdyVotes) ? 'DMY' : (mdyVotes > dmyVotes ? 'MDY' : null);
+      console.log(`🔍 [Refresh Trace] Date Votes: DMY=${dmyVotes}, MDY=${mdyVotes} -> winner: ${detectedFormat || 'Default (DMY)'}`);
+      // TEMP DIAGNOSTIC: REMOVE AFTER FIXING
+      if (rows.length > 0) window.alert(`Date detection results for this batch:\nDMY (India) Votes: ${dmyVotes}\nMDY (US) Votes: ${mdyVotes}\nFinal Choice: ${detectedFormat || 'Default (DMY)'}`);
+
       const parseDateLocal = (dStr: any) => {
         if (!dStr) return null;
-        
-        // Handle numeric dates (Google Sheets/Excel format)
+
+        // 1. Excel Number Handler
         if (typeof dStr === 'number') {
           try {
             const date = new Date(Math.round((dStr - 25569) * 86400 * 1000));
@@ -362,48 +384,39 @@ export function DealershipsConfigScreen() {
           } catch (e) {}
         }
 
-        const trimmed = typeof dStr === 'string' ? dStr.trim() : String(dStr);
-        let resultParsed: string | null = null;
-        
-        // Pre-normalize dashes (handle en-dash \u2013 and em-dash \u2014)
-        const normalizedTrimmed = trimmed.replace(/[\u2013\u2014]/g, '-');
+        const trimmed = String(dStr).trim();
 
-        // 1. Handle DD-MM-YYYY or DD/MM/YYYY with flexible spaces
-        const dmyMatch = normalizedTrimmed.match(/^(\d{1,2})\s*[\s\-\.\/]\s*(\d{1,2})\s*[\s\-\.\/]\s*(\d{2,4})/);
+        // 2. ISO/YYYY-MM-DD Handler (Highest Priority - from our V16.5 GAS)
+        if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) {
+          const parts = trimmed.split('T')[0].split('-');
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+
+        // 3. Local Format Handler (Regex based)
+        const dmyMatch = trimmed.match(/^(\d{1,2})\s*[\s\-\.\/]\s*(\d{1,2})\s*[\s\-\.\/]\s*(\d{2,4})/);
         if (dmyMatch) {
-          let [_, d, m, y] = dmyMatch;
+          let [_, v1, v2, y] = dmyMatch;
           if (y.length === 2) y = '20' + y;
-          resultParsed = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          
+          if (detectedFormat === 'MDY') {
+            return `${y}-${v1.padStart(2, '0')}-${v2.padStart(2, '0')}`;
+          } else {
+            // Default to India (DMY): v1=Day, v2=Month
+            return `${y}-${v2.padStart(2, '0')}-${v1.padStart(2, '0')}`;
+          }
         }
 
-        // 2. Handle ISO strings produced by GAS
-        if (!resultParsed && trimmed.includes('T') && trimmed.includes('Z')) {
-          try {
-            const date = new Date(trimmed);
-            if (!isNaN(date.getTime())) {
-              const localDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
-              resultParsed = localDate.toISOString().split('T')[0];
-            }
-          } catch (e) {}
-        }
+        // 4. Native Date Handler (Last resort, uses slash replacement to help browser)
+        try {
+          const nativeDate = new Date(trimmed.replace(/-/g, '/'));
+          if (!isNaN(nativeDate.getTime())) {
+            const result = nativeDate.toISOString().split('T')[0];
+            const yearNum = parseInt(result.split('-')[0]);
+            if (yearNum >= 1900 && yearNum <= 2100) return result;
+          }
+        } catch (e) {}
 
-        // 3. Final fallback: try native Date parsing
-        if (!resultParsed) {
-          try {
-            const nativeDate = new Date(normalizedTrimmed);
-            if (!isNaN(nativeDate.getTime())) {
-              resultParsed = nativeDate.toISOString().split('T')[0];
-            }
-          } catch (e) {}
-        }
-
-        // Year Guardrail (2020-2100)
-        if (resultParsed) {
-          const yearNum = parseInt(resultParsed.split('-')[0]);
-          if (yearNum < 2020 || yearNum > 2100) return null;
-        }
-
-        return resultParsed;
+        return null;
       };
 
       const getValueLocal = (row: any, ...keys: string[]) => {
@@ -411,12 +424,18 @@ export function DealershipsConfigScreen() {
         for (const key of keys) {
           if (!key) continue;
           if (row[key] !== undefined) return row[key];
-          // Try case-insensitive search
-          const foundKey = Object.keys(row).find(k => k && k.toLowerCase() === key.toLowerCase());
+          // Try fuzzy search: remove spaces and symbols
+          const target = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const foundKey = Object.keys(row).find(k => {
+            const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            // V23: Only exact matches or startsWith, no includes(target) which leads to mismatch
+            return cleanK === target;
+          });
           if (foundKey) return row[foundKey];
         }
         return null;
       };
+
 
       const mappedRows = rows.filter((row: any) => {
         if (!row) return false;
@@ -444,43 +463,76 @@ export function DealershipsConfigScreen() {
           )
         );
 
+        const isUrl = (s: any) => {
+          if (!s || typeof s !== 'string') return false;
+          const low = s.toLowerCase().trim();
+          return low.startsWith('http') || low.includes('drive.google.com') || low.includes('docs.google.com') || low === 'only photos';
+        };
+        
+        // 🚀 V19.0 SMARTER MAPPING: Try multiple variants for each 
+        const rawFLink = getValueLocal(row, "Footage Link", "Footage link", "Link", "Footage");
+        const rawRLink = getValueLocal(row, "Reel Link", "Reel link", "Reel");
+        
+        const fLink = isUrl(rawFLink) ? rawFLink : null;
+        const rLink = isUrl(rawRLink) ? rawRLink : null;
+
+        if (index < 5 || (!fLink && rawFLink)) {
+          console.log(`🔍 [Refresh Trace] Row ${index} Mapping:`, {
+            row_keys: Object.keys(row),
+            raw_fLink_found: rawFLink,
+            validated_fLink: fLink,
+            row_raw: row
+          });
+        }
+
         return {
           date: row._parsedDate,
           showroom_code: showroomCode,
           cluster_code: cluster?.name || 'UNKNOWN',
           showroom_type: mapping?.mappingType || 'SECONDARY',
           timing: 'TBD',
-          delivery_name: getValueLocal(row, "Customer Name", "Customer") || `Delivery_${row._parsedDate}_${index}`,
+          delivery_name: getValueLocal(row, "Customer Name", "Customer", "Delivery Name", "Delivery name", "Customer name") || `Delivery_${row._parsedDate}_${index}`,
           status: 'DONE',
           assigned_user_id: photographer?.id || null,
           payment_type: dealership?.paymentType || 'CUSTOMER_PAID',
-          footage_link: getValueLocal(row, "Footage Link", "Footage link") || null,
-          reel_link: getValueLocal(row, "Reel Link", "Reel link") || null,
+          footage_link: fLink,
+          reel_link: rLink,
           received_amount: getValueLocal(row, "Amount Received", "Received Amount") || null,
-          customer_phone: getValueLocal(row, "Phone Number", "Customer Phone") || null,
-          rapido_charge: getValueLocal(row, "Rapido Charge") || null
+          customer_phone: getValueLocal(row, "Phone Number", "Customer Phone", "Phone", "phone") || null,
+          rapido_charge: getValueLocal(row, "Rapido Charge", "Rapido", "rapido") || null
         };
       });
 
       console.log('ℹ️ [Refresh Trace] Mapped valid rows:', mappedRows.length);
 
       if (mappedRows.length > 0) {
-        console.log('ℹ️ [Refresh Trace] Batch inserting to deliveries table...');
+        console.log('ℹ️ [Refresh Trace] Fetching existing deliveries to prevent duplication...');
+        const { data: existingRecords } = await supabase
+          .from('deliveries')
+          .select('id, date, delivery_name')
+          .eq('showroom_code', showroomCode);
+          
+        console.log('ℹ️ [Refresh Trace] Batch upserting to deliveries table...');
         const chunkSize = 100;
         for (let i = 0; i < mappedRows.length; i += chunkSize) {
-          const chunk = mappedRows.slice(i, i + chunkSize);
-          const { error: insertError } = await supabase.from('deliveries').insert(chunk);
-          if (insertError) {
-            console.error('❌ [Refresh Trace] Batch Insert Error:', insertError);
-            throw insertError;
+          const chunk = mappedRows.slice(i, i + chunkSize).map(row => {
+            const match = (existingRecords || []).find(e => e.date === row.date && e.delivery_name === row.delivery_name);
+            if (match) return { ...row, id: match.id };
+            return row;
+          });
+          
+          const { error: upsertError } = await supabase.from('deliveries').upsert(chunk);
+          if (upsertError) {
+            console.error('❌ [Refresh Trace] Batch Upsert Error:', upsertError);
+            throw upsertError;
           }
         }
         console.log('✅ [Refresh Trace] Database update successful');
       }
 
       toast.success(`Successfully refreshed ${mappedRows.length} records for ${dealership.name}!`, { id: toastId });
-      console.log('🎉 [Refresh Trace] Refresh sequence complete. Reloading...');
-      setTimeout(() => window.location.reload(), 1000);
+      console.log('🎉 [Refresh Trace] Refresh sequence complete.');
+      // setTimeout(() => window.location.reload(), 1000);
       
     } catch (error: any) {
       console.error('❌ [Refresh Trace] FATAL ERROR:', error);

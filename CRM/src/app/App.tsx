@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ConfigProvider } from './context/ConfigContext';
 import { LeaveProvider } from './context/LeaveContext';
+import { Lock } from 'lucide-react';
 import { LoginScreen } from './components/LoginScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { ViewScreen } from './components/ViewScreen';
@@ -20,6 +21,7 @@ import { MappingsConfigScreen } from './components/admin/MappingsConfigScreen';
 
 import { ProfileScreen } from './components/ProfileScreen';
 import { ReelBacklog } from './components/ReelBacklog';
+import { PhotographerLeaveScreen } from './components/photographer/PhotographerLeaveScreen';
 import { Layout } from './components/Layout';
 import { BottomNav } from './components/BottomNav';
 import { Toaster } from './components/ui/sonner';
@@ -193,6 +195,15 @@ function AppRoutes() {
           element={
             <Layout hideHeader={false}>
               <ProfileScreen />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/leave"
+          element={
+            <Layout hideHeader={false}>
+              <PhotographerLeaveScreen />
             </Layout>
           }
         />

@@ -398,10 +398,10 @@ export function ViewScreen() {
 
       // Apply showroom filter (Now strictly Dealership ID)
       if (selectedShowroom !== 'all') {
-        const dealership = cityIsolatedDealerships.find(deal => deal.id === selectedShowroom);
         if (dealership) {
           const targetCode = getShowroomCode(dealership.name);
-          const currentCode = getShowroomCode(d.showroom_code);
+          // V21 FIX: Use raw showroom_code from DB, no need to re-process via getShowroomCode
+          const currentCode = d.showroom_code;
           if (currentCode !== targetCode) return false;
         }
       }

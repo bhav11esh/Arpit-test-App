@@ -12,11 +12,20 @@ async function findReelLinks() {
 
   const { data: d1 } = await supabase
     .from('deliveries')
-    .select('id, date, delivery_name, reel_link')
-    .in('delivery_name', ['Nisha Manjunath ', 'Shehjar Kaul Sahoo']);
+    .select('id, date, delivery_name, reel_link, showroom_code')
+    .ilike('delivery_name', '%Nisha Manjunath%');
 
-  console.log(`Nisha and Shehjar Records:`);
+  const { data: d1_2 } = await supabase
+    .from('deliveries')
+    .select('id, date, delivery_name, reel_link, showroom_code')
+    .ilike('delivery_name', '%Shehjar%');
+
+
+  console.log(`Nisha Records:`);
   console.table(d1);
+  console.log(`Shehjar Records:`);
+  console.table(d1_2);
+
 
   // Check what happened to March 12th records (the user thought they were there)
   // Let's search by reel links if the user provided them... wait they didn't.

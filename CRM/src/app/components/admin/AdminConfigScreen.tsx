@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { ArrowLeft, Database, MapPin, Users, Network, BarChart3, UserCog } from 'lucide-react';
+import { ArrowLeft, Database, MapPin, Users, Network, BarChart3, UserCog, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -104,6 +104,25 @@ export function AdminConfigScreen() {
                 <CardTitle>User Management</CardTitle>
                 <CardDescription className="mt-1">
                   Create, edit, and manage user accounts
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow border-orange-200"
+          onClick={() => navigate('/admin/leave')}
+        >
+          <CardHeader>
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-orange-100 text-orange-600">
+                <Calendar className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <CardTitle>Leave Management</CardTitle>
+                <CardDescription className="mt-1">
+                  Manage photographer leaves and availability
                 </CardDescription>
               </div>
             </div>
