@@ -96,7 +96,7 @@ const parseDateLocal = (dStr: any, detectedFormat?: string | null) => {
 const isUrl = (s: any) => {
   if (!s || typeof s !== 'string') return false;
   const low = s.toLowerCase().trim();
-  return low.startsWith('http') || low.includes('drive.google.com') || low.includes('docs.google.com') || low === 'only photos';
+  return low.startsWith('http') || low.includes('drive.google.com') || low.includes('docs.google.com') || low === 'only photos' || low === 'photoshoot';
 };
 
 export function DealershipsConfigScreen() {
