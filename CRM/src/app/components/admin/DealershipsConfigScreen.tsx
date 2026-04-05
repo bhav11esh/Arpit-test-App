@@ -470,7 +470,7 @@ export function DealershipsConfigScreen() {
         const rawRLink = getValueLocal(row, "Reel Link", "Reel link", "Reel");
         
         const fLink = isUrl(rawFLink) ? rawFLink : null;
-        const rLink = isUrl(rawRLink) ? rawRLink : null;
+        const rLink = rawRLink ? String(rawRLink).trim() : null;
 
         if (index < 5 || (!fLink && rawFLink)) {
           console.log(`🔍 [Refresh Trace] Row ${index} Mapping:`, {
