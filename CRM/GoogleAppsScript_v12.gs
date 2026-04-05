@@ -43,24 +43,33 @@ function readSheet(sheet, tz) {
   
   const result = data.map((row, rIdx) => {
     return row.map((cell, cIdx) => {
-      let val = cell;
-      // 1. Force convert Date objects to ISO
-      if (Object.prototype.toString.call(val) === '[object Date]') {
-        return Utilities.formatDate(val, tz || "GMT+5:30", "yyyy-MM-dd");
-      }
-      // 2. If it is a string like "8-10-25", manually parse it before returning
       const s = String(displayData[rIdx][cIdx]).trim();
-      const match = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})\s*$/);
-      if (match) {
-        let d = parseInt(match[1]);
-        let m = parseInt(match[2]);
-        let y = match[3];
-        if (y.length === 2) y = '20' + y;
-        // In India, 25-08 or 08-10 is Day-Month
-        // But if m > 12, it must be Month-Day
-        if (m > 12 && d <= 12) { let temp = d; d = m; m = temp; }
-        return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      
+      // 1. Regex First (The "Double-Lock" on Display Value)
+      const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})\s*$/);
+      if (dmyMatch) {
+         let d = parseInt(dmyMatch[1]);
+         let m = parseInt(dmyMatch[2]);
+         let y = dmyMatch[3];
+         if (y.length === 2) y = '20' + y;
+         
+         // 🚀 V16.8 AGGRESSIVE INDIA PARSING: 
+         // In India sheets, what the user typed is the truth.
+         // If it's "8-10-25", they mean Oct 8th (v1=Day, v2=Month).
+         // UNLESS m > 12, then it must be MDY.
+         if (m > 12 && d <= 12) {
+           return `${y}-${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
+         } else {
+           // Default: First number is Day, Second is Month
+           return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+         }
       }
+
+      // 2. Fallback to Date Object (for already-perfect ISO or other formats)
+      if (Object.prototype.toString.call(cell) === '[object Date]') {
+        return Utilities.formatDate(cell, tz || "GMT+5:30", "yyyy-MM-dd");
+      }
+
       return s;
     });
   });

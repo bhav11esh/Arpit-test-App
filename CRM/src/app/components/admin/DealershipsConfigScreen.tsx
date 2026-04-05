@@ -436,9 +436,7 @@ export function DealershipsConfigScreen() {
         }
       });
       const detectedFormat = (dmyVotes > mdyVotes) ? 'DMY' : (mdyVotes > dmyVotes ? 'MDY' : null);
-      console.log(`🔍 [Refresh Trace] Date Votes: DMY=${dmyVotes}, MDY=${mdyVotes} -> winner: ${detectedFormat || 'Default (DMY)'}`);
-      // TEMP DIAGNOSTIC: REMOVE AFTER FIXING
-      if (rows.length > 0) window.alert(`Date detection results for this batch:\nDMY (India) Votes: ${dmyVotes}\nMDY (US) Votes: ${mdyVotes}\nFinal Choice: ${detectedFormat || 'Default (DMY)'}`);
+      // console.log(`🔍 [Refresh Trace] Date Votes: DMY=${dmyVotes}, MDY=${mdyVotes} -> winner: ${detectedFormat || 'Default (DMY)'}`);
 
       const mappedRows = rows.filter((row: any) => {
         if (!row) return false;
