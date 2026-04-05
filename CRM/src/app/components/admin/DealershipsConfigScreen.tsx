@@ -493,8 +493,8 @@ export function DealershipsConfigScreen() {
           payment_type: dealership?.paymentType || 'CUSTOMER_PAID',
           footage_link: fLink,
           reel_link: rLink,
-          received_amount: getValueLocal(row, "Amount Received", "Received Amount") || null,
-          customer_phone: getValueLocal(row, "Phone Number", "Customer Phone", "Phone", "phone") || null,
+          received_amount: getValueLocal(row, "Amount Received", "Received Amount", "Amount") || null,
+          customer_phone: getValueLocal(row, "Phone Number", "Customer Phone", "Customer Phone Number", "Phone No", "Phone", "phone") || null,
           rapido_charge: getValueLocal(row, "Rapido Charge", "Rapido", "rapido") || null
         };
       });
