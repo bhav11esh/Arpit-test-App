@@ -469,7 +469,7 @@ export function DealershipsConfigScreen() {
         const rawFLink = getValueLocal(row, "Footage Link", "Footage link", "Link", "Footage");
         const rawRLink = getValueLocal(row, "Reel Link", "Reel link", "Reel");
         
-        const fLink = isUrl(rawFLink) ? rawFLink : null;
+        const fLink = rawFLink ? String(rawFLink).trim() : null;
         const rLink = rawRLink ? String(rawRLink).trim() : null;
 
         if (index < 5 || (!fLink && rawFLink)) {
