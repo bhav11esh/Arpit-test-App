@@ -1194,6 +1194,7 @@ export function ViewScreen() {
   const paymentScreenshots = screenshots.filter(s => s.type === 'PAYMENT' && !s.deleted_at);
   const followScreenshots = screenshots.filter(s => s.type === 'FOLLOW' && !s.deleted_at);
   const rapidoScreenshots = screenshots.filter(s => s.type === 'RAPIDO' && !s.deleted_at);
+  const platformPaymentScreenshots = screenshots.filter(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
 
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
@@ -1216,6 +1217,7 @@ export function ViewScreen() {
   const filteredPaymentScreenshots = applyFilters(paymentScreenshots);
   const filteredFollowScreenshots = applyFilters(followScreenshots);
   const filteredRapidoScreenshots = applyFilters(rapidoScreenshots);
+  const filteredPlatformPaymentScreenshots = applyFilters(platformPaymentScreenshots);
 
   // Get unique dates and photographers for filter options
   const uniqueDates = Array.from(new Set(screenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
@@ -1294,6 +1296,7 @@ export function ViewScreen() {
                       <SelectItem value="payment" className="pl-6">Payment Screenshots</SelectItem>
                       <SelectItem value="follow" className="pl-6">Follow Screenshots</SelectItem>
                       <SelectItem value="rapido" className="pl-6">Rapido Screenshots</SelectItem>
+                      <SelectItem value="platform_payment" className="pl-6">Platform Settlements</SelectItem>
                       <SelectItem value="logs" className="pl-6">Admin Logs</SelectItem>
                     </>
                   )}
@@ -2654,6 +2657,203 @@ export function ViewScreen() {
                                     <Badge variant="outline" className="h-5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">
                                       ₹{delivery.rapido_charge}
                                     </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Platform Settlements Gallery */}
+          {viewMode === 'platform_payment' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Platform Settlements Gallery</h2>
+                  <p className="text-sm text-gray-500">Admin-only view • 30% Platform 정산 증빙</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-[#2563EB] text-white">{filteredPlatformPaymentScreenshots.length} images</Badge>
+                  <Button
+                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
+                  >
+                    <Grid className="h-4 w-4 mr-2" />
+                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
+              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
+                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
+                </p>
+              </div>
+
+              {filteredPlatformPaymentScreenshots.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-gray-500">No settlement screenshots available</p>
+                  </CardContent>
+                </Card>
+              ) : galleryViewMode === 'single' ? (
+                /* V1 SPEC: Default to single-image inspection with Next/Previous */
+                <Card>
+                  <CardContent className="p-6 space-y-4">
+                    {/* Image */}
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={filteredPlatformPaymentScreenshots[currentImageIndex]?.file_url}
+                        alt="Platform Settlement Screenshot"
+                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
+                        fallback={<div className="w-full rounded-lg max-h-96 object-contain bg-gray-100 flex items-center justify-center text-gray-400">Image not found</div>}
+                      />
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === 0}
+                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        {currentImageIndex + 1} / {filteredPlatformPaymentScreenshots.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === filteredPlatformPaymentScreenshots.length - 1}
+                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredPlatformPaymentScreenshots.length - 1, prev + 1))}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+
+                    {/* Metadata - persistently visible */}
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Delivery Name:</span>
+                        <span className="text-sm text-gray-900">
+                          {deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.delivery_name || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
+                        <span className="text-sm text-gray-600 mt-1">
+                          {allUsers.find(p => p.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Date:</span>
+                        <span className="text-sm text-gray-500 mt-1">
+                          {deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Collection:</span>
+                        <span className="text-sm text-gray-600">₹{deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Settlement Code:</span>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          PLATFORM_PAYMENT
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Payable Amount (30%):</span>
+                        <Badge variant="outline" className="bg-green-600 text-white border-green-700">
+                          ₹{(deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount || 0) * 0.3}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* V1 SPEC: Deletion helper text */}
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                      <p className="font-semibold">Deletion is for audit cleanup only</p>
+                      <p className="mt-1">Deleting a screenshot removes it from the gallery and storage but does NOT affect delivery status, spreadsheet data, or reopen tasks.</p>
+                    </div>
+
+                    {/* Actions */}
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
+                          handleDeleteScreenshot(filteredPlatformPaymentScreenshots[currentImageIndex]?.id);
+                          if (currentImageIndex >= filteredPlatformPaymentScreenshots.length - 1) {
+                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Screenshot
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                /* Grid view (optional) */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredPlatformPaymentScreenshots.map((screenshot, index) => {
+                    const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
+                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
+                    return (
+                      <Card
+                        key={screenshot.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+                        onClick={() => {
+                          setCurrentImageIndex(index);
+                          setGalleryViewMode('single');
+                        }}
+                      >
+                        <CardContent className="p-0">
+                          <img
+                            src={screenshot.file_url}
+                            alt="Platform Settlement Screenshot"
+                            className="w-full h-64 object-cover"
+                          />
+                          <div className="p-4 space-y-2 bg-white">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate text-gray-900">
+                                  {delivery?.delivery_name || 'Unknown Delivery'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1 flex items-center justify-between">
+                                  <span>
+                                    {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}
+                                  </span>
+                                  {delivery?.received_amount && (
+                                    <div className="flex flex-col items-end gap-1">
+                                      <Badge variant="outline" className="h-5 text-[10px] bg-green-600 text-white border-green-700">
+                                        Payable: ₹{delivery.received_amount * 0.3}
+                                      </Badge>
+                                      <div className="text-[10px] text-gray-400">
+                                        from ₹{delivery.received_amount}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               </div>
