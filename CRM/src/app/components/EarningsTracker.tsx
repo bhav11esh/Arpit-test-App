@@ -12,7 +12,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from './ui/popover';
-import { Calendar as CalendarIcon, Wallet, Info } from 'lucide-react';
+import { Calendar as CalendarIcon, Wallet, Info, AlertTriangle, TrendingUp, Landmark, Calculator } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -54,11 +54,17 @@ export function EarningsTracker() {
     const [stats, setStats] = useState<{
         grossEarnings: number;
         totalRapido: number;
-        netEarnings: number;
-        deliveryCount: number;
         totalPenalty: number;
         emergencyLeavesCount: number;
         leaves: any[];
+        salaryBenchmark: number;
+        daysWorked: number;
+        netPayableAdmin: number;
+        netEarningsPhotographer: number;
+        totalSettledDaily: number;
+        amountPending: number;
+        netEarnings: number;
+        deliveryCount: number;
         breakdown: { name: string; count: number; rate: number; rapido: number; total: number }[];
     } | null>(null);
 
@@ -147,13 +153,43 @@ export function EarningsTracker() {
                 }
             });
 
+            // --- 🚀 NEW TIERED PAYOUT LOGIC (10/30/50) ---
+            const daysWorkedList = Array.from(new Set(filtered.map(d => d.date)));
+            const daysWorkedCount = daysWorkedList.length;
+            const salaryBenchmark = daysWorkedCount * 1000;
+            const netAmountPool = gross - rapidoTotal - totalPenalty;
+
+            // Tier Calculation
+            const tier1 = Math.min(netAmountPool, salaryBenchmark);
+            const tier2 = Math.max(0, Math.min(netAmountPool - salaryBenchmark, salaryBenchmark));
+            const tier3 = Math.max(0, netAmountPool - (2 * salaryBenchmark));
+
+            // Admin Share (Net Payable)
+            const adminShare = (tier1 * 0.10) + (tier2 * 0.30) + (tier3 * 0.50);
+            
+            // Photographer Share (Net Earnings)
+            const photographerShare = (tier1 * 0.90) + (tier2 * 0.70) + (tier3 * 0.50);
+
+            // Daily settlements calculation (Photographer pays 30% of individual receipts daily)
+            const totalSettledDaily = filtered
+                .filter(d => d.payment_type === 'CUSTOMER_PAID')
+                .reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
+
+            const amountPending = adminShare - totalSettledDaily;
+
             setStats({
                 grossEarnings: gross,
                 totalRapido: rapidoTotal,
                 totalPenalty: totalPenalty,
                 emergencyLeavesCount: totalEmergencyHalves,
                 leaves: photographerLeaves,
-                netEarnings: gross - rapidoTotal - totalPenalty,
+                salaryBenchmark: salaryBenchmark,
+                daysWorked: daysWorkedCount,
+                netPayableAdmin: adminShare,
+                netEarningsPhotographer: photographerShare,
+                totalSettledDaily: totalSettledDaily,
+                amountPending: amountPending,
+                netEarnings: photographerShare, // For backward compatibility
                 deliveryCount: filtered.length,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
                     name,
@@ -189,10 +225,11 @@ export function EarningsTracker() {
                         </div>
                         {stats && (
                             <div className="flex flex-col items-end gap-1">
-                                <Badge variant="outline" className="text-lg py-1 px-3 bg-green-50 text-green-700 border-green-200">
-                                    Net: ₹{stats.netEarnings.toLocaleString()}
+                                <Badge variant="outline" className={`text-lg py-1 px-3 ${stats.amountPending > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                                    Pending: ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                    {stats.amountPending < 0 && ' (CR)'}
                                 </Badge>
-                                <span className="text-[10px] text-gray-400 font-medium uppercase">Gross: ₹{stats.grossEarnings.toLocaleString()}</span>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase">Net Payable (Admin): ₹{Math.round(stats.netPayableAdmin).toLocaleString()}</span>
                             </div>
                         )}
                     </div>
@@ -271,6 +308,51 @@ export function EarningsTracker() {
                             </div>
                         </div>
                     </div>
+                    {/* 🚀 NEW: Payout & Settlement Metric Cards */}
+                    {stats && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <Card className="bg-blue-50/50 border-blue-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Calculator className="h-5 w-5 text-blue-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Salary Benchmark</div>
+                                    <div className="text-xl font-bold text-blue-900">₹{stats.salaryBenchmark.toLocaleString()}</div>
+                                    <div className="text-[10px] text-blue-600 mt-1">{stats.daysWorked} working days</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-green-50/50 border-green-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <TrendingUp className="h-5 w-5 text-green-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Net Earnings (You)</div>
+                                    <div className="text-xl font-bold text-green-900">₹{Math.round(stats.netEarningsPhotographer).toLocaleString()}</div>
+                                    <div className="text-[10px] text-green-600 mt-1">After 10/30/50% split</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-purple-50/50 border-purple-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Landmark className="h-5 w-5 text-purple-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Admin Share</div>
+                                    <div className="text-xl font-bold text-purple-900">₹{Math.round(stats.netPayableAdmin).toLocaleString()}</div>
+                                    <div className="text-[10px] text-purple-600 mt-1">Platform's commission</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className={stats.amountPending > 0 ? "bg-red-50/50 border-red-100" : "bg-emerald-50/50 border-emerald-100"}>
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Wallet className={`h-5 w-5 mb-2 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Amount Pending</div>
+                                    <div className={`text-xl font-bold ${stats.amountPending > 0 ? 'text-red-900' : 'text-emerald-900'}`}>
+                                        ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                        {stats.amountPending < 0 && ' (CR)'}
+                                    </div>
+                                    <div className={`text-[10px] mt-1 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {stats.amountPending > 0 ? 'Balance to settle' : 'Overpaid (Credit)'}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
                     {/* Visual Emergency Calendar (V18.1) */}
                     {stats && stats.emergencyLeavesCount > 0 && (
@@ -401,9 +483,13 @@ export function EarningsTracker() {
                             <p className="font-semibold mb-1">Earnings Policy:</p>
                             <ul className="list-disc ml-4 space-y-1">
                                 <li>Earnings are calculated based on deliveries with "DONE" status.</li>
+                                <li>Earnings are calculated based on deliveries with "DONE" status.</li>
+                                <li><strong>Salary Benchmark:</strong> ₹1000 × Working Days.</li>
+                                <li><strong>Tiered Split (Earnings):</strong> 90% of 1st benchmark, 70% of 2nd, 50% thereafter.</li>
+                                <li><strong>Tiered Split (Payable):</strong> 10% of 1st benchmark, 30% of 2nd, 50% thereafter.</li>
+                                <li><strong>Daily Settlement:</strong> Photographers clear 30% of individual collections daily.</li>
+                                <li><strong>Amount Pending:</strong> Reconciles monthly tiered Payable vs. actual Daily Settlements paid.</li>
                                 <li>Photographers are allowed <strong>6 half-day emergency leaves</strong> per month.</li>
-                                <li>Emergency leave is any leave applied less than 24 hours before the shift start (10 AM for morning, 2 PM for evening).</li>
-                                <li>Each additional emergency half-day beyond the quota incurs a <strong>₹250 penalty</strong>.</li>
                             </ul>
                         </div>
                     </div>

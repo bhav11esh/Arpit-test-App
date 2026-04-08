@@ -12,7 +12,8 @@ import {
   Upload,
   Link as LinkIcon,
   AlertCircle,
-  XCircle
+  XCircle,
+  Wallet
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,7 +23,7 @@ interface SendUpdateScreenProps {
   onBack: () => void;
   onUpdateFootageLink: (deliveryId: string, link: string) => void;
   onUpdateDeliveryFields: (deliveryId: string, updates: Partial<Delivery>) => void;
-  onUploadScreenshot: (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', file: File) => void;
+  onUploadScreenshot: (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT', file: File) => void;
   onComplete: (deliveries: Delivery[]) => void;
   userClusterCode?: string;
 }
@@ -68,7 +69,7 @@ export function SendUpdateScreen({
     setTempFootageLink('');
   };
 
-  const handleFileUpload = (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -102,6 +103,7 @@ export function SendUpdateScreen({
     if (delivery.payment_type === 'CUSTOMER_PAID') {
       const deliveryScreenshots = screenshots.get(delivery.id) || [];
       const hasPayment = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
+      const hasPlatformPayment = deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
       const hasAmount = (delivery.received_amount || 0) > 0;
       const hasPhone = (delivery.customer_phone || '').length >= 10;
 
@@ -112,7 +114,7 @@ export function SendUpdateScreen({
         if (!hasRapidoScreenshot) return false;
       }
 
-      return hasPayment && hasAmount && hasPhone;
+      return hasPayment && hasPlatformPayment && hasAmount && hasPhone;
     }
 
     // Rapido check for Dealer Paid too
@@ -313,29 +315,30 @@ export function SendUpdateScreen({
 
                     {/* Payment Screenshot - Only for Customer Paid */}
                     {isCustomerPaid && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium flex items-center gap-1">
-                            <Upload className="h-4 w-4" />
-                            Payment Screenshot
-                            <span className="text-red-500">*</span>
-                          </Label>
-                          {hasPaymentScreenshot ? (
-                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          )}
-                        </div>
-                        {hasPaymentScreenshot ? (
-                          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                            <span className="text-sm text-green-700">Screenshot uploaded</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <label className="flex items-center justify-center gap-2 px-4 py-3 bg-[#2563EB] hover:bg-blue-700 text-white rounded cursor-pointer transition-colors">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* 1. Customer Payment Screenshot */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium flex items-center gap-1">
                               <Upload className="h-4 w-4" />
-                              <span className="text-sm font-medium">Upload Payment Screenshot</span>
+                              Customer Payment
+                              <span className="text-red-500">*</span>
+                            </Label>
+                            {hasPaymentScreenshot ? (
+                              <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                          {hasPaymentScreenshot ? (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
+                              <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                              <span className="text-xs text-green-700">Uploaded</span>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white rounded cursor-pointer transition-colors text-xs font-medium">
+                              <Upload className="h-3 w-3" />
+                              Upload Customer Pay
                               <input
                                 type="file"
                                 accept="image/*"
@@ -343,9 +346,49 @@ export function SendUpdateScreen({
                                 onChange={(e) => handleFileUpload(delivery.id, 'PAYMENT', e)}
                               />
                             </label>
-                            <p className="text-xs text-red-600">Required for customer-paid deliveries</p>
+                          )}
+                        </div>
+
+                        {/* 2. Platform Settlement Screenshot (30%) */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium flex items-center gap-1 text-orange-700">
+                              <Wallet className="h-4 w-4" />
+                              Settlement (30%)
+                              <span className="text-red-500">*</span>
+                            </Label>
+                            {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
+                              <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
                           </div>
-                        )}
+                          
+                          <div className="flex flex-col gap-2">
+                            <div className="bg-orange-50 border border-orange-100 p-2 rounded text-[10px] text-orange-800 font-bold flex justify-between items-center">
+                              <span>AMOUNT TO PAY:</span>
+                              <span className="text-sm">₹{Math.round((delivery.received_amount || 0) * 0.3)}</span>
+                            </div>
+
+                            {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
+                              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
+                                <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                                <span className="text-xs text-green-700">Settled with Platform</span>
+                              </div>
+                            ) : (
+                              <label className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded cursor-pointer transition-colors text-xs font-medium">
+                                <Upload className="h-3 w-3" />
+                                Upload Platform Screenshot
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleFileUpload(delivery.id, 'PLATFORM_PAYMENT', e)}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
 
