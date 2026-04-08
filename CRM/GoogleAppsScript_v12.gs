@@ -1,10 +1,20 @@
 /**
- * V16.7 UNIVERSAL "DOUBLE-LOCK" SYNC SERVICE
- * FEATURES: 
+ * 🚀 GOOGLE APPS SCRIPT SYNC BRIDGE - V17.6 (SMART SENSING)
+ * 
+ * FEATURES:
+ * - Smart Header Sensing: Dynamically finds the header row (scans first 10 rows).
  * - Multi-Layer Date Fix: Overcomes US/India locale mismatch by reading Display Values.
  * - Hunter Priority: Matches by Google Drive ID BEFORE checking any dates.
- * - ID-Extract: Strips everything but the unique folder code for matching.
+ * - Quad-Factor Matching (QFM): Matches by Date, Photographer, and Link Text for text-only rows.
+ * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.
  */
+
+const VERSION = "17.7";
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
@@ -16,152 +26,124 @@ function doPost(e) {
     const tz = spreadsheet.getSpreadsheetTimeZone();
     let sheet;
     if (sheetName) sheet = spreadsheet.getSheetByName(sheetName);
-    if (!sheet) {
-      const sheets = spreadsheet.getSheets();
-      for (let s of sheets) { if (s.getLastRow() > 1) { sheet = s; break; } }
-    }
     if (!sheet) sheet = spreadsheet.getSheets()[0];
 
-    console.log(`[V16.3 Audit] Action: ${action || (deliveries ? 'sync_bulk' : 'sync')}, Sheet: ${sheet.getName()}`);
-    
-    // Repair headers if needed to ensure CRM ID is present
-    repairHeadersIfNeeded(sheet);
-    
-    if (action === 'delete') return deleteRow(sheet, id);
-    if (action === 'read') return readSheet(sheet);
-    if (deliveries) return processBulkSync(sheet, deliveries, tz);
-    return processSync(sheet, delivery, tz);
+    const headerRowInfo = findHeaderRow(sheet);
+    const headers = headerRowInfo.values;
+    repairHeadersIfNeeded(sheet, headerRowInfo.index, headers);
+    const finalHeaders = sheet.getRange(headerRowInfo.index, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const finalColIdx = buildColIdx(finalHeaders);
+
+    if (action === 'delete') return deleteRow(sheet, finalColIdx, id);
+    if (action === 'read') return readSheet(sheet, tz);
+    if (deliveries) return processBulkSync(sheet, deliveries, tz, headerRowInfo.index, finalColIdx, finalHeaders);
+    return processSync(sheet, delivery, tz, headerRowInfo.index, finalColIdx, finalHeaders);
 
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   } finally { lock.releaseLock(); }
+}
+
+function findHeaderRow(sheet) {
+  const data = sheet.getRange(1, 1, 10, Math.max(sheet.getLastColumn(), 1)).getValues();
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const rowStr = row.join(" ").toLowerCase();
+    if (rowStr.includes("date") || rowStr.includes("link") || rowStr.includes("crm id") || rowStr.includes("photog")) {
+      return { index: i + 1, values: row };
+    }
+  }
+  return { index: 1, values: data[0] };
 }
 
 function readSheet(sheet, tz) {
   const data = sheet.getDataRange().getValues();
   const displayData = sheet.getDataRange().getDisplayValues();
-  
   const result = data.map((row, rIdx) => {
     return row.map((cell, cIdx) => {
       const s = String(displayData[rIdx][cIdx]).trim();
-      
-      // 1. Regex First (The "Double-Lock" on Display Value)
       const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})\s*$/);
       if (dmyMatch) {
          let d = parseInt(dmyMatch[1]);
          let m = parseInt(dmyMatch[2]);
-         let y = dmyMatch[3];
-         if (y.length === 2) y = '20' + y;
-         
-         // 🚀 V16.8 AGGRESSIVE INDIA PARSING: 
-         // In India sheets, what the user typed is the truth.
-         // If it's "8-10-25", they mean Oct 8th (v1=Day, v2=Month).
-         // UNLESS m > 12, then it must be MDY.
-         if (m > 12 && d <= 12) {
-           return `${y}-${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
-         } else {
-           // Default: First number is Day, Second is Month
-           return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-         }
+         let y = dmyMatch[3].length === 2 ? '20' + dmyMatch[3] : dmyMatch[3];
+         if (m > 12 && d <= 12) return `${y}-${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
+         return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       }
-
-      // 2. Fallback to Date Object (for already-perfect ISO or other formats)
-      if (Object.prototype.toString.call(cell) === '[object Date]') {
-        return Utilities.formatDate(cell, tz || "GMT+5:30", "yyyy-MM-dd");
-      }
-
+      if (Object.prototype.toString.call(cell) === '[object Date]') return Utilities.formatDate(cell, tz || "GMT+5:30", "yyyy-MM-dd");
       return s;
     });
   });
-
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: result })).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', data: result }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-function processSync(sheet, delivery, tz) {
+function processBulkSync(sheet, deliveries, tz, headerIndex, colIdx, headers) {
+  const stats = { updated: 0, appended: 0 };
   const data = sheet.getDataRange().getValues();
   const displayData = sheet.getDataRange().getDisplayValues();
-  const headers = displayData[0];
-  const colIdx = buildColIdx(headers);
-  const rowIdx = findRowIndex(displayData, data, delivery, colIdx, null, tz);
-  if (rowIdx > -1) {
-    const rowValues = updateRowArray(data[rowIdx], delivery, headers, colIdx);
-    sheet.getRange(rowIdx + 1, 1, 1, rowValues.length).setValues([rowValues]);
-    if (colIdx.date > -1) sheet.getRange(rowIdx + 1, colIdx.date + 1).setNumberFormat('dd-mm-yyyy');
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'updated', row: rowIdx + 1 })).setMimeType(ContentService.MimeType.JSON);
-  } else {
-    const newRow = createRowArray(delivery, headers, colIdx);
-    sheet.appendRow(newRow);
-    if (colIdx.date > -1) sheet.getRange(sheet.getLastRow(), colIdx.date + 1).setNumberFormat('dd-mm-yyyy');
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'appended', row: sheet.getLastRow() })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function processBulkSync(sheet, deliveries, tz) {
-  const data = sheet.getDataRange().getValues();
-  const displayData = sheet.getDataRange().getDisplayValues();
-  const headers = displayData[0];
-  const colIdx = buildColIdx(headers);
-  let stats = { updated: 0, appended: 0 };
   const updatedIndices = new Set();
-  
+
   deliveries.forEach(delivery => {
-    const rowIdx = findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz);
-    if (rowIdx > -1) {
-      if (!updatedIndices.has(rowIdx)) {
-        const rowValues = updateRowArray(data[rowIdx], delivery, headers, colIdx);
-        sheet.getRange(rowIdx + 1, 1, 1, rowValues.length).setValues([rowValues]);
-        if (colIdx.date > -1) sheet.getRange(rowIdx + 1, colIdx.date + 1).setNumberFormat('dd-mm-yyyy');
-        stats.updated++;
-        updatedIndices.add(rowIdx);
-      }
+    const matchIdx = findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz);
+    if (matchIdx > -1) {
+      const rowNum = matchIdx + 1;
+      const originalRow = data[matchIdx];
+      const updatedRow = updateRowArray(originalRow, delivery, headers, colIdx);
+      sheet.getRange(rowNum, 1, 1, updatedRow.length).setValues([updatedRow]);
+      updatedIndices.add(matchIdx);
+      stats.updated++;
     } else {
       const newRow = createRowArray(delivery, headers, colIdx);
       sheet.appendRow(newRow);
       stats.appended++;
-      // Re-read data after append to avoid index mismatch
-      const newData = sheet.getDataRange().getValues();
-      const newDisplay = sheet.getDataRange().getDisplayValues();
-      data.push(newData[newData.length-1]);
-      displayData.push(newDisplay[newDisplay.length-1]);
+      // Sync local arrays for next iteration
+      data.push(newRow);
+      displayData.push(newRow.map(c => String(c)));
     }
   });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', stats }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
-  return ContentService.createTextOutput(JSON.stringify({ status: 'success', stats: stats })).setMimeType(ContentService.MimeType.JSON);
+function processSync(sheet, delivery, tz, headerIndex, colIdx, headers) {
+  const data = sheet.getDataRange().getValues();
+  const displayData = sheet.getDataRange().getDisplayValues();
+  const matchIdx = findRowIndex(displayData, data, delivery, colIdx, null, tz);
+  if (matchIdx > -1) {
+    const updatedRow = updateRowArray(data[matchIdx], delivery, headers, colIdx);
+    sheet.getRange(matchIdx + 1, 1, 1, updatedRow.length).setValues([updatedRow]);
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'updated' }));
+  } else {
+    sheet.appendRow(createRowArray(delivery, headers, colIdx));
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'appended' }));
+  }
 }
 
 function buildColIdx(headers) {
-  return {
-    date: findCol(headers, 'date'),
-    link: findCol(headers, 'footagelink'),
-    id: findCol(headers, 'crmid'),
-    photog: findCol(headers, 'photographer'),
-    amount: findCol(headers, 'amount'),
-    phone: findCol(headers, 'phone'),
-    rapido: findCol(headers, 'rapido'),
-    signature: findCol(headers, 'signature'),
-    updated: findCol(headers, 'updatedat'),
-    reel: findCol(headers, 'reellink')
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const find = (target, aliases) => {
+    const t = norm(target);
+    for (let i = 0; i < headers.length; i++) {
+      const h = norm(headers[i]);
+      if (h === t || (aliases && aliases.includes(h))) return i;
+    }
+    return -1;
   };
-}
-
-function extractId(s) {
-  if (!s) return "";
-  const match = String(s).match(/[-\w]{25,}/);
-  return match ? match[0] : String(s).replace(/\s/g, '');
-}
-
-function normalizeDate(d, tz) {
-  if (!d) return "";
-  if (Object.prototype.toString.call(d) === '[object Date]') return Utilities.formatDate(d, tz || "GMT+5:30", "dd/MM/yyyy");
-  let s = String(d).trim().replace(/[-_]\d+$/, '').replace(/[^\d\/\-\.]/g, '');
-  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
-    const parts = s.split('-');
-    return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
-  }
-  s = s.replace(/[-\.]/g, '/');
-  const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})/);
-  if (dmyMatch) return `${dmyMatch[1].padStart(2, '0')}/${dmyMatch[2].padStart(2, '0')}/${dmyMatch[3].length === 2 ? "20"+dmyMatch[3] : dmyMatch[3]}`;
-  return s;
+  return {
+    date: find('date', ['deliverydate', 'shootdate']),
+    name: find('customername', ['name', 'deliveryname', 'customer']),
+    link: find('footagelink', ['link', 'drivelink', 'footage']),
+    id: find('crmid', ['id', 'recordid']),
+    photog: find('photographer', ['photog', 'user', 'photographername']),
+    amount: find('amount', ['received', 'price', 'amt', 'amountreceived', 'receivedamount']),
+    phone: find('phone', ['contact', 'customerphone', 'phonenumber']),
+    rapido: find('rapido', ['travel', 'rapi']),
+    signature: find('signature', ['sig']),
+    updated: find('updatedat', ['updated']),
+    reel: find('reellink', ['reel'])
+  };
 }
 
 function findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz) {
@@ -170,144 +152,111 @@ function findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz) {
   const targetReelID = extractId(delivery.reel_link || "");
   const targetPhotog = String(delivery.photographer_name || "").trim().toLowerCase();
   const targetDate = normalizeDate(delivery.date, tz);
-  let dateOnlyMatch = -1;
-
-  // Cache formulas if Hunter Mode is needed
-  let formulas = null;
 
   for (let i = 1; i < displayData.length; i++) {
     if (updatedIndices && updatedIndices.has(i)) continue;
-    const rowStr = displayData[i];
-    const rowRaw = data[i];
     
-    // 1. PRIMARY MATCH: Google Drive Folder ID (Hunter Mode)
-    // Checks both footage and reel links for a match anywhere in the row
-    if (targetLinkID || targetReelID) {
-      let matchedByLink = false;
-      for (let j = 0; j < rowStr.length; j++) {
-        const cellStr = String(rowStr[j]);
-        if (targetLinkID && cellStr.includes(targetLinkID)) { matchedByLink = true; break; }
-        if (targetReelID && cellStr.includes(targetReelID)) { matchedByLink = true; break; }
-      }
-      
-      // If not found in display text, check formulas (for hidden URLs in HYPERLINK or Smart Chips)
-      if (!matchedByLink) {
-        if (!formulas) formulas = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange(1, 1, displayData.length, displayData[0].length).getFormulas();
-        const rowFormulas = formulas[i];
-        for (let j = 0; j < rowFormulas.length; j++) {
-          const formStr = rowFormulas[j];
-          if (formStr) {
-            if (targetLinkID && formStr.includes(targetLinkID)) { matchedByLink = true; break; }
-            if (targetReelID && formStr.includes(targetReelID)) { matchedByLink = true; break; }
-          }
-        }
-      }
-
-      if (matchedByLink) return i;
-    }
-
-    // 2. ID Match (Existing CRM ID) - SECUREst
-    const rowId = colIdx.id > -1 ? String(rowStr[colIdx.id]).trim() : "";
+    // 1. PRIMARY MATCH: CRM ID
+    const rowId = colIdx.id > -1 ? String(displayData[i][colIdx.id]).trim() : "";
     if (targetId && rowId === targetId) return i;
     
-    // 3. Fallback: Date + Photographer
-    const rowDateRaw = colIdx.date > -1 ? normalizeDate(rowRaw[colIdx.date], tz) : "";
-    const rowDateStr = colIdx.date > -1 ? normalizeDate(rowStr[colIdx.date], tz) : "";
-    
-    if (targetDate && (rowDateRaw === targetDate || rowDateStr === targetDate)) {
-      const rowPhotog = colIdx.photog > -1 ? String(rowStr[colIdx.photog]).trim().toLowerCase() : "";
-      if (targetPhotog && rowPhotog && (targetPhotog.includes(rowPhotog) || rowPhotog.includes(targetPhotog))) return i;
-      if (dateOnlyMatch === -1) dateOnlyMatch = i;
+    // 2. HUNTER MODE: Drive ID
+    if (targetLinkID || targetReelID) {
+      const rowStr = displayData[i].join(" ");
+      if (targetLinkID && rowStr.includes(targetLinkID)) return i;
+      if (targetReelID && rowStr.includes(targetReelID)) return i;
     }
-  }
-  return dateOnlyMatch;
-}
 
-function repairHeadersIfNeeded(sheet) {
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const required = ['CRM ID', 'Signature', 'Updated At'];
-  let modified = false;
-
-  required.forEach(req => {
-    if (findCol(headers, req) === -1) {
-      const lastCol = sheet.getLastColumn();
-      sheet.getRange(1, lastCol + 1).setValue(req)
-        .setBackground('#EFEFEF')
-        .setFontWeight('bold');
-      headers.push(req);
-      modified = true;
+    // 3. Fallback: Date + Photographer + (Optional) Text Match
+    // 🚀 V17.6: We use displayData[i] (what you see) instead of data[i] 
+    // to avoid "Date Flipping" by US-locale sheets.
+    const rowDateRaw = colIdx.date > -1 ? normalizeDate(displayData[i][colIdx.date], tz) : "";
+    if (targetDate && rowDateRaw === targetDate) {
+      const rowPhotog = colIdx.photog > -1 ? String(displayData[i][colIdx.photog]).trim().toLowerCase() : "";
+      if (targetPhotog && rowPhotog && (targetPhotog.includes(rowPhotog) || rowPhotog.includes(targetPhotog))) {
+        if (!targetLinkID && !targetReelID) {
+          const rowFLink = colIdx.link > -1 ? String(displayData[i][colIdx.link]).trim().toLowerCase() : "";
+          const targetFLink = String(delivery.footage_link || "").trim().toLowerCase();
+          const rowRLink = colIdx.reel > -1 ? String(displayData[i][colIdx.reel]).trim().toLowerCase() : "";
+          const targetRLink = String(delivery.reel_link || "").trim().toLowerCase();
+          const fMatch = (targetFLink && rowFLink && targetFLink === rowFLink);
+          const rMatch = (targetRLink && rowRLink && targetRLink === rowRLink);
+          if (fMatch || rMatch) return i;
+          if (!targetFLink && !rowFLink && !targetRLink && !rowRLink) return i;
+          continue;
+        }
+        return i;
+      }
     }
-  });
-
-  if (modified) SpreadsheetApp.flush();
-}
-
-
-function findCol(headers, name) {
-  const norm = (s) => String(s || "").toLowerCase().replace(/[\s_\-]/g, "");
-  const target = norm(name);
-  const aliases = {
-    'crmid': ['crmid', 'id', 'recordid'],
-    'photographer': ['photographer', 'photographername', 'user', 'photog', 'assignedto'],
-    'amount': ['amount', 'receivedamount', 'price', 'amt'],
-    'footagelink': ['footagelink', 'drivelink', 'link', 'footage'],
-    'date': ['date', 'deliverydate', 'shootdate'],
-    'reellink': ['reellink', 'reel'],
-    'phone': ['phone', 'contact'],
-    'rapido': ['rapido', 'travel'],
-    'signature': ['signature', 'sig'],
-    'updatedat': ['updatedat', 'lastupdated', 'updated']
-  };
-  for (let i = 0; i < headers.length; i++) {
-    const h = norm(headers[i]);
-    if (h === target || (aliases[target] && aliases[target].includes(h))) return i;
   }
   return -1;
 }
 
-function createRowArray(delivery, headers, colIdx) {
-  return updateRowArray(new Array(headers.length).fill(''), delivery, headers, colIdx);
-}
-
 function updateRowArray(row, delivery, headers, colIdx) {
-  if (colIdx.id > -1) row[colIdx.id] = delivery.id || '';
-  if (colIdx.date > -1 && delivery.date) {
-    let dateObj = null;
-    const s = String(delivery.date);
-    if (s.includes('/') || s.includes('-')) {
-      const parts = s.split(/[\/\-]/);
-      if (parts.length === 3) {
-        // Assume context: if 1st part is 4 digits, it's YMD. If last part is 4 digits, it's DMY.
-        if (parts[0].length === 4) dateObj = new Date(parts[0], parts[1]-1, parts[2]);
-        else if (parts[2].length === 4) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
-      }
-    }
-    if (!dateObj) {
-      const tryDate = new Date(s);
-      if (!isNaN(tryDate.getTime())) dateObj = tryDate;
-    }
-    row[colIdx.date] = dateObj || s;
-  }
-  if (colIdx.link > -1) row[colIdx.link] = delivery.footage_link || '';
-  if (colIdx.reel > -1) row[colIdx.reel] = delivery.reel_link || '';
-  if (colIdx.photog > -1) row[colIdx.photog] = delivery.photographer_name || '';
+  while(row.length < headers.length) row.push("");
+  if (colIdx.id > -1) row[colIdx.id] = String(delivery.id || "");
+  if (colIdx.date > -1 && delivery.date) row[colIdx.date] = delivery.date;
+  if (colIdx.name > -1) row[colIdx.name] = delivery.delivery_name || "";
+  if (colIdx.link > -1) row[colIdx.link] = delivery.footage_link || "";
+  if (colIdx.reel > -1) row[colIdx.reel] = delivery.reel_link || "";
+  if (colIdx.photog > -1) row[colIdx.photog] = delivery.photographer_name || "";
   if (colIdx.amount > -1) row[colIdx.amount] = delivery.received_amount || 0;
-  if (colIdx.phone > -1) row[colIdx.phone] = delivery.customer_phone || '';
+  if (colIdx.phone > -1) row[colIdx.phone] = delivery.customer_phone || "";
   if (colIdx.rapido > -1) row[colIdx.rapido] = delivery.rapido_charge || 0;
-  if (colIdx.signature > -1) row[colIdx.signature] = delivery.signature || '';
-  if (colIdx.updated > -1) row[colIdx.updated] = new Date().toLocaleString('en-IN');
+  if (colIdx.signature > -1) row[colIdx.signature] = delivery.signature || "";
+  if (colIdx.updated > -1) row[colIdx.updated] = Utilities.formatDate(new Date(), "GMT+5:30", "dd/MM/yyyy HH:mm:ss");
   return row;
 }
 
-function deleteRow(sheet, id) {
-  const data = sheet.getDataRange().getValues();
-  const idCol = findCol(data[0], 'CRM ID');
-  if (idCol === -1) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'CRM ID column not found' }));
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][idCol]) === String(id)) {
+function createRowArray(delivery, headers, colIdx) {
+  return updateRowArray(new Array(headers.length).fill(""), delivery, headers, colIdx);
+}
+
+function repairHeadersIfNeeded(sheet, headIdx, headers) {
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const required = ['CRM ID', 'Signature', 'Updated At'];
+  required.forEach(req => {
+    const t = norm(req);
+    let found = false;
+    for (let h of headers) { if (norm(h) === t) { found = true; break; } }
+    if (!found) {
+      const lastCol = sheet.getLastColumn();
+      sheet.getRange(headIdx, lastCol + 1).setValue(req).setBackground('#EFEFEF').setFontWeight('bold');
+      headers.push(req);
+    }
+  });
+}
+
+function deleteRow(sheet, colIdx, id) {
+  const displayData = sheet.getDataRange().getDisplayValues();
+  if (colIdx.id === -1) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'CRM ID column not found' }));
+  for (let i = 1; i < displayData.length; i++) {
+    if (String(displayData[i][colIdx.id]).trim() === String(id).trim()) {
       sheet.deleteRow(i + 1);
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'deleted' }));
     }
   }
   return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Row not found' }));
+}
+
+function extractId(s) {
+  if (!s) return "";
+  const match = String(s).match(/[-\w]{25,}/);
+  return match ? match[0] : "";
+}
+
+function normalizeDate(d, tz) {
+  if (!d) return "";
+  if (Object.prototype.toString.call(d) === '[object Date]') return Utilities.formatDate(d, tz || "GMT+5:30", "yyyy-MM-dd");
+  let s = String(d).trim().replace(/[^\d\/\-\.]/g, '');
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) return s;
+  const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})$/);
+  if (dmyMatch) {
+    let dd = parseInt(dmyMatch[1]);
+    let mm = parseInt(dmyMatch[2]);
+    let yy = dmyMatch[3].length === 2 ? "20"+dmyMatch[3] : dmyMatch[3];
+    if (mm > 12 && dd <= 12) return `${yy}-${String(dd).padStart(2,'0')}-${String(mm).padStart(2,'0')}`;
+    return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  }
+  return s.split('T')[0];
 }

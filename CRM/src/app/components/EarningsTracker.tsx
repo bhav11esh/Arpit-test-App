@@ -18,7 +18,8 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { getUsersByRole } from '../lib/db/users';
 import { User } from '../types';
-import { getShowroomCode } from '../lib/utils';
+import { getShowroomCode, isEmergencyLeave } from '../lib/utils';
+import * as leavesDb from '../lib/db/leaves';
 
 export function EarningsTracker() {
     const { user } = useAuth();
@@ -55,6 +56,9 @@ export function EarningsTracker() {
         totalRapido: number;
         netEarnings: number;
         deliveryCount: number;
+        totalPenalty: number;
+        emergencyLeavesCount: number;
+        leaves: any[];
         breakdown: { name: string; count: number; rate: number; rapido: number; total: number }[];
     } | null>(null);
 
@@ -123,10 +127,33 @@ export function EarningsTracker() {
                 breakdownMap.set(dsName, current);
             });
 
+            // 🚀 V18.0: Penalty Calculation (Consolidated by Month)
+            const photographerLeaves = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
+            const emergencyByMonth = new Map<string, number>();
+            let totalEmergencyHalves = 0;
+
+            photographerLeaves.forEach(l => {
+                if (isEmergencyLeave(l.date, l.half, l.appliedAt)) {
+                    totalEmergencyHalves++;
+                    const monthKey = l.date.substring(0, 7); // "YYYY-MM"
+                    emergencyByMonth.set(monthKey, (emergencyByMonth.get(monthKey) || 0) + 1);
+                }
+            });
+
+            let totalPenalty = 0;
+            emergencyByMonth.forEach((count) => {
+                if (count > 6) {
+                    totalPenalty += (count - 6) * 250;
+                }
+            });
+
             setStats({
                 grossEarnings: gross,
                 totalRapido: rapidoTotal,
-                netEarnings: gross - rapidoTotal,
+                totalPenalty: totalPenalty,
+                emergencyLeavesCount: totalEmergencyHalves,
+                leaves: photographerLeaves,
+                netEarnings: gross - rapidoTotal - totalPenalty,
                 deliveryCount: filtered.length,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
                     name,
@@ -230,14 +257,87 @@ export function EarningsTracker() {
                                 <div className="text-xs text-gray-500 uppercase tracking-wider">Deliveries</div>
                                 <div className="text-xl font-bold text-gray-900">{stats?.deliveryCount || 0}</div>
                             </div>
-                            <div className="text-center px-4">
-                                <div className="text-xs text-gray-500 uppercase tracking-wider">Rapido Deducted</div>
+                            <div className="text-center px-4 border-r border-gray-200">
+                                <div className="text-xs text-gray-500 uppercase tracking-wider">Rapido</div>
                                 <div className="text-xl font-bold text-red-600">
                                     ₹{stats?.totalRapido.toLocaleString() || 0}
                                 </div>
                             </div>
+                            <div className="text-center px-4">
+                                <div className="text-xs text-gray-500 uppercase tracking-wider">Penalties</div>
+                                <div className="text-xl font-bold text-red-600">
+                                    ₹{stats?.totalPenalty.toLocaleString() || 0}
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Visual Emergency Calendar (V18.1) */}
+                    {stats && stats.emergencyLeavesCount > 0 && (
+                        <div className="space-y-3 p-4 bg-red-50/30 border border-red-100 rounded-lg">
+                            <h3 className="text-sm font-semibold flex items-center gap-2 text-red-800">
+                                <AlertTriangle className="h-4 w-4 text-red-600" />
+                                Emergency Leaves Overview ({stats.emergencyLeavesCount} halves)
+                            </h3>
+                            <div className="flex flex-col md:flex-row items-center gap-6 bg-white p-3 rounded border border-red-100 shadow-sm">
+                                <Calendar
+                                    mode="single"
+                                    selected={undefined}
+                                    onSelect={() => {}}
+                                    modifiers={{
+                                        emergencyFull: (date) => {
+                                            const dStr = format(date, 'yyyy-MM-dd');
+                                            const dayLeaves = stats.leaves.filter(l => l.date === dStr);
+                                            return dayLeaves.length === 2 && dayLeaves.every(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                        },
+                                        emergencyFirst: (date) => {
+                                            const dStr = format(date, 'yyyy-MM-dd');
+                                            const l = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                            if (!l) return false;
+                                            if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                            const r = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                            return !r || !isEmergencyLeave(r.date, r.half, r.appliedAt);
+                                        },
+                                        emergencySecond: (date) => {
+                                            const dStr = format(date, 'yyyy-MM-dd');
+                                            const l = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                            if (!l) return false;
+                                            if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                            const f = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                            return !f || !isEmergencyLeave(f.date, f.half, f.appliedAt);
+                                        }
+                                    }}
+                                    modifiersClassNames={{
+                                        emergencyFull: "emergency-full",
+                                        emergencyFirst: "emergency-first",
+                                        emergencySecond: "emergency-second"
+                                    }}
+                                    className="scale-90"
+                                />
+
+                                <div className="space-y-4 max-w-xs">
+                                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider border-b pb-1">Calendar Legend</p>
+                                    <div className="grid grid-cols-1 gap-y-3 text-xs">
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-4 rounded-full border border-red-400 bg-red-100/50" />
+                                            <span className="font-medium">Full Day Emergency</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-4 rounded-full border border-red-200 bg-gradient-to-r from-red-100/50 from-50% to-transparent to-50%" />
+                                            <span className="font-medium">1st Half Emergency (Late notice)</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-4 rounded-full border border-red-200 bg-gradient-to-l from-red-100/50 from-50% to-transparent to-50%" />
+                                            <span className="font-medium">2nd Half Emergency (Late notice)</span>
+                                        </div>
+                                        <div className="p-2 bg-red-50 text-[10px] text-red-700 italic rounded">
+                                            Notice period: 24hrs prior to shift start (10AM/2PM). Quota: 6 half-days/mo.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Breakdown Table */}
                     <div className="space-y-3">
@@ -297,7 +397,15 @@ export function EarningsTracker() {
 
                     <div className="p-3 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 flex gap-2">
                         <Info className="h-4 w-4 flex-shrink-0" />
-                        <p>Earnings are calculated based on deliveries with "DONE" status. Ensure you have pressed "Send Update" to finalize your deliveries and include them in your earnings.</p>
+                        <div>
+                            <p className="font-semibold mb-1">Earnings Policy:</p>
+                            <ul className="list-disc ml-4 space-y-1">
+                                <li>Earnings are calculated based on deliveries with "DONE" status.</li>
+                                <li>Photographers are allowed <strong>6 half-day emergency leaves</strong> per month.</li>
+                                <li>Emergency leave is any leave applied less than 24 hours before the shift start (10 AM for morning, 2 PM for evening).</li>
+                                <li>Each additional emergency half-day beyond the quota incurs a <strong>₹250 penalty</strong>.</li>
+                            </ul>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

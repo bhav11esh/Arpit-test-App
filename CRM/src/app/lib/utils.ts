@@ -267,3 +267,25 @@ export function getShowroomCode(dealershipName: string): string {
     .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
+
+/**
+ * V18.0 EMERGENCY LEAVE LOGIC:
+ * Check if a leave was applied less than 24 hours before the shift start.
+ * Shifts: FIRST_HALF (10:00 AM), SECOND_HALF (2:00 PM).
+ */
+export function isEmergencyLeave(date: string, half: 'FIRST_HALF' | 'SECOND_HALF', appliedAt: string): boolean {
+  if (!appliedAt) return false;
+
+  const [year, month, day] = date.split('-').map(Number);
+  const hour = half === 'FIRST_HALF' ? 10 : 14;
+
+  // Shift start time in local timezone (since date/half are local concepts)
+  const shiftStart = new Date(year, month - 1, day, hour, 0, 0);
+
+  // Deadline is exactly 24 hours before shift start
+  const deadline = new Date(shiftStart.getTime() - 24 * 60 * 60 * 1000);
+
+  const appliedDate = new Date(appliedAt);
+
+  return appliedDate > deadline;
+}

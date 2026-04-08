@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
@@ -11,7 +12,7 @@ import { Calendar as CalendarIcon, Loader2, Plus, AlertTriangle } from 'lucide-r
 import * as leavesDb from '../lib/db/leaves';
 import type { Database } from '../lib/types/database.types';
 import type { Leave } from '../types';
-import { getOperationalDateString, getLocalDateString } from '../lib/utils';
+import { getOperationalDateString, getLocalDateString, isEmergencyLeave } from '../lib/utils';
 
 // type Leave = Database['public']['Tables']['leaves']['Row']; (Removed raw row usage)
 
@@ -131,6 +132,26 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
         }
     };
 
+    // V18.0: Check if current selection is emergency
+    const getEmergencyStatus = () => {
+        if (!selectedDate) return { isEmergency: false, message: '' };
+
+        const dateStr = getLocalDateString(selectedDate);
+        if (selectedHalf === 'FULL_DAY') {
+            const firstEmergency = isEmergencyLeave(dateStr, 'FIRST_HALF', new Date().toISOString());
+            const secondEmergency = isEmergencyLeave(dateStr, 'SECOND_HALF', new Date().toISOString());
+            if (firstEmergency && secondEmergency) return { isEmergency: true, message: 'Full Day (2 halves)' };
+            if (firstEmergency) return { isEmergency: true, message: 'First Half (Morning)' };
+            if (secondEmergency) return { isEmergency: true, message: 'Second Half (Evening)' };
+            return { isEmergency: false, message: '' };
+        } else {
+            const emergency = isEmergencyLeave(dateStr, selectedHalf, new Date().toISOString());
+            return { isEmergency: emergency, message: selectedHalf === 'FIRST_HALF' ? 'First Half (Morning)' : 'Second Half (Evening)' };
+        }
+    };
+
+    const emergencyStatus = getEmergencyStatus();
+
     // Helper to format date
     const formatDate = (dateStr: string) => {
         // Manually parse YYYY-MM-DD to avoid timezone shift in display
@@ -153,7 +174,71 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                     Apply Leave
                 </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+                {/* Visual Calendar Overview */}
+                {!loading && leaves.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-gray-100 shadow-sm">
+                            <Calendar
+                                mode="single"
+                                selected={undefined}
+                                onSelect={() => {}}
+                                modifiers={{
+                                    emergencyFull: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const dayLeaves = leaves.filter(l => l.date === dStr);
+                                        return dayLeaves.length === 2 && dayLeaves.every(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                    },
+                                    emergencyFirst: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const l = leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                        if (!l) return false;
+                                        if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                        // Only return true if it's NOT a full-day emergency
+                                        const r = leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                        return !r || !isEmergencyLeave(r.date, r.half, r.appliedAt);
+                                    },
+                                    emergencySecond: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const l = leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                        if (!l) return false;
+                                        if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                        // Only return true if it's NOT a full-day emergency
+                                        const f = leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                        return !f || !isEmergencyLeave(f.date, f.half, f.appliedAt);
+                                    }
+                                }}
+                                modifiersClassNames={{
+                                    emergencyFull: "emergency-full",
+                                    emergencyFirst: "emergency-first",
+                                    emergencySecond: "emergency-second"
+                                }}
+                                className="scale-95 md:scale-100"
+                            />
+                            
+                            {/* Legend */}
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-2 pt-3 border-t w-full px-4 text-[11px]">
+                                <div className="flex items-center gap-2">
+                                    <div className="size-3 rounded-full border border-red-400 bg-red-100/50" />
+                                    <span>Full Day Emergency</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="size-3 rounded-full border border-red-200 bg-gradient-to-r from-red-100/50 from-50% to-transparent to-50%" />
+                                    <span>1st Half Emergency</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="size-3 rounded-full border border-red-200 bg-gradient-to-l from-red-100/50 from-50% to-transparent to-50%" />
+                                    <span>2nd Half Emergency</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="size-3 rounded-full border border-gray-100 bg-gray-200" />
+                                    <span>Applied (Normal)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {loading ? (
                     <div className="flex justify-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -166,9 +251,9 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                         if (!acc[dateKey]) {
                             acc[dateKey] = [];
                         }
-                        acc[dateKey].push(leave.half);
+                        acc[dateKey].push(leave);
                         return acc;
-                    }, {} as Record<string, string[]>);
+                    }, {} as Record<string, Leave[]>);
 
                     // Sort dates array
                     const sortedDates = Object.keys(groupedLeaves).sort();
@@ -184,8 +269,14 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                     return (
                         <div className="space-y-2">
                             {sortedDates.map((date) => {
-                                const halves = groupedLeaves[date];
+                                const dayLeaves = groupedLeaves[date];
+                                const halves = dayLeaves.map(l => l.half);
                                 const isFullDay = halves.includes('FIRST_HALF') && halves.includes('SECOND_HALF');
+                                
+                                // Calculate if any part of this day is an emergency
+                                const emergencyHalves = dayLeaves.filter(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                const isEmergency = emergencyHalves.length > 0;
+
                                 const displayLabel = isFullDay
                                     ? 'Full Day'
                                     : halves[0] === 'FIRST_HALF'
@@ -198,18 +289,24 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-orange-100 p-2 rounded-full">
-                                                <CalendarIcon className="h-4 w-4 text-orange-600" />
+                                            <div className={`${isEmergency ? 'bg-red-100' : 'bg-orange-100'} p-2 rounded-full`}>
+                                                <CalendarIcon className={`h-4 w-4 ${isEmergency ? 'text-red-600' : 'text-orange-600'}`} />
                                             </div>
                                             <div>
                                                 <div className="font-medium text-sm">{formatDate(date)}</div>
-                                                <div className="text-xs text-gray-500">
+                                                <div className="text-xs text-gray-500 flex items-center gap-2">
                                                     {displayLabel}
+                                                    {isEmergency && (
+                                                        <Badge variant="outline" className="text-[9px] py-0 px-1 border-red-200 text-red-600 bg-red-50 flex items-center gap-0.5">
+                                                            <AlertTriangle className="h-2 w-2" />
+                                                            EMERGENCY ({emergencyHalves.length} half)
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                                            APPLIED
+                                        <div className={`text-xs font-semibold ${isEmergency ? 'text-red-500 bg-red-100' : 'text-gray-500 bg-gray-200'} px-2 py-1 rounded`}>
+                                            {isEmergency ? 'EMERGENCY' : 'APPLIED'}
                                         </div>
                                     </div>
                                 );
@@ -267,6 +364,16 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                 Applying leave will automatically unassign any <strong>Primary</strong> deliveries for this date.
                             </div>
                         </div>
+
+                        {emergencyStatus.isEmergency && (
+                            <div className="bg-red-50 border border-red-200 p-3 rounded-md flex gap-2 animate-in fade-in slide-in-from-top-1">
+                                <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+                                <div className="text-xs text-red-800">
+                                    <p className="font-bold">Emergency Leave Warning</p>
+                                    <p>This request for <strong>{emergencyStatus.message}</strong> is less than 24 hours away. It will be counted as an Emergency Leave.</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
