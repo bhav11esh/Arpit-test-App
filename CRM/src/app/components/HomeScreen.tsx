@@ -437,9 +437,6 @@ export function HomeScreen() {
 
       const today = getOperationalDateString();
 
-      const malliId = 'bc268775-f79f-4400-b10b-bea4ba1dc762';
-      const malliLeave = leaves.find(l => l.photographerId === malliId && l.date === today);
-
       const clusterDealerships = dealerships.filter(d => {
         // Find mapping for this dealership that matches OUR cluster
         const dMapping = mappings.find(m =>
@@ -571,6 +568,12 @@ export function HomeScreen() {
         }
 
         if (!isVisible) continue;
+
+        // V1 CRITICAL: Additional Global Synchronization Check
+        // If someone else in the cluster already finalized this showroom, skip it.
+        // We check this again here just before the DB call to be as fresh as possible.
+        const shouldShowPrompt = await shouldShowTimingPrompt(getShowroomCode(dealership.name), today, [], supabase);
+        if (!shouldShowPrompt) continue;
 
         // --- Existing Timing Check Logic ---
 

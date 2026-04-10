@@ -279,6 +279,8 @@ export function TimingPrompt({
             className="flex-1"
             variant="default" // Keep primary color for positive action
             onClick={onMarkAllAdded}
+            disabled={showroomType === 'SECONDARY'}
+            title={showroomType === 'SECONDARY' ? "Only primary photographers can finalize showrooms" : ""}
           >
             All Deliveries Logged
           </Button>

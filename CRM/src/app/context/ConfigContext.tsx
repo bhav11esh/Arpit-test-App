@@ -188,6 +188,22 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * V1 FIX: Sync critical photographer metadata to Supabase Auth
+   * This ensures that Auth fallback sessions (on DB timeout) have correct cluster/city info.
+   */
+  const syncUserAuthMetadata = async (userId: string, metadata: { cluster_code?: string; city?: string; name?: string; role?: string }) => {
+    try {
+      console.log(`[ConfigContext] Syncing Auth metadata for ${userId}:`, metadata);
+      await callAuthAdminApi(`/users/${userId}`, 'PUT', {
+        user_metadata: metadata
+      });
+    } catch (error) {
+      console.error('[ConfigContext] Metadata sync failed:', error);
+      // We don't throw here to avoid blocking DB operations if Auth sync fails (transient)
+    }
+  };
+
   // Cluster operations
   const addCluster = async (cluster: Omit<Cluster, 'id'>) => {
     try {
@@ -344,10 +360,17 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updatePhotographer = async (id: string, updates: Partial<User>) => {
+   const updatePhotographer = async (id: string, updates: Partial<User>) => {
     try {
       const updated = await usersDb.updateUser(id, updates);
       setPhotographers(prev => prev.map(p => (p.id === id ? updated : p)));
+      
+      // V1 FIX: Sync updates to Auth metadata
+      await syncUserAuthMetadata(id, {
+        name: updated.name,
+        city: updated.city,
+        cluster_code: updated.cluster_code || undefined
+      });
     } catch (error) {
       console.error('Error updating photographer:', error);
       throw error;
@@ -457,10 +480,21 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   };
 
   // Mapping operations
-  const addMapping = async (mapping: Omit<Mapping, 'id'>) => {
+   const addMapping = async (mapping: Omit<Mapping, 'id'>) => {
     try {
       const newMapping = await configDb.createMapping(mapping);
       setMappings(prev => [...prev, newMapping]);
+
+      // V1 FIX: If this is a PRIMARY mapping, sync the cluster_code (NAME) to Auth metadata
+      // This makes the photographer session robust against DB timeouts.
+      if (newMapping.mappingType === 'PRIMARY') {
+        const cluster = clusters.find(c => c.id === newMapping.clusterId);
+        if (cluster) {
+          await syncUserAuthMetadata(newMapping.photographerId, {
+            cluster_code: cluster.name
+          });
+        }
+      }
     } catch (error) {
       console.error('Error adding mapping:', error);
       throw error;
@@ -471,6 +505,16 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     try {
       const updated = await configDb.updateMapping(id, updates);
       setMappings(prev => prev.map(m => (m.id === id ? updated : m)));
+
+      // V1 FIX: Sync to Auth metadata if PRIMARY mapping changed
+      if (updated.mappingType === 'PRIMARY') {
+        const cluster = clusters.find(c => c.id === updated.clusterId);
+        if (cluster) {
+          await syncUserAuthMetadata(updated.photographerId, {
+            cluster_code: cluster.name
+          });
+        }
+      }
     } catch (error) {
       console.error('Error updating mapping:', error);
       throw error;
