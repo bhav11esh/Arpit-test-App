@@ -651,6 +651,10 @@ export function HomeScreen() {
           }
 
           if (cluster) {
+            if (dealership.name.toLowerCase().includes('nandi')) {
+              console.log('🕒 [HomeScreen] Prompting Nandi:', { isVisible, finalShowroomType, cluster: cluster.name });
+            }
+
             setCurrentShowroomPrompt({
               showroomCode: showroomCode,
               showroomName: dealership.name,
