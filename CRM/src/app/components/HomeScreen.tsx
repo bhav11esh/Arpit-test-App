@@ -497,7 +497,11 @@ export function HomeScreen() {
       if (clusterDealerships.length === 0 && effectiveClusterCode) {
         console.warn('🕒 [HomeScreen] No dealerships found for cluster:', effectiveClusterCode);
       } else {
-        console.log(`🕒 [HomeScreen] Checking ${clusterDealerships.length} showrooms for cluster:`, effectiveClusterCode);
+        console.log(`🕒 [HomeScreen] ID: ${user.id} | Primary: ${myPrimaryId} | Checking ${clusterDealerships.length} showrooms for cluster:`, effectiveClusterCode);
+        if (myPrimaryId) {
+          const primaryName = dealerships.find(d => d.id === myPrimaryId)?.name;
+          console.log(`🕒 [HomeScreen] Identified primary showroom: ${primaryName} (${myPrimaryId})`);
+        }
       }
 
       // V1 ROBUSTNESS: Ensure Primary is always in the list, even if cluster filter misses it
