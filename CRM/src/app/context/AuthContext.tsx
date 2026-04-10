@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 city: meta.city || user?.city || 'bengaluru',
               };
               setUser(fallbackUser);
-              console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+              console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
             } else if (!userData) {
               console.warn('[Auth] USER_DATA_NULL: User record missing');
               setUser(null);

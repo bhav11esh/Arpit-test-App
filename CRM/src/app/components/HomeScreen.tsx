@@ -492,7 +492,13 @@ export function HomeScreen() {
       });
 
       // V1 UX FIX: Prioritize MY Primary Showroom first
-      const myPrimaryId = mappings.find(m => m.photographerId === user.id && m.mappingType === 'PRIMARY')?.dealershipId;
+      const myPrimaryId = mappings.find(m => m.photographerId === user.id && (m as any).mappingType === 'PRIMARY')?.dealershipId;
+
+      if (clusterDealerships.length === 0 && effectiveClusterCode) {
+        console.warn('🕒 [HomeScreen] No dealerships found for cluster:', effectiveClusterCode);
+      } else {
+        console.log(`🕒 [HomeScreen] Checking ${clusterDealerships.length} showrooms for cluster:`, effectiveClusterCode);
+      }
 
       // V1 ROBUSTNESS: Ensure Primary is always in the list, even if cluster filter misses it
       if (myPrimaryId) {
@@ -507,7 +513,8 @@ export function HomeScreen() {
         clusterDealerships.sort((a, b) => {
           if (a.id === myPrimaryId) return -1;
           if (b.id === myPrimaryId) return 1;
-          return 0;
+          // Fallback to alphabetical for the rest
+          return a.name.localeCompare(b.name);
         });
       }
 
