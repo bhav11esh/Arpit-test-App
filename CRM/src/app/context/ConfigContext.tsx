@@ -279,24 +279,26 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
             email: photographer.email,
             password: photographer.password,
             email_confirm: true,
-            user_metadata: {
-              name: photographer.name,
-              role: 'PHOTOGRAPHER'
-            }
-          });
-        } catch (authError) {
-          console.error('[ConfigContext] Auth reactivation failed:', authError);
-          throw authError;
-        }
-
-        // Update DB record to active
-        const updated = await usersDb.updateUser(existingUser.id, {
-          name: photographer.name,
-          active: true,
-          phone_number: photographer.phone_number
+          user_metadata: {
+            name: photographer.name,
+            role: 'PHOTOGRAPHER',
+            city: (photographer as any).city
+          }
         });
+      } catch (authError) {
+        console.error('[ConfigContext] Auth reactivation failed:', authError);
+        throw authError;
+      }
 
-        setPhotographers(prev => [...prev, updated]);
+      // Update DB record to active
+      const updated = await usersDb.updateUser(existingUser.id, {
+        name: photographer.name,
+        active: true,
+        phone_number: photographer.phone_number,
+        city: (photographer as any).city
+      });
+
+      setPhotographers(prev => [...prev, updated]);
         return;
       }
 
@@ -309,7 +311,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           email_confirm: true,
           user_metadata: {
             name: photographer.name,
-            role: 'PHOTOGRAPHER'
+            role: 'PHOTOGRAPHER',
+            city: (photographer as any).city
           }
         });
       } catch (authError) {
@@ -331,6 +334,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         role: 'PHOTOGRAPHER',
         active: photographer.active,
         phone_number: photographer.phone_number,
+        city: (photographer as any).city,
       });
 
       setPhotographers(prev => [...prev, newPhotographer]);
@@ -407,7 +411,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
               email_confirm: true,
               user_metadata: {
                 name: photographer.name,
-                role: 'PHOTOGRAPHER'
+                role: 'PHOTOGRAPHER',
+                city: (photographer as any).city
               }
             });
           } catch (createError) {
