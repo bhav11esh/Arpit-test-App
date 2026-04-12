@@ -241,9 +241,10 @@ export interface Database {
       screenshots: {
         Row: {
           id: string
-          delivery_id: string
+          delivery_id: string | null
+          showroom_code: string | null
           user_id: string
-          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
+          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION'
           file_url: string
           thumbnail_url: string
           uploaded_at: string
@@ -251,9 +252,10 @@ export interface Database {
         }
         Insert: {
           id?: string
-          delivery_id: string
+          delivery_id: string | null
+          showroom_code?: string | null
           user_id: string
-          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
+          type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION'
           file_url: string
           thumbnail_url: string
           uploaded_at?: string
@@ -261,9 +263,10 @@ export interface Database {
         }
         Update: {
           id?: string
-          delivery_id?: string
+          delivery_id?: string | null
+          showroom_code?: string | null
           user_id?: string
-          type?: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
+          type?: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION'
           file_url?: string
           thumbnail_url?: string
           uploaded_at?: string
@@ -461,7 +464,7 @@ export interface Database {
       user_role: 'ADMIN' | 'PHOTOGRAPHER'
       delivery_status: 'ASSIGNED' | 'UNASSIGNED' | 'REJECTED' | 'POSTPONED_CANCELED' | 'DONE'
       decision_state: 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL'
-      screenshot_type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO'
+      screenshot_type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION'
       payment_type: 'CUSTOMER_PAID' | 'DEALER_PAID'
       showroom_type: 'PRIMARY' | 'SECONDARY'
       reel_status: 'PENDING' | 'RESOLVED'

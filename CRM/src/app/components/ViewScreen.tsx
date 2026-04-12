@@ -1195,6 +1195,7 @@ export function ViewScreen() {
   const followScreenshots = screenshots.filter(s => s.type === 'FOLLOW' && !s.deleted_at);
   const rapidoScreenshots = screenshots.filter(s => s.type === 'RAPIDO' && !s.deleted_at);
   const platformPaymentScreenshots = screenshots.filter(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
+  const fraudDetectionScreenshots = screenshots.filter(s => s.type === 'FRAUD_DETECTION' && !s.deleted_at);
 
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
@@ -1218,6 +1219,7 @@ export function ViewScreen() {
   const filteredFollowScreenshots = applyFilters(followScreenshots);
   const filteredRapidoScreenshots = applyFilters(rapidoScreenshots);
   const filteredPlatformPaymentScreenshots = applyFilters(platformPaymentScreenshots);
+  const filteredFraudDetectionScreenshots = applyFilters(fraudDetectionScreenshots);
 
   // Get unique dates and photographers for filter options
   const uniqueDates = Array.from(new Set(screenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
@@ -1296,7 +1298,8 @@ export function ViewScreen() {
                       <SelectItem value="payment" className="pl-6">Payment Screenshots</SelectItem>
                       <SelectItem value="follow" className="pl-6">Follow Screenshots</SelectItem>
                       <SelectItem value="rapido" className="pl-6">Rapido Screenshots</SelectItem>
-                      <SelectItem value="platform_payment" className="pl-6">Platform Settlements</SelectItem>
+                      <SelectItem value="platform_payment" className="pl-6">Yourphotocrew Payment Screenshots</SelectItem>
+                      <SelectItem value="fraud_detection" className="pl-6">Fraud Detection Photos</SelectItem>
                       <SelectItem value="logs" className="pl-6">Admin Logs</SelectItem>
                     </>
                   )}
@@ -2671,13 +2674,13 @@ export function ViewScreen() {
             </div>
           )}
 
-          {/* Platform Settlements Gallery */}
+          {/* Yourphotocrew Payment Gallery (Renamed from Platform Settlements) */}
           {viewMode === 'platform_payment' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">Platform Settlements Gallery</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • 30% Platform 정산 증빙</p>
+                  <h2 className="text-lg font-semibold">Yourphotocrew Payment Screenshots</h2>
+                  <p className="text-sm text-gray-500">Admin-only view • 30% Platform Settlement Proof</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge className="bg-[#2563EB] text-white">{filteredPlatformPaymentScreenshots.length} images</Badge>

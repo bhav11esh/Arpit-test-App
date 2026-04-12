@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Delivery, Screenshot } from '../types';
+import type { Delivery, Screenshot, ScreenshotType } from '../types';
 import { canSendUpdate } from '../lib/utils';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -23,7 +23,7 @@ interface SendUpdateScreenProps {
   onBack: () => void;
   onUpdateFootageLink: (deliveryId: string, link: string) => void;
   onUpdateDeliveryFields: (deliveryId: string, updates: Partial<Delivery>) => void;
-  onUploadScreenshot: (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT', file: File) => void;
+  onUploadScreenshot: (id: string, type: ScreenshotType, file: File) => void;
   onComplete: (deliveries: Delivery[]) => void;
   userClusterCode?: string;
 }
@@ -69,7 +69,7 @@ export function SendUpdateScreen({
     setTempFootageLink('');
   };
 
-  const handleFileUpload = (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (id: string, type: ScreenshotType, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -93,7 +93,7 @@ export function SendUpdateScreen({
       return;
     }
 
-    onUploadScreenshot(deliveryId, type, file);
+    onUploadScreenshot(id, type, file);
   };
 
   const isDeliveryComplete = (delivery: Delivery): boolean => {
@@ -131,6 +131,36 @@ export function SendUpdateScreen({
   const allDeliveriesComplete = deliveries.length === 0 || deliveries.every(d => isDeliveryComplete(d));
   const hasDeliveries = deliveries.length > 0;
 
+  // V1 SPEC: Fraud Detection Showroom Cards
+  // Calculate unique showrooms covered today
+  const uniqueShowroomCodes = Array.from(new Set(deliveries.map(d => d.showroom_code).filter(Boolean)));
+  const uniqueShowrooms = uniqueShowroomCodes.length > 0
+    ? uniqueShowroomCodes.map(code => {
+      const matchingDelivery = deliveries.find(d => d.showroom_code === code);
+      let name = code;
+      if (matchingDelivery && matchingDelivery.delivery_name.includes('_')) {
+        const parts = matchingDelivery.delivery_name.split('_');
+        if (parts.length > 1) {
+          // Extract name (skip date parts[0])
+          name = parts.slice(1).join('_').replace(/_[1-9][0-9]?_[0-9][0-9]?$/, '');
+        }
+      }
+      return { code, name };
+    })
+    : [{ code: 'GENERAL', name: 'Fraud Detection' }];
+
+  const isFraudDetectionComplete = (showroomCode: string): boolean => {
+    const fraudScreenshots = screenshots.get(`showroom_${showroomCode}`) || [];
+    return fraudScreenshots.some(s => s.type === 'FRAUD_DETECTION' && !s.deleted_at);
+  };
+
+  const allFraudDetectionComplete = uniqueShowrooms.every(s => isFraudDetectionComplete(s.code));
+
+  const totalTasks = (hasDeliveries ? deliveries.length : 0) + uniqueShowrooms.length;
+  const completedTasks = (hasDeliveries ? deliveries.filter(isDeliveryComplete).length : 0) + uniqueShowrooms.filter(s => isFraudDetectionComplete(s.code)).length;
+
+  const allTasksComplete = allDeliveriesComplete && allFraudDetectionComplete;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSendUpdate = async () => {
@@ -140,12 +170,10 @@ export function SendUpdateScreen({
     // This is an atomic closeout operation, not a soft submit
     // 1 missing item blocks ENTIRE batch
     const incomplete = deliveries.filter(d => !isDeliveryComplete(d));
+    const incompleteFraud = uniqueShowrooms.filter(s => !isFraudDetectionComplete(s.code));
 
-    if (incomplete.length > 0) {
-      const incompleteNames = incomplete.map(d => d.delivery_name).join(', ');
-      toast.error(`Cannot send update: ${incomplete.length} delivery(ies) incomplete: ${incompleteNames}`, {
-        duration: 5000,
-      });
+    if (incomplete.length > 0 || incompleteFraud.length > 0) {
+      toast.error('Please complete all delivery cards and fraud detection cards before sending update');
       return;
     }
 
@@ -196,17 +224,15 @@ export function SendUpdateScreen({
             <div
               className="bg-[#2563EB] h-2 rounded-full transition-all duration-300"
               style={{
-                width: hasDeliveries
-                  ? `${(deliveries.filter(d => isDeliveryComplete(d)).length / deliveries.length) * 100}%`
-                  : '100%'
+                width: `${(completedTasks / totalTasks) * 100}%`
               }}
             />
           </div>
           <div className="flex items-center justify-between mt-2 text-sm">
             <span className="text-gray-600">
-              {deliveries.filter(d => isDeliveryComplete(d)).length} of {deliveries.length} complete
+              {completedTasks} of {totalTasks} complete
             </span>
-            {allDeliveriesComplete && (
+            {allTasksComplete && (
               <Badge className="bg-[#16A34A] text-white">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Ready to send
@@ -592,17 +618,93 @@ export function SendUpdateScreen({
             );
           })
         ) : (
-          <div className="text-center text-gray-500">
+          <div className="text-center text-gray-500 py-8">
             <p>No deliveries to update.</p>
           </div>
         )}
+
+        {/* Fraud Detection Cards */}
+        <div className="pt-6 border-t border-gray-200">
+          <h2 className="text-lg font-bold mb-4 px-1">Fraud Detection Requirements</h2>
+          <div className="space-y-4">
+            {uniqueShowrooms.map(showroom => {
+              const isComplete = isFraudDetectionComplete(showroom.code);
+              return (
+                <Card key={showroom.code} className={`${isComplete ? 'border-[#16A34A] border-2' : 'border-gray-200 shadow-sm'}`}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                          <CheckCircle2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-base">{showroom.name}</div>
+                          <div className="text-xs text-blue-600 font-medium tracking-wide uppercase">Fraud Detection Doc</div>
+                        </div>
+                      </div>
+                      {isComplete && (
+                        <Badge className="bg-[#16A34A] text-white">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Doc Uploaded
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium flex items-center gap-1">
+                            <Upload className="h-4 w-4" />
+                            Fraud Detection Signed Doc Photo
+                            <span className="text-red-500">*</span>
+                          </Label>
+                        </div>
+                        
+                        {isComplete ? (
+                          <div className="flex items-center gap-2 px-3 py-3 bg-green-50 border border-green-200 rounded-lg">
+                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                            <span className="text-sm text-green-700 font-medium">Document verified & uploaded</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="flex flex-col items-center justify-center gap-2 px-4 py-8 bg-white hover:bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer transition-all hover:border-blue-400">
+                              <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+                                <Upload className="h-6 w-6" />
+                              </div>
+                              <div className="text-center">
+                                <span className="text-sm font-semibold text-gray-900">Upload Doc Photo</span>
+                                <p className="text-xs text-gray-500 mt-1">Photo must clearly show the signature</p>
+                              </div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(showroom.code, 'FRAUD_DETECTION', e)}
+                              />
+                            </label>
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <p className="text-[11px] text-amber-800 leading-tight">
+                                This document is mandatory for daily closeout. Ensure the showroom name and date are visible.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Fixed Bottom Button - V1 SPEC: No confirmation dialog, immediate action */}
       <div className="fixed bottom-16 left-0 right-0 p-4 bg-white border-t shadow-lg">
         <Button
           className="w-full h-14 bg-[#16A34A] hover:bg-green-700 text-white font-semibold text-lg shadow-md disabled:bg-gray-300 disabled:text-gray-500"
-          disabled={!allDeliveriesComplete || isSubmitting}
+          disabled={!allTasksComplete || isSubmitting}
           onClick={handleSendUpdate}
         >
           {isSubmitting ? (
@@ -610,7 +712,7 @@ export function SendUpdateScreen({
               <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               SENDING UPDATE...
             </div>
-          ) : allDeliveriesComplete ? (
+          ) : allTasksComplete ? (
             <>
               <CheckCircle2 className="h-5 w-5 mr-2" />
               SEND UPDATE & Close Day

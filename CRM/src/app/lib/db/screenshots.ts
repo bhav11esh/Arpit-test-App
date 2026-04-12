@@ -10,6 +10,7 @@ type ScreenshotUpdate = Database['public']['Tables']['screenshots']['Update'];
 const rowToScreenshot = (row: ScreenshotRow): Screenshot => ({
   id: row.id,
   delivery_id: row.delivery_id,
+  showroom_code: (row as any).showroom_code,
   user_id: row.user_id,
   type: row.type as ScreenshotType,
   file_url: row.file_url,
@@ -87,6 +88,7 @@ export const getScreenshotById = async (id: string): Promise<Screenshot | null> 
 export const createScreenshot = async (screenshot: Omit<Screenshot, 'id' | 'uploaded_at'>, client = supabase): Promise<Screenshot> => {
   const insert: ScreenshotInsert = {
     delivery_id: screenshot.delivery_id,
+    showroom_code: (screenshot as any).showroom_code ?? null,
     user_id: screenshot.user_id,
     type: screenshot.type,
     file_url: screenshot.file_url,
@@ -101,6 +103,42 @@ export const createScreenshot = async (screenshot: Omit<Screenshot, 'id' | 'uplo
 
   if (error) throw error;
   return rowToScreenshot(data);
+};
+
+// Delete a single screenshot (Admin only) (Hard Delete Storage + Soft Delete DB)
+export const deleteScreenshotById = async (id: string, client = supabase): Promise<void> => {
+  // 1. Fetch the screenshot to get its path
+  const { data: screenshot, error: fetchError } = await client
+    .from('screenshots')
+    .select('file_url')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  // 2. Remove file from Supabase Storage
+  if (screenshot && screenshot.file_url) {
+    const parts = screenshot.file_url.split('/screenshots/');
+    if (parts.length > 1) {
+      const path = parts[1];
+      console.log(`🗑️ Storage: Deleting single file ${path}...`);
+      const { error: storageError } = await client.storage
+        .from('screenshots')
+        .remove([path]);
+      
+      if (storageError) {
+        console.warn('Non-critical: Failed to remove file from Storage:', storageError);
+      }
+    }
+  }
+
+  // 3. Mark the database record as deleted
+  const { error } = await client
+    .from('screenshots')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) throw error;
 };
 
 // ... (skipping updateScreenshot/deleteScreenshot for now as they aren't the acute issue, but good to align)

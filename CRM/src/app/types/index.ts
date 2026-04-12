@@ -50,7 +50,7 @@ export type DecisionState = 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL';
 // - CLOSED: Photographer has triggered SEND UPDATE - no further actions allowed
 export type PhotographerDayState = 'ACTIVE' | 'CLOSED';
 
-export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT';
+export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION';
 
 export type PaymentType = 'CUSTOMER_PAID' | 'DEALER_PAID';
 
@@ -113,7 +113,8 @@ export interface Delivery {
 
 export interface Screenshot {
   id: string;
-  delivery_id: string;
+  delivery_id: string | null;
+  showroom_code?: string;
   user_id: string;
   type: ScreenshotType;
   file_url: string;

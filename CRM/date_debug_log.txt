@@ -1,0 +1,25 @@
+Starting Date Comparison Debug...
+Target: 2026-04-12, 2 days ago: 2026-04-10
+Found 4 pending items matching date <= 2026-04-10
+[
+  {
+    "id": "03810170-6c02-4c83-b591-ebb01c92e0c2",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_10_30"
+  },
+  {
+    "id": "5b86a919-813f-4479-bc2e-b3f4d3f2f1e9",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_12_30"
+  },
+  {
+    "id": "8b67f555-7d10-43e9-9a4f-f71676da7696",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_15_30"
+  },
+  {
+    "id": "769755dd-7e91-4239-8650-d4173e2e5192",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_16_30"
+  }
+]

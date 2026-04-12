@@ -1065,32 +1065,31 @@ export function HomeScreen() {
     }
   };
 
-  const handleUploadScreenshot = async (deliveryId: string, type: 'PAYMENT' | 'FOLLOW' | 'RAPIDO', file: File) => {
+  const handleUploadScreenshot = async (id: string, type: ScreenshotType, file: File) => {
     try {
-      // V1 FIX: Persist screenshot to Storage + DB (using top-level imports)
-
       const fileExt = file.name.split('.').pop();
-      const fileName = `${deliveryId}_${type}_${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`; // Bucket root or subfolder? Root is fine for now
+      const isFraudDetection = type === 'FRAUD_DETECTION';
+      const fileName = `${id}_${type}_${Date.now()}.${fileExt}`;
+      const filePath = isFraudDetection ? `fraud/${fileName}` : `${fileName}`;
 
-      // V1 FIX: Use admin client to bypass RLS for uploads
       const client = supabase;
-
       const publicUrl = await uploadScreenshotFile(file, filePath, client);
 
       const newScreenshot = await createScreenshot({
-        delivery_id: deliveryId,
+        delivery_id: isFraudDetection ? null : id,
+        showroom_code: isFraudDetection ? id : undefined,
         user_id: user?.id || '',
         type,
         file_url: publicUrl,
-        thumbnail_url: publicUrl, // Use same URL for now
+        thumbnail_url: publicUrl,
         deleted_at: null
       }, client);
 
       setScreenshots(prev => {
         const newMap = new Map(prev);
-        const existing = newMap.get(deliveryId) || [];
-        newMap.set(deliveryId, [...existing, newScreenshot]);
+        const mapKey = isFraudDetection ? `showroom_${id}` : id;
+        const existing = newMap.get(mapKey) || [];
+        newMap.set(mapKey, [...existing, newScreenshot]);
         return newMap;
       });
 

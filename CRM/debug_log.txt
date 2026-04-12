@@ -1,0 +1,49 @@
+Starting debug...
+Checking for target date: 2026-04-12
+Two days ago: 2026-04-10
+Users found: 1
+[
+  {
+    "id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+    "email": "pavanmanne735@gmail.com",
+    "name": "Mallikarjun",
+    "role": "PHOTOGRAPHER",
+    "active": true,
+    "cluster_code": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "created_at": "2026-02-03T19:59:41.962641+00:00",
+    "updated_at": "2026-03-16T12:32:02.739386+00:00",
+    "phone_number": "9739832757",
+    "last_active": "2026-03-16T12:32:02.79+00:00",
+    "last_gps_status": "ON",
+    "city": "bengaluru"
+  }
+]
+Reel tasks for Mallikarjun: 4
+[
+  {
+    "id": "03810170-6c02-4c83-b591-ebb01c92e0c2",
+    "status": "PENDING",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_10_30"
+  },
+  {
+    "id": "5b86a919-813f-4479-bc2e-b3f4d3f2f1e9",
+    "status": "PENDING",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_12_30"
+  },
+  {
+    "id": "8b67f555-7d10-43e9-9a4f-f71676da7696",
+    "status": "PENDING",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_15_30"
+  },
+  {
+    "id": "769755dd-7e91-4239-8650-d4173e2e5192",
+    "status": "PENDING",
+    "date": "2026-04-10",
+    "name": "10-04-2026_NANDI_TOYOTA_WH_16_30"
+  }
+]
+ERROR: two_days_ago is not defined
+{}
