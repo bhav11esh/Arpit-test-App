@@ -53,7 +53,7 @@ const Navbar = () => {
           {/* Desktop Menu */}
           <div className="hidden md:flex space-x-8">
             {navItems.map((item) => {
-              const route = item.name === "Home" ? "/" : `/${item.route.toLowerCase()}`; // Redirect to '/' for Home
+              const route = item.name === "Home" ? "/" : item.route.toLowerCase(); // Use item.route directly
               const isActive = router.pathname === route;
 
               return (
@@ -103,7 +103,7 @@ const Navbar = () => {
       >
         <div className="container mx-auto px-4 py-4 flex flex-col space-y-4 bg-secondary">
           {navItems.map((item) => {
-            const route = item.name === "Home" ? "/" : `/${item.route.toLowerCase()}`; // Redirect to '/' for Home
+            const route = item.name === "Home" ? "/" : item.route.toLowerCase(); // Use item.route directly
             const isActive = router.pathname === route;
 
             return (
