@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { requestNotificationPermission, sendPushNotification } from '../../lib/utils';
@@ -110,12 +110,14 @@ export function AdminNotifier() {
             .subscribe();
 
         // 3. V1 HARDENING: Background Polling for "Offline" Photographers
-        // If a photographer has a delivery soon but hasn't sent a heartbeat, it's a "Silent Breach"
+        const offlineUsersRef = useRef<Set<string>>(new Set());
+
         const checkOfflineUsers = async () => {
             try {
                 const { getUsers } = await import('../../lib/db/users');
                 const { getDeliveriesByDate } = await import('../../lib/db/deliveries');
                 const { getLocalDateString } = await import('../../lib/utils');
+                const { createLogEvent } = await import('../../lib/db/logs');
 
                 const today = getLocalDateString();
                 const [allUsers, allDeliveries] = await Promise.all([
@@ -126,12 +128,40 @@ export function AdminNotifier() {
                 const now = new Date();
                 const photographers = allUsers.filter(u => u.role === 'PHOTOGRAPHER' && u.active);
 
-                photographers.forEach(p => {
+                photographers.forEach(async p => {
                     const lastActive = p.last_active ? new Date(p.last_active) : null;
                     const minsSinceActive = lastActive ? (now.getTime() - lastActive.getTime()) / 60000 : Infinity;
+                    const isNowOffline = minsSinceActive > 10;
+                    const wasAlreadyOffline = offlineUsersRef.current.has(p.id);
 
-                    // If offline for > 10 minutes
-                    if (minsSinceActive > 10) {
+                    // CASE 1: Photographer just came back online after being offline
+                    if (wasAlreadyOffline && !isNowOffline) {
+                        offlineUsersRef.current.delete(p.id);
+                        
+                        const title = `✨ Recovery: ${p.name} is Back!`;
+                        const body = `${p.name} has returned online. They were 'In the Dark' for some time.`;
+
+                        toast.success(title, { description: body, duration: 15000 });
+                        sendPushNotification(title, {
+                            body,
+                            icon: '/favicon.ico',
+                            tag: `admin_recovery_${p.id}`
+                        });
+
+                        // Log recovery for audit proof
+                        await createLogEvent({
+                            type: 'MONITORING_RECOVERY',
+                            actor_user_id: p.id,
+                            target_id: p.id,
+                            metadata: { photographer_name: p.name, recovered_at: now.toISOString() }
+                        });
+                        return;
+                    }
+
+                    // CASE 2: If offline for > 10 minutes, check for alerts
+                    if (isNowOffline) {
+                        offlineUsersRef.current.add(p.id);
+                        
                         // Check if they have an active/upcoming delivery within the 15-min check window
                         const myDeliveries = allDeliveries.filter(d => 
                             d.assigned_user_id === p.id && 

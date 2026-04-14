@@ -24,7 +24,8 @@ export type LogEventType =
   | 'NOTIFICATION_STATUS_CHANGE'
   | 'MONITORING_NAG_SENT'
   | 'MONITORING_NAG_EXPIRED'
-  | 'GPS_SPOOF_DETECTED';
+  | 'GPS_SPOOF_DETECTED'
+  | 'MONITORING_RECOVERY';
 
 /**
  * Create an immutable log event
