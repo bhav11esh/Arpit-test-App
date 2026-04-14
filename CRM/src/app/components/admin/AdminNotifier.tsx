@@ -10,6 +10,7 @@ import { toast } from 'sonner';
  */
 export function AdminNotifier() {
     const { user } = useAuth();
+    const offlineUsersRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         // Only admins should receive these specialized system alerts
@@ -109,8 +110,6 @@ export function AdminNotifier() {
             )
             .subscribe();
 
-        // 3. V1 HARDENING: Background Polling for "Offline" Photographers
-        const offlineUsersRef = useRef<Set<string>>(new Set());
 
         const checkOfflineUsers = async () => {
             try {
