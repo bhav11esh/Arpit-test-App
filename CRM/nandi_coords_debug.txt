@@ -1,0 +1,50 @@
+Searching for Nandi Toyota in dealerships...
+Dealerships found: [
+  {
+    "id": "92f642a5-563f-471e-a804-173fbadc71a3",
+    "name": "Nandi toyota",
+    "latitude": 12.97787,
+    "longitude": 77.71117,
+    "payment_type": "DEALER_PAID",
+    "created_at": "2026-02-02T15:17:28.54714+00:00",
+    "updated_at": "2026-04-14T16:06:47.08332+00:00",
+    "google_sheet_id": "1HR08Grc6dsb7DQtoGiCkxOBJ7ehiQyEzI1W8Ir1CuVc",
+    "rate_per_delivery": 700,
+    "city": "bengaluru",
+    "google_sync_url": "https://script.google.com/macros/s/AKfycbxLz2bGzUNYXD2E6y156QvFuytaBgew6lv0phXx93u-BNAUqvhQWrJkfJ2i5yMCQ78/exec"
+  }
+]
+
+Searching for Whitefield in clusters...
+Clusters found: [
+  {
+    "id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "name": "Whitefield-Indiranagar",
+    "latitude": 12.986,
+    "longitude": 77.666,
+    "created_at": "2026-02-02T15:16:36.641004+00:00",
+    "updated_at": "2026-03-16T09:48:55.290038+00:00",
+    "city": "bengaluru"
+  }
+]
+
+Searching for any mappings related to these dealership ids...
+Mappings found: [
+  {
+    "id": "993a24c7-b074-4772-b0c8-838fb296fdf8",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "92f642a5-563f-471e-a804-173fbadc71a3",
+    "photographer_id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+    "mapping_type": "PRIMARY",
+    "created_at": "2026-02-04T10:40:35.426511+00:00",
+    "updated_at": "2026-02-04T10:40:35.426511+00:00",
+    "latitude": 12.977766,
+    "longitude": 77.711145,
+    "dealerships": {
+      "name": "Nandi toyota"
+    },
+    "clusters": {
+      "name": "Whitefield-Indiranagar"
+    }
+  }
+]

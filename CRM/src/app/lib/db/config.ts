@@ -166,8 +166,6 @@ export const updateDealership = async (id: string, updates: Partial<Dealership>)
     google_sheet_id: updates.googleSheetId,
     google_sync_url: updates.googleSyncUrl,
     rate_per_delivery: updates.ratePerDelivery,
-    latitude: 0,
-    longitude: 0,
     city: (updates as any).city,
   };
 

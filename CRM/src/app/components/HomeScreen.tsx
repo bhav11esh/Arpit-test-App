@@ -207,26 +207,29 @@ export function HomeScreen() {
         delivery.assigned_user_id === user.id &&
         delivery.timing
       ) {
-        // Resolve target coordinates (Universal lookup)
+        // Resolve target coordinates (Universal lookup - strictly Showroom-based)
         let targetLat: number | undefined;
         let targetLng: number | undefined;
 
         // V1 FIX: Use getShowroomCode utility for robust matching (handles names without brackets)
-        // Priority 1: Check user's local context mappings first (contains specific geofenced locations)
+        // Priority 1: Check user's local context mappings first (the true Showroom location)
         const mapping = mappings.find(m => {
           const dealership = dealerships.find(d => d.id === m.dealershipId);
           return dealership && getShowroomCode(dealership.name) === delivery.showroom_code;
         });
 
-        if (mapping) {
+        if (mapping && mapping.latitude !== 0) {
           targetLat = mapping.latitude;
           targetLng = mapping.longitude;
         } else {
-          // Priority 2: Universal fallback to global dealership pool
+          // Priority 2: Universal fallback to global dealership pool (Safe check only)
           const dealer = dealerships.find(d => 
             getShowroomCode(d.name) === delivery.showroom_code || d.id === delivery.showroom_code
           );
-          if (dealer) {
+          
+          // CRITICAL: Only fallback if dealer has NON-ZERO coordinates
+          // Prevents false-positive geofence breaches against (0,0)
+          if (dealer && dealer.latitude && dealer.latitude !== 0) {
             targetLat = dealer.latitude;
             targetLng = dealer.longitude;
           }
