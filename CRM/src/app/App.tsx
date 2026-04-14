@@ -30,6 +30,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { savePushSubscription } from './lib/db/push';
 import { updateUserMonitoring } from './lib/db/users';
 import { checkGeolocationPermission } from './lib/geofence';
+import { sendPushNotification } from './lib/utils';
 
 function AppRoutes() {
   const { user, loading, logout } = useAuth();
@@ -136,6 +137,13 @@ function AppRoutes() {
                 // Show local toast (sonner)
                 const { toast } = await import('sonner');
                 toast.error(title, { description: body, duration: 10000 });
+
+                // V1 FIX: Trigger Native System Notification (Floating)
+                sendPushNotification(title, {
+                    body,
+                    tag: 'monitoring_nag',
+                    requireInteraction: true
+                });
             } else if (minutesPassed >= 20 && minutesPassed < 21) {
                 // Log expiration only once
                 const { createLogEvent } = await import('./lib/db/logs');

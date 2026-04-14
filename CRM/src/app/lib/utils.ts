@@ -202,12 +202,31 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 /**
  * Send a browser push notification
  */
+/**
+ * Send a browser push notification (Persistent using Service Worker)
+ */
 export function sendPushNotification(title: string, options?: NotificationOptions): void {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try {
-    new Notification(title, options);
-  } catch (err) {
-    console.error('Failed to send push notification:', err);
+  
+  // Use ServiceWorker for more persistent "Floating" notifications on Android
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification(title, {
+        icon: '/favicon.ico',
+        badge: '/favicon.ico', // Android status bar icon
+        vibrate: [200, 100, 200],
+        ...options
+      } as any).catch(err => {
+        console.error('ServiceWorker showNotification failed, falling back:', err);
+        new Notification(title, options);
+      });
+    });
+  } else {
+    try {
+      new Notification(title, options);
+    } catch (err) {
+      console.error('Failed to send push notification:', err);
+    }
   }
 }
 
