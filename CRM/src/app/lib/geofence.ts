@@ -177,7 +177,16 @@ export function scheduleGeofenceCheck(
     const { inGeofence, breach } = await checkGeofence(delivery, userId, targetLat, targetLng);
 
     if (!inGeofence && breach) {
-      onBreachDetected(breach);
+      // V1 FIX: Respect the 5-notification limit per delivery
+      const countKey = `breach_count_${delivery.id}`;
+      const count = parseInt(localStorage.getItem(countKey) || '0');
+      
+      if (count < 5) {
+        localStorage.setItem(countKey, (count + 1).toString());
+        onBreachDetected(breach);
+      } else {
+        console.log(`📍 [Geofence] Limit reached (5/5) for delivery ${delivery.id}. Silencing further alerts.`);
+      }
     }
   }, timeUntilCheck);
 

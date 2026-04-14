@@ -39,33 +39,6 @@ export function GPSPermissionPrompt() {
         const state = await checkGeolocationPermission();
         const currentNotifState = Notification.permission;
 
-        // LOGGING LOGIC: Detect transitions
-        if (user && lastStateRef.current !== 'unknown') {
-            const lastState = lastStateRef.current as any;
-            
-            // GPS Change
-            if (lastState.gps !== state) {
-                const { createLogEvent } = await import('../lib/db/logs');
-                await createLogEvent({
-                    type: 'GPS_STATUS_CHANGE',
-                    actor_user_id: user.id,
-                    target_id: user.id,
-                    metadata: { action: state === 'granted' ? 'ON' : 'OFF', photographer_name: user.name }
-                });
-            }
-
-            // Notif Change
-            if (lastState.notification !== currentNotifState) {
-                const { createLogEvent } = await import('../lib/db/logs');
-                await createLogEvent({
-                    type: 'NOTIFICATION_STATUS_CHANGE',
-                    actor_user_id: user.id,
-                    target_id: user.id,
-                    metadata: { action: currentNotifState === 'granted' ? 'ON' : 'OFF', photographer_name: user.name }
-                });
-            }
-        }
-
         lastStateRef.current = { gps: state, notification: currentNotifState } as any;
         setPermissionState(state);
         setNotifState(currentNotifState);
