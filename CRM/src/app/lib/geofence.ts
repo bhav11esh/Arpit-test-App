@@ -95,6 +95,45 @@ export async function checkGeofence(
       targetLng
     );
 
+    // V1 HARDENING: Spoof Detection (Fake GPS)
+    // Most spoofing apps provide a static accuracy of 0 or a perfect 1.0m.
+    // Some browsers also provide a 'mocked' flag.
+    const isMocked = (position as any).mocked === true;
+    const isSuspiciousAccuracy = position.coords.accuracy === 0 || position.coords.accuracy === 1;
+    
+    if (isMocked || isSuspiciousAccuracy) {
+      const { createLogEvent } = await import('./db/logs');
+      await createLogEvent({
+        type: 'GPS_SPOOF_DETECTED',
+        actor_user_id: userId,
+        target_id: delivery.id,
+        metadata: {
+          latitude: userLat,
+          longitude: userLng,
+          accuracy: position.coords.accuracy,
+          is_mocked: isMocked,
+          delivery_name: delivery.delivery_name,
+          showroom_code: delivery.showroom_code
+        }
+      });
+
+      console.warn('🚨 [Geofence] Potential GPS Spoofing detected!', { accuracy: position.coords.accuracy });
+      
+      // Treat spoofing as a breach
+      const breach: GeofenceBreach = {
+        id: `gb_spoof_${Date.now()}`,
+        delivery_id: delivery.id,
+        user_id: userId,
+        latitude: userLat,
+        longitude: userLng,
+        expected_time: `${delivery.date}T${delivery.timing}`,
+        breach_time: new Date().toISOString(),
+        distance_from_target: Math.round(distance),
+      };
+
+      return { inGeofence: false, breach };
+    }
+
     const inGeofence = distance <= GEOFENCE_RADIUS_METERS;
 
     if (!inGeofence) {

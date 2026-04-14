@@ -60,31 +60,120 @@ export function AdminNotifier() {
                         });
                     }
 
-                    if (log.type === 'GPS_PERMISSION_CHANGE') {
+                    if (log.type === 'GPS_SPOOF_DETECTED') {
                         const photographer = meta.photographer_name || 'A photographer';
-                        const action = meta.action || 'changed GPS settings';
-                        const statusColor = action === 'ON' ? 'text-green-600' : 'text-red-600';
+                        const title = `🚨 Spoof Alert: ${photographer}`;
+                        const body = `Potential Fake GPS detected! Accuracy: ${meta.accuracy}m.`;
 
-                        // Trigger Toast
-                        toast.info(`GPS Permission Update`, {
-                            description: `${photographer} turned GPS ${action}`,
+                        toast.error(title, { description: body, duration: 15000 });
+                        sendPushNotification(title, {
+                            body,
+                            icon: '/favicon.ico',
+                            tag: `admin_spoof_${log.id}`,
+                            requireInteraction: true
+                        });
+                    }
+
+                    if (log.type === 'GPS_STATUS_CHANGE' || log.type === 'NOTIFICATION_STATUS_CHANGE') {
+                        const photographer = meta.photographer_name || 'A photographer';
+                        const action = meta.status || meta.action || 'changed settings';
+                        const typeLabel = log.type === 'GPS_STATUS_CHANGE' ? 'GPS' : 'Notifications';
+
+                        toast.info(`${typeLabel} Update`, {
+                            description: `${photographer} turned ${typeLabel} ${action}`,
                             duration: 8000,
                         });
 
-                        // Trigger Browser Push Notification
-                        sendPushNotification('GPS Status Changed', {
-                            body: `${photographer} has turned GPS ${action}.`,
+                        sendPushNotification(`${typeLabel} Status Changed`, {
+                            body: `${photographer} has turned ${typeLabel} ${action}.`,
                             icon: '/favicon.ico',
-                            tag: `admin_gps_${log.id}`,
+                            tag: `admin_status_${log.id}`,
+                        });
+                    }
+
+                    if (log.type === 'MONITORING_NAG_SENT') {
+                        const photographer = meta.photographer_name || 'A photographer';
+                        const minutes = meta.minutesPassed || 0;
+                        const title = `🚨 Nag Alert: ${photographer}`;
+                        const body = `${photographer} still has permissions disabled (${minutes}m elapsed).`;
+
+                        toast.warning(title, { description: body, duration: 10000 });
+                        sendPushNotification(title, {
+                            body,
+                            icon: '/favicon.ico',
+                            tag: `admin_nag_${log.actor_user_id}`,
+                            requireInteraction: true
                         });
                     }
                 }
             )
             .subscribe();
 
+        // 3. V1 HARDENING: Background Polling for "Offline" Photographers
+        // If a photographer has a delivery soon but hasn't sent a heartbeat, it's a "Silent Breach"
+        const checkOfflineUsers = async () => {
+            try {
+                const { getUsers } = await import('../../lib/db/users');
+                const { getDeliveriesByDate } = await import('../../lib/db/deliveries');
+                const { getLocalDateString } = await import('../../lib/utils');
+
+                const today = getLocalDateString();
+                const [allUsers, allDeliveries] = await Promise.all([
+                    getUsers(),
+                    getDeliveriesByDate(today)
+                ]);
+
+                const now = new Date();
+                const photographers = allUsers.filter(u => u.role === 'PHOTOGRAPHER' && u.active);
+
+                photographers.forEach(p => {
+                    const lastActive = p.last_active ? new Date(p.last_active) : null;
+                    const minsSinceActive = lastActive ? (now.getTime() - lastActive.getTime()) / 60000 : Infinity;
+
+                    // If offline for > 10 minutes
+                    if (minsSinceActive > 10) {
+                        // Check if they have an active/upcoming delivery within the 15-min check window
+                        const myDeliveries = allDeliveries.filter(d => 
+                            d.assigned_user_id === p.id && 
+                            d.status === 'ASSIGNED' && 
+                            d.timing
+                        );
+
+                        myDeliveries.forEach(d => {
+                            const [hours, minutes] = d.timing!.split(':').map(Number);
+                            const deliveryTime = new Date(now);
+                            deliveryTime.setHours(hours, minutes, 0, 0);
+
+                            const minsToDelivery = (deliveryTime.getTime() - now.getTime()) / 60000;
+
+                            // If they are within 15 mins of delivery OR it's already delivery time, and they are OFFLINE
+                            if (minsToDelivery <= 15 && minsToDelivery >= -30) {
+                                const title = `⚠️ Offline Alert: ${p.name}`;
+                                const body = `${p.name} has been offline for ${Math.round(minsSinceActive)}m during their ${d.timing} delivery!`;
+                                
+                                toast.error(title, { description: body, duration: 20000 });
+                                sendPushNotification(title, {
+                                    body,
+                                    icon: '/favicon.ico',
+                                    tag: `admin_offline_${p.id}`,
+                                    requireInteraction: true
+                                });
+                            }
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error('Offline check loop failed:', err);
+            }
+        };
+
+        const offlineInterval = setInterval(checkOfflineUsers, 5 * 60 * 1000); // Check every 5 mins
+        checkOfflineUsers(); // Initial check
+
         return () => {
-            console.log('🛑 AdminNotifier: Stopping listener.');
+            console.log('🛑 AdminNotifier: Stopping listener and offline loop.');
             subscription.unsubscribe();
+            clearInterval(offlineInterval);
         };
     }, [user]);
 
