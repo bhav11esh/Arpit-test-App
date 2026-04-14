@@ -41,25 +41,125 @@ function AppRoutes() {
     updateServiceWorker,
   } = useRegisterSW();
 
-  // V1 MONITORING: Heartbeat & GPS Status tracking
+  // V1 MONITORING: Heartbeat & GPS/Notification Status tracking
+  const lastStatusRef = React.useRef<{ gps: string, notification: string }>({ gps: 'unknown', notification: 'unknown' });
+  const nagCountRef = React.useRef<number>(0);
+
   React.useEffect(() => {
     if (!user) return;
 
-    const updateHeartbeat = async () => {
+    const checkStatusAndNag = async () => {
       try {
-        const perm = await checkGeolocationPermission();
-        const gpsStatus = perm === 'granted' ? 'ON' : (perm === 'denied' ? 'OFF' : 'UNKNOWN');
+        // 1. Check Permissions
+        const gpsPerm = await checkGeolocationPermission();
+        const gpsStatus = gpsPerm === 'granted' ? 'ON' : (gpsPerm === 'denied' ? 'OFF' : 'UNKNOWN');
+        const notifStatus = Notification.permission === 'granted' ? 'ON' : (Notification.permission === 'denied' ? 'OFF' : 'UNKNOWN');
+
+        // 2. Detect and Log Changes
+        if (lastStatusRef.current.gps !== 'unknown' && lastStatusRef.current.gps !== gpsStatus) {
+            await updateUserMonitoring(user.id, gpsStatus as any);
+            const { createLogEvent } = await import('./lib/db/logs');
+            await createLogEvent({
+                type: 'GPS_STATUS_CHANGE',
+                actor_user_id: user.id,
+                target_id: user.id,
+                metadata: { status: gpsStatus, photographer_name: user.name }
+            });
+        }
+
+        if (lastStatusRef.current.notification !== 'unknown' && lastStatusRef.current.notification !== notifStatus) {
+            const { createLogEvent } = await import('./lib/db/logs');
+            await createLogEvent({
+                type: 'NOTIFICATION_STATUS_CHANGE',
+                actor_user_id: user.id,
+                target_id: user.id,
+                metadata: { status: notifStatus, photographer_name: user.name }
+            });
+        }
+
+        // 3. Heartbeat Update
         await updateUserMonitoring(user.id, gpsStatus as any);
+        lastStatusRef.current = { gps: gpsStatus, notification: notifStatus };
+
+        // 4. Nagging Logic (10 AM - 7 PM)
+        const now = new Date();
+        const currentHour = now.getHours();
+        const isWorkHours = currentHour >= 10 && currentHour < 19;
+
+        if (isWorkHours && (gpsStatus === 'OFF' || notifStatus === 'OFF')) {
+            const violationKey = `violation_start_${user.id}`;
+            let violationStart = localStorage.getItem(violationKey);
+            
+            if (!violationStart) {
+                violationStart = Date.now().toString();
+                localStorage.setItem(violationKey, violationStart);
+            }
+
+            const minutesPassed = (Date.now() - parseInt(violationStart)) / (1000 * 60);
+
+            if (minutesPassed < 20) {
+                // Send Nag Notification
+                const { createNotification } = await import('./lib/db/notifications');
+                const { getUsers } = await import('./lib/db/users');
+                const { createLogEvent } = await import('./lib/db/logs');
+                
+                const title = "⚠️ Action Required: Permissions Disabled";
+                const body = `Your ${gpsStatus === 'OFF' ? 'GPS' : 'Notification'} permission is turned off. Please enable it to continue working.`;
+                
+                // Notify Photographer
+                await createNotification({
+                    user_id: user.id,
+                    title,
+                    body,
+                    type: 'SYSTEM'
+                });
+
+                // Notify All Active Admins
+                const allUsers = await getUsers();
+                const admins = allUsers.filter(u => u.role === 'ADMIN' && u.active);
+                for (const admin of admins) {
+                    await createNotification({
+                        user_id: admin.id,
+                        title: `🚨 Photographer Alert: ${user.name}`,
+                        body: `${user.name} has disabled ${gpsStatus === 'OFF' ? 'GPS' : 'Notification'} permissions.`,
+                        type: 'SYSTEM'
+                    });
+                }
+
+                await createLogEvent({
+                    type: 'MONITORING_NAG_SENT',
+                    actor_user_id: user.id,
+                    target_id: user.id,
+                    metadata: { gpsStatus, notifStatus, minutesPassed: Math.floor(minutesPassed) }
+                });
+
+                // Show local toast (sonner)
+                const { toast } = await import('sonner');
+                toast.error(title, { description: body, duration: 10000 });
+            } else if (minutesPassed >= 20 && minutesPassed < 21) {
+                // Log expiration only once
+                const { createLogEvent } = await import('./lib/db/logs');
+                await createLogEvent({
+                    type: 'MONITORING_NAG_EXPIRED',
+                    actor_user_id: user.id,
+                    target_id: user.id,
+                    metadata: { reason: '20-minute limit reached' }
+                });
+            }
+        } else {
+            // Clear violation start if back to normal or outside work hours
+            localStorage.removeItem(`violation_start_${user.id}`);
+        }
       } catch (err) {
-        console.error('Heartbeat update failed:', err);
+        console.error('Monitoring loop failed:', err);
       }
     };
 
     // Initial check
-    updateHeartbeat();
+    checkStatusAndNag();
 
-    // Periodic heartbeat every 5 minutes
-    const interval = setInterval(updateHeartbeat, 5 * 60 * 1000);
+    // Check status every minute
+    const interval = setInterval(checkStatusAndNag, 60 * 1000);
 
     return () => clearInterval(interval);
   }, [user]);
