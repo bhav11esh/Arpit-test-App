@@ -15,7 +15,7 @@ import { createLogEvent } from '../lib/logging';
 import { createRejection, getDistinctRejections, getUserRejections } from '../lib/db/rejections'; // V1 MATCH
 import { getActiveUsersByCluster } from '../lib/db/users'; // V1 MATCH
 import { getAllLeaves } from '../lib/db/leaves'; // V1 IMPORT
-import { uploadScreenshotFile, createScreenshot, getScreenshotsByDeliveries } from '../lib/db/screenshots'; // V1 MATCH
+import * as screenshotsDb from '../lib/db/screenshots';
 import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString, requestNotificationPermission, sendPushNotification, getShowroomCode } from '../lib/utils';
 import { supabase, adminSupabase } from '../lib/supabase';
 import {
@@ -714,7 +714,7 @@ export function HomeScreen() {
 
       // Fetch all screenshots for these deliveries
       const deliveryIds = uniqueDeliveries.map(d => d.id);
-      const screenshotsMap = await getScreenshotsByDeliveries(deliveryIds);
+      const screenshotsMap = await screenshotsDb.getScreenshotsByDeliveries(deliveryIds);
       setScreenshots(screenshotsMap);
 
       // 3. Get Today's Leaves - V1 FIX: Use admin client to bypass RLS
@@ -1073,9 +1073,9 @@ export function HomeScreen() {
       const filePath = isFraudDetection ? `fraud/${fileName}` : `${fileName}`;
 
       const client = supabase;
-      const publicUrl = await uploadScreenshotFile(file, filePath, client);
+      const publicUrl = await screenshotsDb.uploadScreenshotFile(file, filePath, client);
 
-      const newScreenshot = await createScreenshot({
+      const newScreenshot = await screenshotsDb.createScreenshot({
         delivery_id: isFraudDetection ? null : id,
         showroom_code: isFraudDetection ? id : undefined,
         user_id: user?.id || '',
@@ -1097,6 +1097,35 @@ export function HomeScreen() {
     } catch (error) {
       console.error('Error uploading screenshot:', error);
       toast.error('Failed to upload screenshot');
+    }
+  };
+
+  const handleDeleteScreenshot = async (id: string, type: ScreenshotType) => {
+    try {
+      const isFraudDetection = type === 'FRAUD_DETECTION';
+      const mapKey = isFraudDetection ? `showroom_${id}` : id;
+      const deliveryScreenshots = screenshots.get(mapKey) || [];
+      const screenshotToDelete = deliveryScreenshots.find(s => s.type === type && !s.deleted_at);
+
+      if (!screenshotToDelete) {
+        toast.error('No screenshot found to delete');
+        return;
+      }
+
+      const client = supabase;
+      await screenshotsDb.deleteScreenshotById(screenshotToDelete.id, client);
+
+      setScreenshots(prev => {
+        const newMap = new Map(prev);
+        const existing = newMap.get(mapKey) || [];
+        newMap.set(mapKey, existing.filter(s => s.id !== screenshotToDelete.id));
+        return newMap;
+      });
+
+      toast.success('Screenshot removed');
+    } catch (error) {
+      console.error('Error deleting screenshot:', error);
+      toast.error('Failed to delete screenshot');
     }
   };
 
@@ -1585,6 +1614,7 @@ export function HomeScreen() {
           onUpdateFootageLink={handleUpdateFootageLink}
           onUpdateDeliveryFields={handleUpdateDeliveryFields}
           onUploadScreenshot={handleUploadScreenshot}
+          onDeleteScreenshot={handleDeleteScreenshot}
           onComplete={async (updatedDeliveries) => {
             console.log('HomeScreen: onComplete called with', updatedDeliveries.length, 'deliveries');
 

@@ -13,7 +13,8 @@ import {
   Link as LinkIcon,
   AlertCircle,
   XCircle,
-  Wallet
+  Wallet,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,6 +25,7 @@ interface SendUpdateScreenProps {
   onUpdateFootageLink: (deliveryId: string, link: string) => void;
   onUpdateDeliveryFields: (deliveryId: string, updates: Partial<Delivery>) => void;
   onUploadScreenshot: (id: string, type: ScreenshotType, file: File) => void;
+  onDeleteScreenshot: (id: string, type: ScreenshotType) => void;
   onComplete: (deliveries: Delivery[]) => void;
   userClusterCode?: string;
 }
@@ -35,6 +37,7 @@ export function SendUpdateScreen({
   onUpdateFootageLink,
   onUpdateDeliveryFields,
   onUploadScreenshot,
+  onDeleteScreenshot,
   onComplete,
   userClusterCode
 }: SendUpdateScreenProps) {
@@ -54,17 +57,7 @@ export function SendUpdateScreen({
   };
 
   const handleApplyFootageLink = (deliveryId: string) => {
-    if (!tempFootageLink.trim()) {
-      toast.error('Please enter a footage link');
-      return;
-    }
-
-    if (!validateGoogleDriveUrl(tempFootageLink)) {
-      toast.error('Please use a Google Drive link');
-      return;
-    }
-
-    onUpdateFootageLink(deliveryId, tempFootageLink);
+    onUpdateFootageLink(deliveryId, tempFootageLink.trim());
     setEditingFootage(null);
     setTempFootageLink('');
   };
@@ -397,10 +390,20 @@ export function SendUpdateScreen({
                             </div>
 
                             {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
-                              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                                <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                                <span className="text-xs text-green-700">Settled with Platform</span>
-                              </div>
+                               <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded">
+                                 <div className="flex items-center gap-2">
+                                   <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                                   <span className="text-xs text-green-700">Settled with Platform</span>
+                                 </div>
+                                 <Button 
+                                   variant="ghost" 
+                                   size="icon" 
+                                   className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                   onClick={() => onDeleteScreenshot(delivery.id, 'PLATFORM_PAYMENT')}
+                                 >
+                                   <Trash2 className="h-3 w-3" />
+                                 </Button>
+                               </div>
                             ) : (
                               <label className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded cursor-pointer transition-colors text-xs font-medium">
                                 <Upload className="h-3 w-3" />
@@ -526,9 +529,19 @@ export function SendUpdateScreen({
                           )}
                         </div>
                         {hasFollowScreenshot ? (
-                          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                            <span className="text-sm text-green-700">Screenshot uploaded</span>
+                          <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                              <span className="text-sm text-green-700">Screenshot uploaded</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => onDeleteScreenshot(delivery.id, 'FOLLOW')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         ) : (
                           <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-gray-50 border-2 border-dashed border-gray-300 rounded cursor-pointer transition-colors">
@@ -581,9 +594,19 @@ export function SendUpdateScreen({
                               )}
                             </div>
                             {deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at) ? (
-                              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded">
-                                <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                                <span className="text-sm text-green-700">Rapido proof uploaded</span>
+                              <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
+                                  <span className="text-sm text-green-700">Rapido proof uploaded</span>
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => onDeleteScreenshot(delivery.id, 'RAPIDO')}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             ) : (
                               <div className="space-y-2">
@@ -661,9 +684,19 @@ export function SendUpdateScreen({
                         </div>
                         
                         {isComplete ? (
-                          <div className="flex items-center gap-2 px-3 py-3 bg-green-50 border border-green-200 rounded-lg">
-                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                            <span className="text-sm text-green-700 font-medium">Document verified & uploaded</span>
+                          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-md">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-5 w-5 text-[#16A34A]" />
+                              <span className="text-sm text-green-700 font-medium">Document verified & uploaded</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => onDeleteScreenshot(showroom.code, 'FRAUD_DETECTION')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         ) : (
                           <div className="space-y-2">
