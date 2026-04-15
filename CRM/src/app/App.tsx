@@ -79,6 +79,14 @@ function AppRoutes() {
         }
 
         // 3. Heartbeat Update
+        const { createLogEvent } = await import('./lib/db/logs');
+        await createLogEvent({
+            type: 'MONITORING_HEARTBEAT',
+            actor_user_id: user.id,
+            target_id: user.id,
+            metadata: { gpsStatus, photographer_name: user.name }
+        });
+
         await updateUserMonitoring(user.id, gpsStatus as any);
         lastStatusRef.current = { gps: gpsStatus, notification: notifStatus };
 

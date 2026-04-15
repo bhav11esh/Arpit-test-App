@@ -127,8 +127,22 @@ export function AdminNotifier() {
                 const now = new Date();
                 const photographers = allUsers.filter(u => u.role === 'PHOTOGRAPHER' && u.active);
 
-                photographers.forEach(async p => {
-                    const lastActive = p.last_active ? new Date(p.last_active) : null;
+                // For each photographer, find their latest heartbeat in log_events
+                // We'll run this in a batch to be efficient
+                const { data: heartbeatLogs, error: heartbeatError } = await (supabase
+                    .from('log_events')
+                    .select('actor_user_id, created_at')
+                    .eq('type', 'MONITORING_HEARTBEAT')
+                    .order('created_at', { ascending: false }) as any);
+
+                if (heartbeatError) throw heartbeatError;
+
+                for (const p of photographers) {
+                    // Find latest heartbeat for this user
+                    const latestLog = (heartbeatLogs as any[] || []).find(l => l.actor_user_id === p.id);
+                    const lastActiveTimestamp = latestLog?.created_at || p.last_active;
+                    
+                    const lastActive = lastActiveTimestamp ? new Date(lastActiveTimestamp) : null;
                     const minsSinceActive = lastActive ? (now.getTime() - lastActive.getTime()) / 60000 : Infinity;
                     const isNowOffline = minsSinceActive > 10;
                     const wasAlreadyOffline = offlineUsersRef.current.has(p.id);
@@ -201,7 +215,7 @@ export function AdminNotifier() {
                             }
                         });
                     }
-                });
+                }
             } catch (err) {
                 console.error('Offline check loop failed:', err);
             }

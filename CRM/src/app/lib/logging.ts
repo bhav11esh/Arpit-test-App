@@ -25,7 +25,8 @@ export type LogEventType =
   | 'MONITORING_NAG_SENT'
   | 'MONITORING_NAG_EXPIRED'
   | 'GPS_SPOOF_DETECTED'
-  | 'MONITORING_RECOVERY';
+  | 'MONITORING_RECOVERY'
+  | 'MONITORING_HEARTBEAT';
 
 /**
  * Create an immutable log event
