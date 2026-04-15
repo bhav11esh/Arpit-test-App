@@ -178,7 +178,18 @@ export function AdminNotifier() {
                             // If they are within 15 mins of delivery OR it's already delivery time, and they are OFFLINE
                             if (minsToDelivery <= 15 && minsToDelivery >= -30) {
                                 const title = `⚠️ Offline Alert: ${p.name}`;
-                                const body = `${p.name} has been offline for ${Math.round(minsSinceActive)}m during their ${d.timing} delivery!`;
+                                
+                                // Format duration for readability
+                                let timeText = `${Math.round(minsSinceActive)}m`;
+                                if (minsSinceActive > 1440) {
+                                    timeText = "> 24h (Not seen today)";
+                                } else if (minsSinceActive > 60) {
+                                    const h = Math.floor(minsSinceActive / 60);
+                                    const m = Math.round(minsSinceActive % 60);
+                                    timeText = `${h}h ${m}m`;
+                                }
+
+                                const body = `${p.name} has been offline for ${timeText} during their ${d.timing} delivery!`;
                                 
                                 toast.error(title, { description: body, duration: 20000 });
                                 sendPushNotification(title, {
