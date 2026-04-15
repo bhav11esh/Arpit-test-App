@@ -6,8 +6,11 @@ import { simulateApiDelay } from '../lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LogOut, User, Award, TrendingUp, Calendar } from 'lucide-react';
+import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw } from 'lucide-react';
 import { LeaveManagement } from './LeaveManagement';
+import { updateUserMonitoring } from '../lib/db/users';
+import { checkGeolocationPermission } from '../lib/geofence';
+import { toast } from 'sonner';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -18,6 +21,8 @@ export function ProfileScreen() {
     thisMonth: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -106,30 +111,80 @@ export function ProfileScreen() {
 
       {/* Performance Highlights */}
       {user.role === 'PHOTOGRAPHER' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance Highlights</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-              <Award className="h-5 w-5 text-green-600" />
-              <div className="text-sm">
-                <div className="font-medium text-green-900">Earnings Tracker</div>
-                <div className="text-green-700">Check your period earnings in Earnings tab</div>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                   <Radio className="h-4 w-4 text-blue-500 animate-pulse" />
+                   System Connectivity
+                </CardTitle>
+                {lastSync && (
+                  <span className="text-xs text-gray-400">
+                    Last sync: {lastSync.toLocaleTimeString()}
+                  </span>
+                )}
               </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              <div className="text-sm">
-                <div className="font-medium text-blue-900">Active Status</div>
-                <div className="text-blue-700">
-                  {user.active ? 'Currently active' : 'Inactive'}
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                <div className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    Your phone sends a "Heartbeat" every minute to track deliveries.
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8 gap-1.5"
+                    disabled={isSyncing}
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      try {
+                        const perm = await checkGeolocationPermission();
+                        const status = perm === 'granted' ? 'ON' : (perm === 'denied' ? 'OFF' : 'UNKNOWN');
+                        await updateUserMonitoring(user.id, status as any);
+                        setLastSync(new Date());
+                        toast.success('Heartbeat Synced', { description: 'Your signal reached the server successfully.' });
+                      } catch (err) {
+                        toast.error('Sync Failed', { description: 'Please check your internet connection.' });
+                      } finally {
+                        setIsSyncing(false);
+                      }
+                    }}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    Signal Test
+                  </Button>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance Highlights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                <Award className="h-5 w-5 text-green-600" />
+                <div className="text-sm">
+                  <div className="font-medium text-green-900">Earnings Tracker</div>
+                  <div className="text-green-700">Check your period earnings in Earnings tab</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                <div className="text-sm">
+                  <div className="font-medium text-blue-900">Active Status</div>
+                  <div className="text-blue-700">
+                    {user.active ? 'Currently active' : 'Inactive'}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Leave Management for Photographers */}
