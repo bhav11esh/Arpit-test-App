@@ -79,10 +79,10 @@ export function SendUpdateScreen({
       return;
     }
 
-    // Validate file size (3MB max)
-    // This implicitly ensures reasonable resolution without blocking high-quality captures
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error('File size must be less than 3MB. Tip: Take a clear screenshot showing date/amount, then compress if needed.');
+    // Validate file size (10MB max)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`File size must be less than 10MB (current: ${(file.size / 1024 / 1024).toFixed(1)}MB). If your photo is too large, try taking a standard photo instead of a high-res burst.`);
       return;
     }
 
