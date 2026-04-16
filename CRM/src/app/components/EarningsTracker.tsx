@@ -175,7 +175,16 @@ export function EarningsTracker() {
                 .filter(d => d.payment_type === 'CUSTOMER_PAID')
                 .reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
 
-            const amountPending = adminShare - totalSettledDaily;
+            // Dealer-paid revenue calculation (Money collected directly by Admin via invoice)
+            const totalDealerRevenue = filtered
+                .filter(d => d.payment_type !== 'CUSTOMER_PAID')
+                .reduce((acc, d) => {
+                    const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
+                    return acc + (dealership?.ratePerDelivery || 0);
+                }, 0);
+
+            // Net Pending calculation: Admin's Tiered Share MINUS what was already paid upfront and what was collected by Admin directly
+            const amountPending = adminShare - totalSettledDaily - totalDealerRevenue;
 
             setStats({
                 grossEarnings: gross,
@@ -226,10 +235,9 @@ export function EarningsTracker() {
                         {stats && (
                             <div className="flex flex-col items-end gap-1">
                                 <Badge variant="outline" className={`text-lg py-1 px-3 ${stats.amountPending > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                                    Pending: ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
-                                    {stats.amountPending < 0 && ' (CR)'}
+                                    {stats.amountPending > 0 ? 'Owed to Admin: ' : 'Your Credit: '}₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
                                 </Badge>
-                                <span className="text-[10px] text-gray-400 font-medium uppercase">Net Payable (Admin): ₹{Math.round(stats.netPayableAdmin).toLocaleString()}</span>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase">Reconciled vs. 30% Upfront & Invoices</span>
                             </div>
                         )}
                     </div>
@@ -347,7 +355,7 @@ export function EarningsTracker() {
                                         {stats.amountPending < 0 && ' (CR)'}
                                     </div>
                                     <div className={`text-[10px] mt-1 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                        {stats.amountPending > 0 ? 'Balance to settle' : 'Overpaid (Credit)'}
+                                        {stats.amountPending > 0 ? 'Balance to clear' : 'Admin owes you (Credit)'}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -484,12 +492,12 @@ export function EarningsTracker() {
                             <ul className="list-disc ml-4 space-y-1">
                                 <li>Earnings are calculated based on deliveries with "DONE" status.</li>
                                 <li>Earnings are calculated based on deliveries with "DONE" status.</li>
-                                <li><strong>Salary Benchmark:</strong> ₹1000 × Working Days.</li>
-                                <li><strong>Tiered Split (Earnings):</strong> 90% of 1st benchmark, 70% of 2nd, 50% thereafter.</li>
-                                <li><strong>Tiered Split (Payable):</strong> 10% of 1st benchmark, 30% of 2nd, 50% thereafter.</li>
-                                <li><strong>Daily Settlement:</strong> Photographers clear 30% of individual collections daily.</li>
-                                <li><strong>Amount Pending:</strong> Reconciles monthly tiered Payable vs. actual Daily Settlements paid.</li>
-                                <li>Photographers are allowed <strong>6 half-day emergency leaves</strong> per month.</li>
+                                <li><strong>Salary Benchmark:</strong> ₹1000 × Working Days. (Defines the tiers for commission)</li>
+                                <li><strong>Tiered Split (Earnings):</strong> You keep 90% of revenue up to benchmark, 70% in the next tier, and 50% thereafter.</li>
+                                <li><strong>Customer Paid:</strong> Photographers settle 30% of collections upfront. The "Pending" amount reconciles this upfront payment against your final tiered share.</li>
+                                <li><strong>Dealer Paid:</strong> Platform collects the full amount via invoice. Your 90/70/50% share is added to your "Credit" to be settled.</li>
+                                <li><strong>Rapido & Penalties:</strong> These are deducted from the Gross Pool *before* splitting, so you don't pay commission on expenses.</li>
+                                <li><strong>Final Settlement:</strong> Credits (CR) are paid out by Admin; Owed amounts are cleared by Photographer.</li>
                             </ul>
                         </div>
                     </div>
