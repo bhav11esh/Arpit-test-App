@@ -22,15 +22,15 @@ BEGIN
                 SELECT count(*) FROM public.deliveries d 
                 WHERE d.assigned_user_id = u.id AND d.date = target_date 
                   AND d.status != 'DONE' AND d.deleted_at IS NULL
+            ),
+            'leaveType', (
+                SELECT l.half FROM public.leaves l 
+                WHERE l.photographer_id = u.id AND l.date = target_date
+                LIMIT 1
             )
         ))
         FROM public.users u
         WHERE u.role = 'PHOTOGRAPHER' AND u.active = true
-          -- Exclude if on FULL_DAY leave today
-          AND NOT EXISTS (
-              SELECT 1 FROM public.leaves l 
-              WHERE l.photographer_id = u.id AND l.date = target_date AND l.half = 'FULL_DAY'
-          )
           -- Exclude if day already closed (log event exists)
           AND NOT EXISTS (
               SELECT 1 FROM public.log_events le 

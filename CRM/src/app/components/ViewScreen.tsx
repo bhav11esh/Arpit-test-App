@@ -2911,8 +2911,14 @@ export function ViewScreen() {
                       {auditResults?.missingUpdates.map(u => (
                         <div key={u.userId} className="p-2 bg-white border border-red-200 rounded-md text-sm flex justify-between items-center shadow-sm">
                           <span className="font-medium text-gray-900">{u.name}</span>
-                          <span className={`font-bold bg-red-50 px-2 py-0.5 rounded text-xs ${u.deliveryCount === 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                            {u.deliveryCount === 0 ? 'No timings input' : `${u.deliveryCount} Pending`}
+                          <span className={`font-bold px-2 py-0.5 rounded text-xs ${
+                            u.leaveType === 'FULL_DAY' 
+                              ? 'bg-blue-50 text-blue-600' 
+                              : u.deliveryCount === 0 
+                                ? 'bg-amber-50 text-amber-600' 
+                                : 'bg-red-50 text-red-600'
+                          }`}>
+                            {u.leaveType === 'FULL_DAY' ? 'On Full Day Leave' : u.deliveryCount === 0 ? 'No timings input' : `${u.deliveryCount} Pending`}
                           </span>
                         </div>
                       ))}
