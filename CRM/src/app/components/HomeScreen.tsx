@@ -441,11 +441,14 @@ export function HomeScreen() {
       const today = getOperationalDateString();
 
       const clusterDealerships = dealerships.filter(d => {
-        // Find mapping for this dealership that matches OUR cluster
-        const dMapping = mappings.find(m =>
-          m.dealershipId === d.id &&
-          (m.clusterId === effectiveClusterCode || clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode)
-        );
+        // V1 FIX: Support Shared Showrooms. Ensure we find the mapping matching 
+        // BOTH the dealership AND the effective cluster.
+        const dMapping = mappings.find(m => {
+          const isCorrectDealership = m.dealershipId === d.id;
+          const isCorrectCluster = m.clusterId === effectiveClusterCode || 
+                                  clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode;
+          return isCorrectDealership && isCorrectCluster;
+        });
 
         // V1 FALLBACK: If NO mapping exists in DB, check if there are 
         // ANY deliveries for this showroom today in our cluster.
@@ -528,9 +531,14 @@ export function HomeScreen() {
       // Check each showroom
       for (const dealership of clusterDealerships) {
         // V1 FIX: Find mapping for this dealership that matches OUR cluster
-        const currentClusterMapping = mappings.filter(m => m.dealershipId === dealership.id).find(m =>
-          m.clusterId === effectiveClusterCode || clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode
-        );
+          // V1 FIX: Support Shared Showrooms. Find a mapping for this dealership 
+          // that EXPLICITLY matches our effective cluster.
+          const currentClusterMapping = mappings.find(m => {
+            const isCorrectDealership = m.dealershipId === dealership.id;
+            const isCorrectCluster = m.clusterId === effectiveClusterCode || 
+                                    clusters.find(c => c.id === m.clusterId)?.name === effectiveClusterCode;
+            return isCorrectDealership && isCorrectCluster;
+          });
 
         const primaryMapping = currentClusterMapping?.mappingType === 'PRIMARY' ? currentClusterMapping : null;
 
