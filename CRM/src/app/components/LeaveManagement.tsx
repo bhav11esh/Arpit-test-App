@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -24,6 +25,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     const [leaves, setLeaves] = useState<Leave[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const { user } = useAuth();
 
     // New Leave Form State
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -86,7 +88,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                         photographer_id: photographerId,
                         date: dateStr,
                         half: 'FIRST_HALF',
-                        applied_by: 'PHOTOGRAPHER'
+                        applied_by: (user?.role as any) || 'PHOTOGRAPHER'
                     }));
                 }
 
@@ -95,7 +97,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                         photographer_id: photographerId,
                         date: dateStr,
                         half: 'SECOND_HALF',
-                        applied_by: 'PHOTOGRAPHER'
+                        applied_by: (user?.role as any) || 'PHOTOGRAPHER'
                     }));
                 }
 
@@ -111,7 +113,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                     photographer_id: photographerId,
                     date: dateStr,
                     half: selectedHalf,
-                    applied_by: 'PHOTOGRAPHER'
+                    applied_by: (user?.role as any) || 'PHOTOGRAPHER'
                 });
                 toast.success('Leave applied successfully');
             }
@@ -331,10 +333,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                     selected={selectedDate}
                                     onSelect={setSelectedDate}
                                     disabled={(date) => {
-                                        // V1 FIX: Allow selecting 'Today' by comparing against start of day
-                                        const today = new Date();
-                                        today.setHours(0, 0, 0, 0);
-                                        return date < today;
+                                        return false; // V1 FIX: Allow selecting any date (including past)
                                     }}
                                     initialFocus
                                 />
