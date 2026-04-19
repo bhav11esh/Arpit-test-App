@@ -322,7 +322,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                         <DialogTitle>Apply for Leave</DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-4">
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
                         <div className="space-y-2">
                             <Label>Select Date</Label>
                             <div className="border rounded-md p-2 flex justify-center">
