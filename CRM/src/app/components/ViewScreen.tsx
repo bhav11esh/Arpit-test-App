@@ -78,7 +78,7 @@ export function ViewScreen() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditResults, setAuditResults] = useState<{
-    missingUpdates: { userId: string; name: string; deliveryCount: number }[];
+    missingUpdates: { userId: string; name: string; deliveryCount: number; leaveType?: string | null }[];
     reelBacklogs: { userId: string; name: string; taskCount: number }[];
   } | null>(null);
   const [showAuditDialog, setShowAuditDialog] = useState(false);
@@ -2914,11 +2914,21 @@ export function ViewScreen() {
                           <span className={`font-bold px-2 py-0.5 rounded text-xs ${
                             u.leaveType === 'FULL_DAY' 
                               ? 'bg-blue-50 text-blue-600' 
-                              : u.deliveryCount === 0 
-                                ? 'bg-amber-50 text-amber-600' 
-                                : 'bg-red-50 text-red-600'
+                              : (u.leaveType === 'FIRST_HALF' || u.leaveType === 'SECOND_HALF')
+                                ? 'bg-indigo-50 text-indigo-600'
+                                : u.deliveryCount === 0 
+                                  ? 'bg-amber-50 text-amber-600' 
+                                  : 'bg-red-50 text-red-600'
                           }`}>
-                            {u.leaveType === 'FULL_DAY' ? 'On Full Day Leave' : u.deliveryCount === 0 ? 'No timings input' : `${u.deliveryCount} Pending`}
+                            {u.leaveType === 'FULL_DAY' 
+                              ? 'On Full Day Leave' 
+                              : u.leaveType === 'FIRST_HALF'
+                                ? 'On 1st Half Leave'
+                                : u.leaveType === 'SECOND_HALF'
+                                  ? 'On 2nd Half Leave'
+                                  : u.deliveryCount === 0 
+                                    ? 'No timings input' 
+                                    : `${u.deliveryCount} Pending`}
                           </span>
                         </div>
                       ))}
