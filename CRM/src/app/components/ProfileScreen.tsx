@@ -63,29 +63,19 @@ export function ProfileScreen() {
 
   if (!user) return null;
 
-  // Get user initials for avatar
-  const initials = user.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 
   return (
     <div className="space-y-5 pb-20">
       {/* User Info Card */}
-      <Card className="overflow-hidden">
-        <div className="h-20 bg-gradient-to-r from-orange-500 via-purple-500 to-orange-600" />
-        <CardContent className="pt-0 -mt-10 px-4">
-          <div className="flex items-end gap-4">
-            <div className="h-16 w-16 rounded-xl avatar-gradient flex items-center justify-center border-4 border-white flex-shrink-0">
-              <span className="text-xl font-bold text-white">{initials}</span>
-            </div>
-            <div className="flex-1 min-w-0 pb-1">
-              <h2 className="text-lg font-bold text-gray-900 truncate">{user.name}</h2>
-              <Badge className="mt-0.5 bg-orange-100 text-orange-700 border-0 text-xs">
+      <Card className="border-orange-100/50 shadow-sm bg-gradient-to-br from-white to-orange-50/20">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-1.5">
+            <h2 className="text-2xl font-black text-gray-900 truncate tracking-tight">{user.name}</h2>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-orange-100 text-orange-800 border-0 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
                 {user.role}
               </Badge>
+              <span className="text-[10px] text-gray-400 font-medium">YourPhotoCrew</span>
             </div>
           </div>
         </CardContent>
