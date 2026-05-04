@@ -214,7 +214,6 @@ export function ReelBacklog() {
               const originalDeliveryOwner = allUsers.find(u => u.id === delivery.assigned_user_id);
 
               return (
-              return (
                 <Card key={task.id} className="delivery-accent-pending shadow-sm hover:shadow-md transition-all duration-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">

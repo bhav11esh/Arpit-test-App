@@ -190,7 +190,6 @@ export function AcceptRejectDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-      </AlertDialogContent>
-    </AlertDialog>
+
   );
 }

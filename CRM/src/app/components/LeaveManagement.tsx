@@ -266,8 +266,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                             </div>
                         </div>
                     </div>
-                        </div>
-                    </div>
+
                 )}
 
 
@@ -356,7 +355,6 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                         : 'Second Half (Afternoon)';
 
                                 return (
-                                 return (
                                     <div
                                         key={`leave-${date}-${idx}`}
                                         className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-50 shadow-sm"
@@ -381,7 +379,6 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                             {isEmergency ? 'Unplanned' : 'Planned'}
                                         </div>
                                     </div>
-                                );
                                 );
                             })}
                         </div>
