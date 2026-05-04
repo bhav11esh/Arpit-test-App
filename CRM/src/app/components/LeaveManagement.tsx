@@ -55,7 +55,8 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
 
             try {
                 const missedData = await leavesDb.getPhotographerMissingUpdates(photographerId, startDateStr, endDateStr);
-                setMissedUpdates(missedData || []);
+                const filteredMissedData = (missedData || []).filter(dateStr => dateStr >= '2026-05-05');
+                setMissedUpdates(filteredMissedData);
             } catch (rpcError) {
                 console.error('Failed to load missed updates. RPC might not be applied.', rpcError);
                 // Graceful fallback
