@@ -170,3 +170,34 @@ export const deleteAllReelTasks = async (): Promise<void> => {
 
   if (error) throw error;
 };
+
+// Get all available post-it reels for the marketplace
+export const getPostItReels = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<(ReelTask & { delivery?: any })[]> => {
+  const { data, error } = await supabaseClient
+    .from('reel_tasks')
+    .select('*, delivery:deliveries(*)')
+    .eq('is_post_it', true)
+    .eq('status', 'PENDING')
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data.map(row => ({
+    ...rowToReelTask(row),
+    delivery: row.delivery
+  }));
+};
+
+// Trigger the backend to refresh/auto-assign post-its
+export const refreshPostIts = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<void> => {
+  const { error } = await supabaseClient.rpc('refresh_post_its');
+  if (error) throw error;
+};
+
+// Claim a post-it reel
+export const claimPostIt = async (taskId: string, userId: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<void> => {
+  const { error } = await supabaseClient.rpc('claim_post_it', {
+    p_task_id: taskId,
+    p_user_id: userId
+  });
+  if (error) throw error;
+};

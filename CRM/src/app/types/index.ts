@@ -130,7 +130,12 @@ export interface ReelTask {
   reel_link: string | null;
   status: ReelStatus;
   reassigned_reason: string | null;
-  deadline?: string;
+  deadline?: string | null;
+  is_post_it?: boolean;
+  original_user_id?: string | null;
+  claim_deadline?: string | null;
+  failed_claimants?: string[];
+  post_it_reward?: number | null;
 }
 
 export interface LogEvent {

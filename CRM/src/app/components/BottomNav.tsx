@@ -1,6 +1,9 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Film, BarChart3, User } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useState, useEffect } from 'react';
 
 interface BottomNavProps {
   userRole: 'ADMIN' | 'PHOTOGRAPHER';
@@ -9,6 +12,44 @@ interface BottomNavProps {
 export function BottomNav({ userRole }: BottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.id && userRole === 'PHOTOGRAPHER') {
+      const fetchCount = async () => {
+        const { count, error } = await supabase
+          .from('reel_tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_user_id', user.id)
+          .eq('status', 'PENDING')
+          .eq('is_post_it', false); // Only count their own pending reels, not pool items
+
+        if (!error && count !== null) {
+          setPendingCount(count);
+        }
+      };
+
+      fetchCount();
+
+      // Realtime subscription for instant badge updates
+      const channel = supabase
+        .channel('nav_reel_count')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'reel_tasks',
+          filter: `assigned_user_id=eq.${user.id}`
+        }, () => {
+          fetchCount();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user?.id, userRole]);
 
   // V1 SPEC: Different tabs for Admin vs Photographer
   const allTabs = [
@@ -43,7 +84,14 @@ export function BottomNav({ userRole }: BottomNavProps) {
                   : 'text-gray-400 hover:text-gray-600 active:scale-90'
               }`}
             >
-              <Icon className={`h-5 w-5 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
+              <div className="relative">
+                <Icon className={`h-5 w-5 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
+                {tab.id === 'reels' && pendingCount > 0 && (
+                  <div className="absolute -top-1.5 -right-2 bg-orange-600 text-white text-[8px] font-black h-3.5 min-w-[14px] px-1 flex items-center justify-center rounded-full border border-white shadow-sm ring-2 ring-transparent group-active:ring-orange-200">
+                    {pendingCount}
+                  </div>
+                )}
+              </div>
               <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>{tab.label}</span>
             </button>
           );

@@ -67,6 +67,8 @@ export function EarningsTracker() {
         amountPending: number;
         netEarnings: number;
         deliveryCount: number;
+        postItBonus: number;
+        postItPenalty: number;
         breakdown: { name: string; count: number; rate: number; rapido: number; total: number }[];
     } | null>(null);
 
@@ -179,6 +181,36 @@ export function EarningsTracker() {
 
             totalPenalty += missedUpdatesPenalty;
 
+            // 🚀 V18.3: Post-it Marketplace Rewards & Penalties
+            let postItBonus = 0;
+            let postItPenalty = 0;
+            try {
+                // Fetch resolved reel tasks where the user was either the claimer (bonus) or the breacher (penalty)
+                const { data: relatedReelTasks, error: reelError } = await client
+                    .from('reel_tasks')
+                    .select('*')
+                    .eq('status', 'RESOLVED')
+                    .or(`assigned_user_id.eq.${selectedPhotographerId || user?.id},original_user_id.eq.${selectedPhotographerId || user?.id}`);
+
+                if (!reelError && relatedReelTasks) {
+                    relatedReelTasks.forEach((rt: any) => {
+                        // REWARD: They resolved someone else's reel
+                        if (rt.assigned_user_id === (selectedPhotographerId || user?.id) && rt.original_user_id !== null && rt.original_user_id !== rt.assigned_user_id) {
+                            postItBonus += rt.post_it_reward || 0;
+                        }
+                        // PENALTY: Someone else resolved their breached reel
+                        if (rt.original_user_id === (selectedPhotographerId || user?.id) && rt.assigned_user_id !== rt.original_user_id) {
+                            postItPenalty += rt.post_it_reward || 0;
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Error fetching reel bounties:", err);
+            }
+
+            gross += postItBonus;
+            totalPenalty += postItPenalty;
+
             // --- 🚀 NEW TIERED PAYOUT LOGIC (10/30/50) ---
             const daysWorkedList = Array.from(new Set(filtered.map(d => d.date)));
             const daysWorkedCount = daysWorkedList.length;
@@ -228,6 +260,8 @@ export function EarningsTracker() {
                 amountPending: amountPending,
                 netEarnings: photographerShare, // For backward compatibility
                 deliveryCount: filtered.length,
+                postItBonus: postItBonus,
+                postItPenalty: postItPenalty,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
                     name,
                     count: data.count,
@@ -387,6 +421,40 @@ export function EarningsTracker() {
                                     </div>
                                 </CardContent>
                             </Card>
+                        </div>
+                    )}
+
+                    {/* 🚀 V18.3: Post-it Bounty Earnings & Penalties */}
+                    {stats && (stats.postItBonus > 0 || stats.postItPenalty > 0) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {stats.postItBonus > 0 && (
+                                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="size-8 rounded-full bg-emerald-600 flex items-center justify-center text-white">
+                                            <Trophy className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Bounty Bonuses</div>
+                                            <div className="text-sm font-bold text-emerald-900">₹{stats.postItBonus.toLocaleString()} Earned from Marketplace</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs font-bold text-emerald-600">CLAIMED REELS</div>
+                                </div>
+                            )}
+                            {stats.postItPenalty > 0 && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="size-8 rounded-full bg-red-600 flex items-center justify-center text-white">
+                                            <AlertTriangle className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-red-600 uppercase tracking-widest">Bounty Deductions</div>
+                                            <div className="text-sm font-bold text-red-900">₹{stats.postItPenalty.toLocaleString()} Breached Deadline Fees</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs font-bold text-red-600">AUTO-REASSIGNED</div>
+                                </div>
+                            )}
                         </div>
                     )}
 
