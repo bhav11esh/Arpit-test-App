@@ -178,14 +178,14 @@ export function ReelBacklog() {
           <Film className="h-24 w-24" />
         </div>
         <CardHeader className="pb-2">
-          <CardTitle className="text-indigo-700 tracking-tight">Reel Backlog</CardTitle>
-          <CardDescription className="text-indigo-400">Track and resolve pending reel tasks</CardDescription>
+          <CardTitle className="text-orange-700 tracking-tight">Reel Backlog</CardTitle>
+          <CardDescription className="text-orange-400">Track and resolve pending reel tasks</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 mt-2">
             <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/50">
-              <div className="text-3xl font-bold text-indigo-700 tracking-tighter">{pendingTasks.length}</div>
-              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Pending</div>
+              <div className="text-3xl font-bold text-orange-700 tracking-tighter">{pendingTasks.length}</div>
+              <div className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mt-1">Pending</div>
             </div>
             <div className="bg-emerald-50/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50">
               <div className="text-3xl font-bold text-emerald-600 tracking-tighter">{resolvedTasks.length}</div>
@@ -222,7 +222,7 @@ export function ReelBacklog() {
                         <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                         {/* V1 ADMIN: Show photographer name for admin view */}
                         {user?.role === 'ADMIN' && photographer && (
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-indigo-500 bg-indigo-50 w-fit px-2 py-0.5 rounded-full">
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-orange-500 bg-orange-50 w-fit px-2 py-0.5 rounded-full">
                             <User className="h-3 w-3" />
                             <span>{photographer.name}</span>
                           </div>
@@ -238,13 +238,13 @@ export function ReelBacklog() {
                     </div>
 
                     {delivery.footage_link && (
-                      <div className="flex items-center gap-2 p-2.5 border border-indigo-50 rounded-xl bg-indigo-50/30 text-[11px]">
-                        <span className="font-bold text-indigo-400 uppercase tracking-tighter">Footage:</span>
+                      <div className="flex items-center gap-2 p-2.5 border border-orange-50 rounded-xl bg-orange-50/30 text-[11px]">
+                        <span className="font-bold text-orange-400 uppercase tracking-tighter">Footage:</span>
                         <a
                           href={delivery.footage_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-indigo-600 font-medium hover:underline truncate"
+                          className="text-orange-600 font-medium hover:underline truncate"
                         >
                           {delivery.footage_link}
                         </a>
@@ -252,18 +252,18 @@ export function ReelBacklog() {
                     )}
 
                     {task.reassigned_reason && (
-                      <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3">
+                      <div className="bg-zinc-50/50 border border-zinc-100 rounded-xl p-3">
                         <div className="flex gap-2">
-                          <AlertCircle className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
-                          <div className="text-[11px] text-blue-700 leading-relaxed">
-                            <div className="font-bold flex items-center gap-1.5 mb-1 text-blue-800">
+                          <AlertCircle className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0 mt-0.5" />
+                          <div className="text-[11px] text-zinc-700 leading-relaxed">
+                            <div className="font-bold flex items-center gap-1.5 mb-1 text-zinc-800">
                                <span>🔄</span> REASSIGNED BY ADMIN
                             </div>
                             <div className="opacity-80">
                               <strong>Reason:</strong> {task.reassigned_reason}
                             </div>
                             {originalDeliveryOwner && user?.role === 'PHOTOGRAPHER' && (
-                              <div className="mt-2 pt-2 border-t border-blue-100 opacity-60 italic">
+                              <div className="mt-2 pt-2 border-t border-zinc-100 opacity-60 italic">
                                 Note: Saved to {originalDeliveryOwner.name}'s record
                               </div>
                             )}

@@ -69,8 +69,8 @@ export function Layout({ children, hideHeader = false }: LayoutProps) {
         <header className="header-gradient sticky top-0 z-10">
           <div className="container mx-auto px-4 h-14 flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-white tracking-tight leading-tight">Delivery Ops</h1>
-              <p className="text-xs text-indigo-200 leading-tight">{user?.name} • {user?.role}</p>
+              <h1 className="text-lg font-bold text-white tracking-tight leading-tight">YourPhotoCrew</h1>
+              <p className="text-xs text-zinc-400 leading-tight">{user?.name} • {user?.role}</p>
             </div>
           </div>
         </header>

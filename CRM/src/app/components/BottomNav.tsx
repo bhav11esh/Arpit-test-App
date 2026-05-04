@@ -39,7 +39,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
               onClick={() => navigate(tab.path)}
               className={`flex flex-col items-center justify-center gap-1 transition-all duration-200 ${
                 isActive 
-                  ? 'text-indigo-600 nav-active-pill' 
+                  ? 'text-orange-600 nav-active-pill' 
                   : 'text-gray-400 hover:text-gray-600 active:scale-90'
               }`}
             >

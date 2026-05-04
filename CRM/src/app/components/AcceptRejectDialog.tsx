@@ -89,7 +89,7 @@ export function AcceptRejectDialog({
   return (
     <AlertDialog open onOpenChange={onClose}>
       <AlertDialogContent className="p-0 overflow-hidden border-0 shadow-2xl rounded-3xl max-w-lg">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6">
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-6">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2.5 text-white">
               <div className="h-10 w-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner">
@@ -97,7 +97,7 @@ export function AcceptRejectDialog({
               </div>
               <div className="flex flex-col">
                  <span className="text-xl font-bold tracking-tight">New Delivery Match</span>
-                 <span className="text-[10px] font-bold text-indigo-100 opacity-60 uppercase tracking-widest">Available in your cluster</span>
+                 <span className="text-[10px] font-bold text-orange-100 opacity-60 uppercase tracking-widest">Available in your cluster</span>
               </div>
             </AlertDialogTitle>
           </AlertDialogHeader>
@@ -110,26 +110,26 @@ export function AcceptRejectDialog({
             </p>
             
             <div className="stat-card-primary border-0 p-5 space-y-4">
-              <div className="font-bold text-lg text-indigo-800 tracking-tight leading-tight">{delivery.delivery_name}</div>
+              <div className="font-bold text-lg text-orange-800 tracking-tight leading-tight">{delivery.delivery_name}</div>
               
               <div className="grid grid-cols-2 gap-y-3">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-500/80 uppercase tracking-tight">
                   <MapPin className="h-3.5 w-3.5" />
                   <span className="truncate">{delivery.showroom_code}</span>
                 </div>
                 
-                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-500/80 uppercase tracking-tight">
                   <Clock className="h-3.5 w-3.5" />
                   <span>{delivery.timing}</span>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-500/80 uppercase tracking-tight">
                   <Calendar className="h-3.5 w-3.5" />
                   <span>{new Date(delivery.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
                 </div>
 
                 <div className="flex gap-1.5">
-                  <Badge className="bg-indigo-50 text-indigo-600 border-0 text-[9px] px-1.5 py-0 h-4 font-bold">
+                  <Badge className="bg-orange-50 text-orange-600 border-0 text-[9px] px-1.5 py-0 h-4 font-bold">
                     {delivery.payment_type.replace('_', ' ')}
                   </Badge>
                   {delivery.showroom_type && (
@@ -147,18 +147,18 @@ export function AcceptRejectDialog({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+            <div className="flex flex-col gap-2 p-3.5 bg-orange-50/50 border border-orange-100 rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Available Until</span>
-                <span className="text-sm font-black text-indigo-700 tracking-tight">
+                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Available Until</span>
+                <span className="text-sm font-black text-orange-700 tracking-tight">
                   {formatExpiryTime()}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-1.5 flex-1 bg-indigo-100 rounded-full overflow-hidden">
-                   <div className="h-full bg-indigo-500 animate-pulse" style={{ width: '60%' }}></div>
+                <div className="h-1.5 flex-1 bg-orange-100 rounded-full overflow-hidden">
+                   <div className="h-full bg-orange-500 animate-pulse" style={{ width: '60%' }}></div>
                 </div>
-                <span className="text-[10px] font-bold text-indigo-600">{formatTimeLeft(timeLeft)}</span>
+                <span className="text-[10px] font-bold text-orange-600">{formatTimeLeft(timeLeft)}</span>
               </div>
             </div>
 

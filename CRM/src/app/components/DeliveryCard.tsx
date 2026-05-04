@@ -157,7 +157,7 @@ export function DeliveryCard({
             <div className="flex-1 min-w-0 overflow-hidden">
               <CardTitle className="text-sm sm:text-base truncate">{delivery.delivery_name}</CardTitle>
               <div className="flex items-center gap-1.5 mt-1.5 text-xs sm:text-sm text-gray-500">
-                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-indigo-400" />
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-orange-400" />
                 <span className="truncate">{delivery.showroom_code} • {delivery.cluster_code}</span>
               </div>
             </div>
@@ -243,7 +243,7 @@ export function DeliveryCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs h-7 px-2 flex-shrink-0"
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs h-7 px-2 flex-shrink-0"
                   onClick={() => setShowTimingDialog(true)}
                 >
                   <Clock className="h-3 w-3 mr-1" />
@@ -255,12 +255,12 @@ export function DeliveryCard({
 
           {/* V1 SPEC: Geofence location check info (non-blocking) */}
           {delivery.timing && delivery.status === 'ASSIGNED' && (
-            <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-lg space-y-0.5">
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-indigo-700">
+            <div className="p-2 bg-orange-50 border border-orange-100 rounded-lg space-y-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-orange-700">
                 <MapPin className="h-3 w-3 flex-shrink-0" />
                 <span className="font-medium">Location checked 15 min before delivery</span>
               </div>
-              <p className="text-[10px] sm:text-xs text-indigo-500 pl-[18px]">
+              <p className="text-[10px] sm:text-xs text-orange-500 pl-[18px]">
                 Recalculates if timing changes. Alert fires once.
               </p>
             </div>
@@ -272,7 +272,7 @@ export function DeliveryCard({
               variant="outline"
               className={`text-[10px] sm:text-xs ${
                 delivery.payment_type === 'CUSTOMER_PAID'
-                  ? 'bg-blue-50 text-blue-700 border-blue-200 font-medium'
+                  ? 'bg-zinc-50 text-zinc-700 border-zinc-200 font-medium'
                   : 'bg-gray-50 text-gray-600 border-gray-200 font-medium'
               }`}
             >
@@ -289,7 +289,7 @@ export function DeliveryCard({
                 variant="outline"
                 className={`text-[10px] sm:text-xs ${
                   delivery.showroom_type === 'PRIMARY'
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-medium'
+                    ? 'bg-orange-50 text-orange-700 border-orange-200 font-medium'
                     : 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
                 }`}
               >
@@ -322,7 +322,7 @@ export function DeliveryCard({
 
           {/* Assignability Indicator for Not Chosen Deliveries */}
           {showAssignability && canSelfAssignDelivery && (
-            <div className="flex items-center gap-2 p-2.5 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700">
+            <div className="flex items-center gap-2 p-2.5 bg-orange-50 border border-orange-100 rounded-lg text-xs text-orange-700">
               <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
               <span>✅ Available for self-assignment</span>
             </div>

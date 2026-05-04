@@ -135,8 +135,8 @@ export function LoginScreen() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 mb-4 shadow-lg">
             <Camera className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">PhotoCrew</h1>
-          <p className="text-indigo-200 mt-1 text-sm">Delivery Operations Platform</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">YourPhotoCrew</h1>
+          <p className="text-zinc-400 mt-1 text-sm">Delivery Operations Platform</p>
         </div>
 
         <Card className="glass-card border-0">
@@ -155,7 +155,7 @@ export function LoginScreen() {
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-indigo-400" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-orange-500" />
                   <Input
                     id="email"
                     type="email"
@@ -164,14 +164,14 @@ export function LoginScreen() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
-                    className="pl-10 bg-white/80 border-indigo-100 focus:border-indigo-300"
+                    className="pl-10 bg-white/80 border-orange-100 focus:border-orange-500"
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-gray-700">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-indigo-400" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-orange-500" />
                   <Input
                     id="password"
                     type="password"

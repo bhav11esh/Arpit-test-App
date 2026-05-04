@@ -131,7 +131,7 @@ export function TimingPrompt({
         onPointerDownOutside={(e) => e.preventDefault()}
         hideCloseButton={true}
       >
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6">
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-white">
               <div className="h-10 w-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner">
@@ -139,10 +139,10 @@ export function TimingPrompt({
               </div>
               <div className="flex flex-col">
                  <span className="text-xl font-bold tracking-tight">Delivery Timing</span>
-                 <span className="text-xs font-medium text-indigo-100 opacity-80 uppercase tracking-widest">{showroomName}</span>
+                 <span className="text-xs font-medium text-orange-100 opacity-80 uppercase tracking-widest">{showroomName}</span>
               </div>
             </DialogTitle>
-            <DialogDescription className="text-indigo-100/70 text-xs font-medium mt-1">
+            <DialogDescription className="text-orange-100/70 text-xs font-medium mt-1">
               {formatDateDisplay(date)} • Cluster: {clusterCode}
             </DialogDescription>
           </DialogHeader>
@@ -150,19 +150,19 @@ export function TimingPrompt({
 
         <div className="space-y-5 overflow-y-auto flex-1 p-6 scrollbar-hide">
           {/* Existing Deliveries Count */}
-          <div className="bg-white border border-indigo-50 p-4 rounded-2xl shadow-sm">
+          <div className="bg-white border border-orange-50 p-4 rounded-2xl shadow-sm">
             <div className="flex items-center justify-between">
-               <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Active Status</div>
-               <Badge className="bg-indigo-50 text-indigo-600 border-0 text-[10px] h-5">{deliveryCount} TOTAL</Badge>
+               <div className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Active Status</div>
+               <Badge className="bg-orange-50 text-orange-600 border-0 text-[10px] h-5">{deliveryCount} TOTAL</Badge>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-indigo-50">
+            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-orange-50">
                <div className="flex flex-col">
                   <span className="text-2xl font-bold text-emerald-600 tracking-tighter">{deliveriesWithTiming}</span>
                   <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">With Timing</span>
                </div>
                <div className="flex flex-col">
-                  <span className="text-2xl font-bold text-indigo-600 tracking-tighter">{deliveriesWithoutTiming}</span>
-                  <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">No Timing</span>
+                  <span className="text-2xl font-bold text-orange-600 tracking-tighter">{deliveriesWithoutTiming}</span>
+                  <span className="text-[9px] font-bold text-orange-400 uppercase tracking-wider">No Timing</span>
                </div>
             </div>
           </div>
@@ -178,7 +178,7 @@ export function TimingPrompt({
                 {existingDeliveries.map((delivery) => (
                   <div
                     key={delivery.id}
-                    className="flex items-center justify-between p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-indigo-100 transition-colors"
+                    className="flex items-center justify-between p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-orange-100 transition-colors"
                   >
                     <div className="flex-1 min-w-0 mr-3">
                       <div className="font-bold text-sm text-gray-800 truncate tracking-tight">{delivery.delivery_name}</div>
@@ -186,7 +186,7 @@ export function TimingPrompt({
                         {delivery.timing ? (
                           <span className="text-emerald-500">Timing: {delivery.timing}</span>
                         ) : (
-                          <span className="text-indigo-400">Timing pending</span>
+                          <span className="text-orange-400">Timing pending</span>
                         )}
                       </div>
                     </div>
@@ -212,7 +212,7 @@ export function TimingPrompt({
           {!showAddForm ? (
             <Button
               variant="outline"
-              className="w-full border-2 border-dashed border-indigo-100 h-14 text-indigo-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all rounded-2xl flex flex-col items-center justify-center gap-0.5"
+              className="w-full border-2 border-dashed border-orange-100 h-14 text-orange-400 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50/50 transition-all rounded-2xl flex flex-col items-center justify-center gap-0.5"
               onClick={() => setShowAddForm(true)}
             >
               <div className="flex items-center gap-2">
@@ -222,14 +222,14 @@ export function TimingPrompt({
               <span className="text-[10px] font-medium opacity-60 uppercase tracking-widest">Click to log another</span>
             </Button>
           ) : (
-            <div className="space-y-4 p-5 border border-indigo-100 bg-indigo-50/30 rounded-2xl animate-in fade-in zoom-in duration-200">
+            <div className="space-y-4 p-5 border border-orange-100 bg-orange-50/30 rounded-2xl animate-in fade-in zoom-in duration-200">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Add Delivery Details</Label>
-                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-7 px-2 text-indigo-400 hover:text-indigo-600 hover:bg-transparent text-[11px] font-bold">CANCEL</Button>
+                <Label className="text-xs font-bold text-orange-600 uppercase tracking-widest">Add Delivery Details</Label>
+                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-7 px-2 text-orange-400 hover:text-orange-600 hover:bg-transparent text-[11px] font-bold">CANCEL</Button>
               </div>
  
               <div className="space-y-2">
-                <Label htmlFor="timing" className="text-[10px] font-bold text-indigo-400/70 uppercase tracking-wider ml-1">
+                <Label htmlFor="timing" className="text-[10px] font-bold text-orange-400/70 uppercase tracking-wider ml-1">
                   Delivery Timing (optional)
                 </Label>
                 <Input
@@ -238,14 +238,14 @@ export function TimingPrompt({
                   value={newDeliveryTiming}
                   onChange={(e) => setNewDeliveryTiming(e.target.value)}
                   placeholder="HH:MM"
-                  className="h-11 bg-white border-indigo-50 rounded-xl focus-visible:ring-indigo-500"
+                  className="h-11 bg-white border-orange-50 rounded-xl focus-visible:ring-indigo-500"
                 />
               </div>
  
               <div className="flex flex-col gap-2">
                 <Button
                   onClick={handleAddWithTiming}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-11 rounded-xl font-bold"
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-xl font-bold"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add with Timing
@@ -254,7 +254,7 @@ export function TimingPrompt({
                 <Button
                   onClick={handleMarkLater}
                   variant="outline"
-                  className="h-10 border-indigo-100 text-indigo-600 bg-white hover:bg-indigo-50 rounded-xl text-xs font-bold"
+                  className="h-10 border-orange-100 text-orange-600 bg-white hover:bg-orange-50 rounded-xl text-xs font-bold"
                 >
                   <Clock className="h-3.5 w-3.5 mr-2" />
                   Decide Timing Later
@@ -264,9 +264,9 @@ export function TimingPrompt({
           )}
 
           {/* Info Banner */}
-          <div className="flex gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-[11px] text-blue-800">
+          <div className="flex gap-2 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-zinc-600 mt-0.5 flex-shrink-0" />
+            <div className="text-[11px] text-zinc-800">
               <p className="font-medium mb-1">Timing Input Rules:</p>
               <ul className="space-y-1 list-disc list-inside">
                 <li>This prompt repeats hourly until finalized.</li>

@@ -360,7 +360,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                         className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-gray-50 shadow-sm"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`h-9 w-9 ${isEmergency ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-500'} rounded-xl flex items-center justify-center`}>
+                                            <div className={`h-9 w-9 ${isEmergency ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'} rounded-xl flex items-center justify-center`}>
                                                 <CalendarIcon className="h-5 w-5" />
                                             </div>
                                             <div>

@@ -1777,7 +1777,7 @@ export function HomeScreen() {
           <TooltipProvider>
             <div className="space-y-3">
               <div className="flex items-center gap-2 ml-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
+                <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
                 <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Deliveries</h2>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1789,7 +1789,7 @@ export function HomeScreen() {
                     <p>Showrooms that are permanently assigned to you in the system.</p>
                   </TooltipContent>
                 </Tooltip>
-                <Badge className="bg-indigo-50 text-indigo-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
+                <Badge className="bg-orange-50 text-orange-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
               </div>
               <div className="py-6 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center bg-gray-50/50">
                   <p className="text-gray-300 text-xs font-medium uppercase tracking-wider">All cleared for today</p>
@@ -1890,14 +1890,14 @@ export function HomeScreen() {
           {/* V1 FIX: If on Full Day Leave, show a dedicated message and skip everything else */}
           {isFullDayLeave ? (
             <div className="py-12 px-6 text-center flex flex-col items-center">
-              <div className="h-20 w-20 bg-indigo-50 text-indigo-500 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
+              <div className="h-20 w-20 bg-orange-50 text-orange-500 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
                 <Calendar className="h-10 w-10" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 tracking-tight">On Full Day Leave</h2>
               <p className="text-gray-400 mt-2 text-sm max-w-[240px]">
                 You are on leave today. No deliveries are assigned to you.
               </p>
-              <div className="mt-10 p-5 bg-white border border-indigo-50 rounded-2xl shadow-sm max-w-[280px]">
+              <div className="mt-10 p-5 bg-white border border-orange-50 rounded-2xl shadow-sm max-w-[280px]">
                 <p className="text-[11px] text-gray-400 italic leading-relaxed">
                   "Enjoy your day off! The system has unassigned your primary deliveries for others to handle."
                 </p>
@@ -1931,7 +1931,7 @@ export function HomeScreen() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 w-full px-1">
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
+                      <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
                       <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Deliveries</h2>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1947,7 +1947,7 @@ export function HomeScreen() {
 
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-7 gap-1 border-indigo-100 text-indigo-600 hover:bg-indigo-50 text-[11px] px-2.5 rounded-lg">
+                        <Button variant="outline" size="sm" className="h-7 gap-1 border-orange-100 text-orange-600 hover:bg-orange-50 text-[11px] px-2.5 rounded-lg">
                           <Plus className="h-3.5 w-3.5" />
                           External
                         </Button>
@@ -2003,7 +2003,7 @@ export function HomeScreen() {
                       </DialogContent>
                     </Dialog>
 
-                    <Badge className="bg-indigo-50 text-indigo-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
+                    <Badge className="bg-orange-50 text-orange-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
                   </div>
                   {primaryDeliveries.length > 0 ? (
                     <div className="grid gap-3">
@@ -2126,7 +2126,7 @@ export function HomeScreen() {
 
       {/* Bottom Sticky Button - V1 SPEC: Always enabled to allow day closure even with zero deliveries */}
       {!showSendUpdate && (photographerDayState as string) === 'ACTIVE' && (
-        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-indigo-50 shadow-[0_-4px_20px_rgba(79,70,229,0.08)] z-40">
+        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-orange-50 shadow-[0_-4px_20px_rgba(79,70,229,0.08)] z-40">
           <Button
             className="w-full h-14 btn-gradient flex flex-col items-center justify-center gap-0.5 rounded-xl"
             disabled={isFullDayLeave}

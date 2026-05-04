@@ -75,7 +75,7 @@ export function ProfileScreen() {
     <div className="space-y-5 pb-20">
       {/* User Info Card */}
       <Card className="overflow-hidden">
-        <div className="h-20 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
+        <div className="h-20 bg-gradient-to-r from-orange-500 via-purple-500 to-orange-600" />
         <CardContent className="pt-0 -mt-10 px-4">
           <div className="flex items-end gap-4">
             <div className="h-16 w-16 rounded-xl avatar-gradient flex items-center justify-center border-4 border-white flex-shrink-0">
@@ -83,7 +83,7 @@ export function ProfileScreen() {
             </div>
             <div className="flex-1 min-w-0 pb-1">
               <h2 className="text-lg font-bold text-gray-900 truncate">{user.name}</h2>
-              <Badge className="mt-0.5 bg-indigo-100 text-indigo-700 border-0 text-xs">
+              <Badge className="mt-0.5 bg-orange-100 text-orange-700 border-0 text-xs">
                 {user.role}
               </Badge>
             </div>
@@ -97,8 +97,8 @@ export function ProfileScreen() {
 
         <Card className="stat-card-primary">
           <CardHeader className="pb-2 pt-4">
-            <CardDescription className="text-indigo-500 text-xs">Total Deliveries Completed</CardDescription>
-            <CardTitle className="text-4xl font-bold text-indigo-700">{stats.totalDeliveries}</CardTitle>
+            <CardDescription className="text-orange-500 text-xs">Total Deliveries Completed</CardDescription>
+            <CardTitle className="text-4xl font-bold text-orange-700">{stats.totalDeliveries}</CardTitle>
           </CardHeader>
         </Card>
 
@@ -112,8 +112,8 @@ export function ProfileScreen() {
 
           <Card className="stat-card-purple">
             <CardHeader className="pb-2 pt-4">
-              <CardDescription className="text-purple-500 text-xs">This Month</CardDescription>
-              <CardTitle className="text-3xl font-bold text-purple-700">{stats.thisMonth}</CardTitle>
+              <CardDescription className="text-amber-500 text-xs">This Month</CardDescription>
+              <CardTitle className="text-3xl font-bold text-amber-700">{stats.thisMonth}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -126,7 +126,7 @@ export function ProfileScreen() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                   <Radio className="h-4 w-4 text-indigo-500 animate-pulse" />
+                   <Radio className="h-4 w-4 text-orange-500 animate-pulse" />
                    System Connectivity
                 </CardTitle>
                 {lastSync && (
@@ -138,14 +138,14 @@ export function ProfileScreen() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                <div className="p-3 bg-indigo-50/60 rounded-lg flex items-center justify-between gap-3">
+                <div className="p-3 bg-orange-50/60 rounded-lg flex items-center justify-between gap-3">
                   <div className="text-xs text-gray-500 min-w-0">
                     Your phone sends a "Heartbeat" every minute to track deliveries.
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    className="h-8 gap-1.5 flex-shrink-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                    className="h-8 gap-1.5 flex-shrink-0 border-orange-200 text-orange-600 hover:bg-orange-50"
                     disabled={isSyncing}
                     onClick={async () => {
                       setIsSyncing(true);
@@ -195,13 +195,13 @@ export function ProfileScreen() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 bg-indigo-50/60 rounded-lg">
-                <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="h-4 w-4 text-indigo-600" />
+              <div className="flex items-center gap-3 p-3 bg-orange-50/60 rounded-lg">
+                <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="h-4 w-4 text-orange-600" />
                 </div>
                 <div className="text-sm min-w-0">
-                  <div className="font-medium text-indigo-800">Active Status</div>
-                  <div className="text-indigo-600 text-xs">
+                  <div className="font-medium text-orange-800">Active Status</div>
+                  <div className="text-orange-600 text-xs">
                     {user.active ? 'Currently active' : 'Inactive'}
                   </div>
                 </div>
@@ -219,7 +219,7 @@ export function ProfileScreen() {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-indigo-600 gap-1.5 h-8 text-xs"
+              className="text-orange-600 gap-1.5 h-8 text-xs"
               onClick={() => navigate('/leave')}
             >
               <Calendar className="h-3.5 w-3.5" />
