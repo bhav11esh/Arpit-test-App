@@ -88,96 +88,108 @@ export function AcceptRejectDialog({
 
   return (
     <AlertDialog open onOpenChange={onClose}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-gray-900">
-            <Info className="h-5 w-5 text-blue-500" />
-            Delivery Available in Your Cluster
-          </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                This delivery is available for acceptance. Would you like to take it?
-              </p>
+      <AlertDialogContent className="p-0 overflow-hidden border-0 shadow-2xl rounded-3xl max-w-lg">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2.5 text-white">
+              <div className="h-10 w-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner">
+                <Info className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-xl font-bold tracking-tight">New Delivery Match</span>
+                 <span className="text-[10px] font-bold text-indigo-100 opacity-60 uppercase tracking-widest">Available in your cluster</span>
+              </div>
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+        </div>
+
+        <AlertDialogDescription asChild>
+          <div className="p-6 space-y-5">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              A new delivery has been reported. Would you like to accept it?
+            </p>
+            
+            <div className="stat-card-primary border-0 p-5 space-y-4">
+              <div className="font-bold text-lg text-indigo-800 tracking-tight leading-tight">{delivery.delivery_name}</div>
               
-              <div className="space-y-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="font-semibold text-gray-900">{delivery.delivery_name}</div>
-                
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="h-4 w-4" />
-                  <span>{delivery.showroom_code} • {delivery.cluster_code}</span>
+              <div className="grid grid-cols-2 gap-y-3">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span className="truncate">{delivery.showroom_code}</span>
                 </div>
                 
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="h-4 w-4" />
-                  <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                  <Clock className="h-3.5 w-3.5" />
                   <span>{delivery.timing}</span>
                 </div>
-                
-                <div className="flex gap-2 mt-2">
-                  <Badge variant="outline" className="text-xs">
+
+                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-500/80 uppercase tracking-tight">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>{new Date(delivery.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                </div>
+
+                <div className="flex gap-1.5">
+                  <Badge className="bg-indigo-50 text-indigo-600 border-0 text-[9px] px-1.5 py-0 h-4 font-bold">
                     {delivery.payment_type.replace('_', ' ')}
                   </Badge>
                   {delivery.showroom_type && (
                     <Badge 
-                      variant="outline" 
-                      className={
+                      className={`text-[9px] px-1.5 py-0 h-4 font-bold border-0 ${
                         delivery.showroom_type === 'PRIMARY'
-                          ? 'bg-blue-50 text-blue-700 border-blue-300 text-xs'
-                          : 'bg-amber-50 text-amber-700 border-amber-300 text-xs'
-                      }
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : 'bg-amber-50 text-amber-600'
+                      }`}
                     >
                       {delivery.showroom_type}
                     </Badge>
                   )}
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <span className="text-sm text-gray-700">
-                  Available until:
-                </span>
-                <span className="text-sm font-medium text-gray-900">
-                  {formatExpiryTime()} <span className="text-xs text-gray-500">({formatTimeLeft(timeLeft)} remaining)</span>
+            <div className="flex flex-col gap-2 p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Available Until</span>
+                <span className="text-sm font-black text-indigo-700 tracking-tight">
+                  {formatExpiryTime()}
                 </span>
               </div>
-
-              {/* V1 SPEC: Clear expiry behavior explanation */}
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs font-semibold text-amber-900 mb-1">⏱️ Delivery-Level Expiry (Not Per-User)</p>
-                <p className="text-xs text-amber-800 mb-2">
-                  <strong>Accept:</strong> Assigns delivery to you immediately (first-click-wins).<br />
-                  <strong>Reject:</strong> Marks only you as not interested (delivery remains available to others).
-                </p>
-                <p className="text-xs text-amber-800">
-                  <strong>⚠️ If no one accepts before delivery time, this delivery will move to Not Chosen.</strong>
-                </p>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 flex-1 bg-indigo-100 rounded-full overflow-hidden">
+                   <div className="h-full bg-indigo-500 animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-600">{formatTimeLeft(timeLeft)}</span>
               </div>
+            </div>
 
-              <p className="text-xs text-gray-500">
-                If multiple photographers accept, the first acceptance is assigned (first-click-wins).
+            <div className="p-3.5 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-1.5">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                <AlertCircle className="h-3 w-3" />
+                Expiry Notice
+              </p>
+              <p className="text-[10px] text-amber-800 leading-relaxed font-medium">
+                If no one accepts before delivery time, this item moves to <strong>Not Chosen</strong> pool. First photographer to accept wins the assignment.
               </p>
             </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
+          </div>
+        </AlertDialogDescription>
+
+        <AlertDialogFooter className="p-6 pt-0 gap-3">
           <AlertDialogCancel 
             onClick={() => onReject(delivery.id)}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="flex-1 h-12 rounded-xl border-gray-100 text-gray-400 font-bold text-xs uppercase tracking-widest hover:bg-gray-50"
           >
-            Not for Me
+            Not Interested
           </AlertDialogCancel>
           <AlertDialogAction 
             onClick={() => onAccept(delivery.id)}
-            className="bg-[#2563EB] hover:bg-blue-700"
+            className="flex-1 h-12 btn-gradient rounded-xl"
           >
-            Accept Delivery
+            Accept Now
           </AlertDialogAction>
         </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
       </AlertDialogContent>
     </AlertDialog>
   );

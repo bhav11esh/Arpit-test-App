@@ -63,18 +63,27 @@ export function ProfileScreen() {
 
   if (!user) return null;
 
+  // Get user initials for avatar
+  const initials = user.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-5 pb-20">
       {/* User Info Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-[#2563EB] flex items-center justify-center">
-              <User className="h-8 w-8 text-white" />
+      <Card className="overflow-hidden">
+        <div className="h-20 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
+        <CardContent className="pt-0 -mt-10 px-4">
+          <div className="flex items-end gap-4">
+            <div className="h-16 w-16 rounded-xl avatar-gradient flex items-center justify-center border-4 border-white flex-shrink-0">
+              <span className="text-xl font-bold text-white">{initials}</span>
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold">{user.name}</h2>
-              <Badge className="mt-1 bg-blue-100 text-blue-800">
+            <div className="flex-1 min-w-0 pb-1">
+              <h2 className="text-lg font-bold text-gray-900 truncate">{user.name}</h2>
+              <Badge className="mt-0.5 bg-indigo-100 text-indigo-700 border-0 text-xs">
                 {user.role}
               </Badge>
             </div>
@@ -83,28 +92,28 @@ export function ProfileScreen() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="space-y-4">
-        <h3 className="font-semibold text-gray-700">Delivery Statistics</h3>
+      <div className="space-y-3">
+        <h3 className="font-semibold text-gray-700 text-sm ml-1">Delivery Statistics</h3>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Deliveries Completed</CardDescription>
-            <CardTitle className="text-4xl">{stats.totalDeliveries}</CardTitle>
+        <Card className="stat-card-primary">
+          <CardHeader className="pb-2 pt-4">
+            <CardDescription className="text-indigo-500 text-xs">Total Deliveries Completed</CardDescription>
+            <CardTitle className="text-4xl font-bold text-indigo-700">{stats.totalDeliveries}</CardTitle>
           </CardHeader>
         </Card>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>This Week</CardDescription>
-              <CardTitle className="text-3xl">{stats.thisWeek}</CardTitle>
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="stat-card-green">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-emerald-500 text-xs">This Week</CardDescription>
+              <CardTitle className="text-3xl font-bold text-emerald-700">{stats.thisWeek}</CardTitle>
             </CardHeader>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>This Month</CardDescription>
-              <CardTitle className="text-3xl">{stats.thisMonth}</CardTitle>
+          <Card className="stat-card-purple">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-purple-500 text-xs">This Month</CardDescription>
+              <CardTitle className="text-3xl font-bold text-purple-700">{stats.thisMonth}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -112,12 +121,12 @@ export function ProfileScreen() {
 
       {/* Performance Highlights */}
       {user.role === 'PHOTOGRAPHER' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                   <Radio className="h-4 w-4 text-blue-500 animate-pulse" />
+                   <Radio className="h-4 w-4 text-indigo-500 animate-pulse" />
                    System Connectivity
                 </CardTitle>
                 {lastSync && (
@@ -129,14 +138,14 @@ export function ProfileScreen() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                <div className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
-                  <div className="text-xs text-gray-500">
+                <div className="p-3 bg-indigo-50/60 rounded-lg flex items-center justify-between gap-3">
+                  <div className="text-xs text-gray-500 min-w-0">
                     Your phone sends a "Heartbeat" every minute to track deliveries.
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    className="h-8 gap-1.5"
+                    className="h-8 gap-1.5 flex-shrink-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
                     disabled={isSyncing}
                     onClick={async () => {
                       setIsSyncing(true);
@@ -173,22 +182,26 @@ export function ProfileScreen() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Performance Highlights</CardTitle>
+              <CardTitle className="text-sm font-semibold">Performance Highlights</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                <Award className="h-5 w-5 text-green-600" />
-                <div className="text-sm">
-                  <div className="font-medium text-green-900">Earnings Tracker</div>
-                  <div className="text-green-700">Check your period earnings in Earnings tab</div>
+            <CardContent className="space-y-2.5">
+              <div className="flex items-center gap-3 p-3 bg-emerald-50/60 rounded-lg">
+                <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Award className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="text-sm min-w-0">
+                  <div className="font-medium text-emerald-800">Earnings Tracker</div>
+                  <div className="text-emerald-600 text-xs">Check your period earnings in Earnings tab</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-                <div className="text-sm">
-                  <div className="font-medium text-blue-900">Active Status</div>
-                  <div className="text-blue-700">
+              <div className="flex items-center gap-3 p-3 bg-indigo-50/60 rounded-lg">
+                <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="h-4 w-4 text-indigo-600" />
+                </div>
+                <div className="text-sm min-w-0">
+                  <div className="font-medium text-indigo-800">Active Status</div>
+                  <div className="text-indigo-600 text-xs">
                     {user.active ? 'Currently active' : 'Inactive'}
                   </div>
                 </div>
@@ -200,16 +213,16 @@ export function ProfileScreen() {
 
       {/* Leave Management for Photographers */}
       {user.role === 'PHOTOGRAPHER' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-700 ml-1">Leave Management</h3>
+            <h3 className="font-semibold text-gray-700 text-sm ml-1">Leave Management</h3>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-blue-600 gap-1.5 h-8"
+              className="text-indigo-600 gap-1.5 h-8 text-xs"
               onClick={() => navigate('/leave')}
             >
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-3.5 w-3.5" />
               Manage Detailed
             </Button>
           </div>
@@ -220,7 +233,7 @@ export function ProfileScreen() {
       {/* Logout Button */}
       <Button
         variant="outline"
-        className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
+        className="w-full gap-2 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 h-11"
         onClick={logout}
       >
         <LogOut className="h-4 w-4" />

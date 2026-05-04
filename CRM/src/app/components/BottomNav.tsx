@@ -27,7 +27,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
   const currentTab = tabs.find(tab => tab.path === location.pathname)?.id || (userRole === 'ADMIN' ? 'view' : 'home');
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 nav-glass z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className={`grid ${userRole === 'ADMIN' ? 'grid-cols-3' : 'grid-cols-4'} h-16`}>
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -37,14 +37,14 @@ export function BottomNav({ userRole }: BottomNavProps) {
             <button
               key={tab.id}
               onClick={() => navigate(tab.path)}
-              className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-1 transition-all duration-200 ${
                 isActive 
-                  ? 'text-[#2563EB]' 
-                  : 'text-gray-500'
+                  ? 'text-indigo-600 nav-active-pill' 
+                  : 'text-gray-400 hover:text-gray-600 active:scale-90'
               }`}
             >
-              <Icon className="h-6 w-6" />
-              <span className="text-xs font-medium">{tab.label}</span>
+              <Icon className={`h-5 w-5 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
+              <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>{tab.label}</span>
             </button>
           );
         })}

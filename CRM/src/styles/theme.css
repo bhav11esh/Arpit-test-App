@@ -1,9 +1,11 @@
 @theme {
-  /* Updated color palette per Figma spec */
-  --color-primary: #2563EB;
-  --color-success: #16A34A;
+  /* V2.0 Design System — Indigo/Purple Palette */
+  --color-primary: #4F46E5;
+  --color-primary-light: #6366F1;
+  --color-primary-dark: #3730A3;
+  --color-success: #10B981;
   --color-warning: #F59E0B;
-  --color-error: #DC2626;
+  --color-error: #EF4444;
   --color-disabled: #9CA3AF;
   
   /* Existing theme tokens */
@@ -36,38 +38,38 @@
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
+  --background: #f8f9fc;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
+  --primary: #4F46E5;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
+  --secondary-foreground: #1e1b4b;
   --muted: #ececf0;
   --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
+  --accent: #eef2ff;
+  --accent-foreground: #1e1b4b;
+  --destructive: #EF4444;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --border: rgba(79, 70, 229, 0.08);
   --input: transparent;
-  --input-background: #f3f3f5;
+  --input-background: #f3f3f8;
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
+  --ring: #4F46E5;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
+  --sidebar-primary: #4F46E5;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
@@ -153,6 +155,10 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ========================================
+   V2.0 DESIGN SYSTEM — Global Enhancements
+   ======================================== */
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -160,6 +166,9 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /**
@@ -173,20 +182,22 @@
 
   h1 {
     font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.025em;
   }
 
   h2 {
     font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.02em;
   }
 
   h3 {
     font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-weight: 600;
+    line-height: 1.4;
   }
 
   h4 {
@@ -205,12 +216,22 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  button:active {
+    transform: scale(0.97);
   }
 
   input {
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus {
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
   }
 
   /* Emergency Leave Calendar Styles */
@@ -232,5 +253,177 @@
     background: linear-gradient(270deg, rgba(220, 38, 38, 0.15) 50%, transparent 50%) !important;
     border-radius: 9999px !important;
     border: 1px solid rgba(220, 38, 38, 0.2) !important;
+  }
+
+  .missed-update {
+    background-color: #DC2626 !important;
+    border-radius: 9999px !important;
+    color: white !important;
+    font-weight: 700 !important;
+  }
+}
+
+/* ========================================
+   V2.0 Global Component Overrides
+   ======================================== */
+
+@layer components {
+  /* Enhanced Card Styling */
+  [data-slot="card"],
+  .card-enhanced {
+    border: 1px solid rgba(79, 70, 229, 0.06);
+    box-shadow: 
+      0 1px 3px rgba(79, 70, 229, 0.04),
+      0 4px 12px rgba(79, 70, 229, 0.03);
+    transition: box-shadow 0.25s ease, transform 0.2s ease;
+    border-radius: 0.875rem;
+  }
+
+  [data-slot="card"]:hover {
+    box-shadow: 
+      0 2px 8px rgba(79, 70, 229, 0.06),
+      0 8px 24px rgba(79, 70, 229, 0.05);
+  }
+
+  /* Enhanced Badge Styling */
+  [data-slot="badge"] {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: all 0.15s ease;
+  }
+
+  /* Gradient Login Background */
+  .login-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 40%, #A855F7 100%);
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .login-gradient::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(255,255,255,0.05) 0%, transparent 40%);
+    animation: login-float 20s ease-in-out infinite;
+  }
+
+  @keyframes login-float {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(2%, 1%) rotate(1deg); }
+    66% { transform: translate(-1%, 2%) rotate(-0.5deg); }
+  }
+
+  /* Frosted Glass Card */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.12),
+      0 2px 8px rgba(79, 70, 229, 0.08);
+  }
+
+  /* Gradient Header */
+  .header-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+    color: white;
+    border-bottom: none;
+    box-shadow: 0 2px 12px rgba(79, 70, 229, 0.2);
+  }
+
+  /* Glassmorphism Bottom Nav */
+  .nav-glass {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(79, 70, 229, 0.08);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Active nav pill indicator */
+  .nav-active-pill {
+    position: relative;
+  }
+
+  .nav-active-pill::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 3px;
+    background: linear-gradient(90deg, #4F46E5, #7C3AED);
+    border-radius: 99px;
+  }
+
+  /* Delivery Card Status Accents */
+  .delivery-accent-assigned {
+    border-left: 3px solid #10B981;
+  }
+
+  .delivery-accent-pending,
+  .delivery-accent-unassigned {
+    border-left: 3px solid #F59E0B;
+  }
+
+  .delivery-accent-done {
+    border-left: 3px solid #6366F1;
+  }
+
+  .delivery-accent-rejected {
+    border-left: 3px solid #EF4444;
+  }
+
+  /* Gradient Avatar */
+  .avatar-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #A855F7 100%);
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
+  }
+
+  /* Stats Card Shimmer */
+  .stat-card-primary {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    border: 1px solid rgba(79, 70, 229, 0.1);
+  }
+
+  .stat-card-green {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+  }
+
+  .stat-card-purple {
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+    border: 1px solid rgba(168, 85, 247, 0.1);
+  }
+
+  /* Gradient Button */
+  .btn-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+    transition: all 0.2s ease;
+  }
+
+  .btn-gradient:hover {
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
+    transform: translateY(-1px);
+  }
+
+  .btn-gradient:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Subtle page background */
+  .page-bg {
+    background: linear-gradient(180deg, #f8f9fc 0%, #f1f3f9 100%);
+    min-height: 100vh;
   }
 }

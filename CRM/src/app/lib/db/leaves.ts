@@ -234,3 +234,26 @@ export async function deleteLeave(leaveId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Get dates when a photographer missed sending their end-of-day update
+ */
+export async function getPhotographerMissingUpdates(
+  photographerId: string,
+  startDate: string,
+  endDate: string
+): Promise<string[]> {
+  const { data, error } = await (supabase as any).rpc('get_photographer_missing_updates', {
+    p_photographer_id: photographerId,
+    p_start_date: startDate,
+    p_end_date: endDate
+  });
+
+  if (error) {
+    console.error('Error fetching photographer missing updates:', error);
+    throw error;
+  }
+
+  return (data || []).map((row: any) => row.missing_date);
+}
+

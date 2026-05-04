@@ -173,20 +173,23 @@ export function ReelBacklog() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Reel Backlog</CardTitle>
-          <CardDescription>Track and resolve pending reel tasks</CardDescription>
+      <Card className="stat-card-primary border-0 overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-6 opacity-10">
+          <Film className="h-24 w-24" />
+        </div>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-indigo-700 tracking-tight">Reel Backlog</CardTitle>
+          <CardDescription className="text-indigo-400">Track and resolve pending reel tasks</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="text-2xl font-bold">{pendingTasks.length}</div>
-              <div className="text-sm text-gray-500">Pending Tasks</div>
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/50">
+              <div className="text-3xl font-bold text-indigo-700 tracking-tighter">{pendingTasks.length}</div>
+              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Pending</div>
             </div>
-            <div>
-              <div className="text-2xl font-bold">{resolvedTasks.length}</div>
-              <div className="text-sm text-gray-500">Resolved Tasks</div>
+            <div className="bg-emerald-50/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50">
+              <div className="text-3xl font-bold text-emerald-600 tracking-tighter">{resolvedTasks.length}</div>
+              <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Resolved</div>
             </div>
           </div>
         </CardContent>
@@ -195,8 +198,11 @@ export function ReelBacklog() {
       {/* Pending Tasks */}
       {pendingTasks.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Pending Reels</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex items-center gap-2 ml-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+            <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pending Reels</h2>
+          </div>
+          <div className="grid gap-4">
             {pendingTasks.map(task => {
               const delivery = deliveries.find(d => d.id === task.delivery_id);
               if (!delivery) return null;
@@ -208,36 +214,38 @@ export function ReelBacklog() {
               const originalDeliveryOwner = allUsers.find(u => u.id === delivery.assigned_user_id);
 
               return (
-                <Card key={task.id}>
-                  <CardHeader>
+              return (
+                <Card key={task.id} className="delivery-accent-pending shadow-sm hover:shadow-md transition-all duration-200">
+                  <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-base">{delivery.delivery_name}</CardTitle>
-                        <CardDescription>{delivery.showroom_code}</CardDescription>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base truncate">{delivery.delivery_name}</CardTitle>
+                        <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                         {/* V1 ADMIN: Show photographer name for admin view */}
                         {user?.role === 'ADMIN' && photographer && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-indigo-500 bg-indigo-50 w-fit px-2 py-0.5 rounded-full">
                             <User className="h-3 w-3" />
                             <span>{photographer.name}</span>
                           </div>
                         )}
                       </div>
-                      <Badge className="bg-orange-100 text-orange-800">Pending</Badge>
+                      <Badge className="bg-amber-50 text-amber-600 border-amber-100 text-[10px] px-2 py-0">Pending</Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="text-sm text-gray-600">
-                      Date: {new Date(delivery.date).toLocaleDateString('en-IN')}
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
                     </div>
 
                     {delivery.footage_link && (
-                      <div className="flex items-center gap-2 p-2 border rounded bg-gray-50 text-xs">
-                        <span className="font-medium text-gray-500">Footage:</span>
+                      <div className="flex items-center gap-2 p-2.5 border border-indigo-50 rounded-xl bg-indigo-50/30 text-[11px]">
+                        <span className="font-bold text-indigo-400 uppercase tracking-tighter">Footage:</span>
                         <a
                           href={delivery.footage_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline truncate"
+                          className="text-indigo-600 font-medium hover:underline truncate"
                         >
                           {delivery.footage_link}
                         </a>
@@ -245,18 +253,19 @@ export function ReelBacklog() {
                     )}
 
                     {task.reassigned_reason && (
-                      <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3">
                         <div className="flex gap-2">
-                          <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div className="text-sm text-blue-800">
-                            <div className="font-semibold">🔄 Reassigned by Admin</div>
-                            <div className="text-xs mt-1">
+                          <AlertCircle className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+                          <div className="text-[11px] text-blue-700 leading-relaxed">
+                            <div className="font-bold flex items-center gap-1.5 mb-1 text-blue-800">
+                               <span>🔄</span> REASSIGNED BY ADMIN
+                            </div>
+                            <div className="opacity-80">
                               <strong>Reason:</strong> {task.reassigned_reason}
                             </div>
                             {originalDeliveryOwner && user?.role === 'PHOTOGRAPHER' && (
-                              <div className="text-xs mt-2 pt-2 border-t border-blue-300">
-                                <strong>Note:</strong> Reel link will be saved to{' '}
-                                <span className="font-semibold">{originalDeliveryOwner.name}'s</span> delivery record
+                              <div className="mt-2 pt-2 border-t border-blue-100 opacity-60 italic">
+                                Note: Saved to {originalDeliveryOwner.name}'s record
                               </div>
                             )}
                           </div>
@@ -268,7 +277,7 @@ export function ReelBacklog() {
                     {user?.role === 'PHOTOGRAPHER' && (
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button className="w-full" onClick={() => {
+                          <Button className="w-full btn-gradient h-10" onClick={() => {
                             setSelectedTask(task);
                             setReelLinkInput(task.reel_link || '');
                           }}>
@@ -398,8 +407,11 @@ export function ReelBacklog() {
       {
         resolvedTasks.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Resolved Reels</h2>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-center gap-2 ml-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Resolved Reels</h2>
+            </div>
+            <div className="grid gap-4">
               {resolvedTasks.map(task => {
                 const delivery = deliveries.find(d => d.id === task.delivery_id);
                 if (!delivery) return null;
@@ -408,49 +420,37 @@ export function ReelBacklog() {
                 const photographer = allUsers.find(u => u.id === task.assigned_user_id);
 
                 return (
-                  <Card key={task.id}>
-                    <CardHeader>
+                  <Card key={task.id} className="delivery-accent-done opacity-80 shadow-sm">
+                    <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-base">{delivery.delivery_name}</CardTitle>
-                          <CardDescription>{delivery.showroom_code}</CardDescription>
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-base truncate">{delivery.delivery_name}</CardTitle>
+                          <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                           {/* V1 ADMIN: Show photographer name for admin view */}
                           {user?.role === 'ADMIN' && photographer && (
-                            <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                            <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full">
                               <User className="h-3 w-3" />
                               <span>{photographer.name}</span>
                             </div>
                           )}
                         </div>
-                        <Badge className="bg-green-100 text-green-800">Resolved</Badge>
+                        <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] px-2 py-0">Resolved</Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="text-sm text-gray-600">
-                        Date: {new Date(delivery.date).toLocaleDateString('en-IN')}
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
                       </div>
 
-                      {delivery.footage_link && (
-                        <div className="flex items-center gap-2 p-2 border rounded bg-gray-50 text-xs">
-                          <span className="font-medium text-gray-500">Footage:</span>
-                          <a
-                            href={delivery.footage_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline truncate"
-                          >
-                            {delivery.footage_link}
-                          </a>
-                        </div>
-                      )}
                       {task.reel_link && (
-                        <div className="flex items-center gap-2 p-2 border rounded bg-green-50">
-                          <Film className="h-4 w-4 text-green-600" />
+                        <div className="flex items-center gap-2 p-2.5 border border-emerald-100 rounded-xl bg-emerald-50/50">
+                          <Film className="h-3.5 w-3.5 text-emerald-500" />
                           <a
                             href={task.reel_link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-green-700 hover:underline truncate flex-1"
+                            className="text-[11px] font-bold text-emerald-700 hover:underline truncate flex-1 tracking-tight"
                           >
                             {task.reel_link}
                           </a>
@@ -468,12 +468,12 @@ export function ReelBacklog() {
       {/* Empty State */}
       {
         pendingTasks.length === 0 && resolvedTasks.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Film className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No reel tasks found.</p>
-            </CardContent>
-          </Card>
+          <div className="py-20 flex flex-col items-center justify-center bg-white/50 rounded-3xl border-2 border-dashed border-gray-100">
+            <div className="h-20 w-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mb-6">
+              <Film className="h-10 w-10" />
+            </div>
+            <p className="text-gray-300 font-bold uppercase tracking-widest text-sm">No tasks found</p>
+          </div>
         )
       }
     </div >

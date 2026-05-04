@@ -63,21 +63,21 @@ export function Layout({ children, hideHeader = false }: LayoutProps) {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-bg min-h-screen">
       {/* Header - only show on home */}
       {!hideHeader && (
-        <header className="bg-white border-b sticky top-0 z-10">
-          <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+        <header className="header-gradient sticky top-0 z-10">
+          <div className="container mx-auto px-4 h-14 flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold">Delivery Ops</h1>
-              <p className="text-sm text-gray-500">{user?.name} • {user?.role}</p>
+              <h1 className="text-lg font-bold text-white tracking-tight leading-tight">Delivery Ops</h1>
+              <p className="text-xs text-indigo-200 leading-tight">{user?.name} • {user?.role}</p>
             </div>
           </div>
         </header>
       )}
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-5 pb-24">
         {children}
       </main>
     </div>

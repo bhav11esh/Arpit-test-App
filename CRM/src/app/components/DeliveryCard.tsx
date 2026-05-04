@@ -138,21 +138,32 @@ export function DeliveryCard({
     }
   };
 
+  // V2.0 DESIGN: Status-based accent class
+  const getAccentClass = () => {
+    switch (delivery.status) {
+      case 'ASSIGNED': return 'delivery-accent-assigned';
+      case 'DONE': return 'delivery-accent-done';
+      case 'REJECTED':
+      case 'REJECTED_CUSTOMER': return 'delivery-accent-rejected';
+      default: return 'delivery-accent-pending';
+    }
+  };
+
   return (
     <>
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <CardTitle className="text-base truncate">{delivery.delivery_name}</CardTitle>
-              <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
-                <MapPin className="h-4 w-4 flex-shrink-0" />
+      <Card className={`shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${getAccentClass()}`}>
+        <CardHeader className="pb-3 px-3 sm:px-6">
+          <div className="flex items-start justify-between gap-2 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <CardTitle className="text-sm sm:text-base truncate">{delivery.delivery_name}</CardTitle>
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs sm:text-sm text-gray-500">
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-indigo-400" />
                 <span className="truncate">{delivery.showroom_code} • {delivery.cluster_code}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <Badge
-                className={`${getStatusColor(delivery.status)}`}
+                className={`${getStatusColor(delivery.status)} text-[10px] sm:text-xs px-1.5 sm:px-2`}
               >
                 {delivery.status}
               </Badge>
@@ -164,7 +175,7 @@ export function DeliveryCard({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className="h-7 w-7 p-0"
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
@@ -209,17 +220,17 @@ export function DeliveryCard({
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 px-3 sm:px-6">
           {/* Date & Timing */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Calendar className="h-4 w-4" />
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-gray-600" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
+                <Clock className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
                 {delivery.timing ? (
                   <span className="font-medium text-gray-900">{formatTiming(delivery.timing)}</span>
                 ) : (
@@ -232,7 +243,7 @@ export function DeliveryCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-[#2563EB] border-[#2563EB] hover:bg-blue-50"
+                  className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs h-7 px-2 flex-shrink-0"
                   onClick={() => setShowTimingDialog(true)}
                 >
                   <Clock className="h-3 w-3 mr-1" />
@@ -244,26 +255,26 @@ export function DeliveryCard({
 
           {/* V1 SPEC: Geofence location check info (non-blocking) */}
           {delivery.timing && delivery.status === 'ASSIGNED' && (
-            <div className="p-2 bg-blue-50 border border-blue-200 rounded space-y-1">
-              <div className="flex items-center gap-2 text-xs text-blue-800">
+            <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-lg space-y-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-indigo-700">
                 <MapPin className="h-3 w-3 flex-shrink-0" />
-                <span className="font-semibold">Location will be checked 15 minutes before delivery</span>
+                <span className="font-medium">Location checked 15 min before delivery</span>
               </div>
-              <p className="text-xs text-blue-700 pl-5">
-                Applies only when timing is set. Recalculates if timing changes. Alert fires once per delivery.
+              <p className="text-[10px] sm:text-xs text-indigo-500 pl-[18px]">
+                Recalculates if timing changes. Alert fires once.
               </p>
             </div>
           )}
 
           {/* Payment Type Badge - V1 SPEC: Explicit visual tag mandatory for new hires */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Badge
               variant="outline"
-              className={
+              className={`text-[10px] sm:text-xs ${
                 delivery.payment_type === 'CUSTOMER_PAID'
-                  ? 'bg-blue-50 text-blue-700 border-blue-300 font-semibold'
-                  : 'bg-gray-50 text-gray-700 border-gray-300 font-semibold'
-              }
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 font-medium'
+                  : 'bg-gray-50 text-gray-600 border-gray-200 font-medium'
+              }`}
             >
               {delivery.payment_type === 'CUSTOMER_PAID' ? '💳 Customer Paid' : '🏢 Dealer Paid'}
             </Badge>
@@ -276,50 +287,50 @@ export function DeliveryCard({
             {delivery.showroom_type && (
               <Badge
                 variant="outline"
-                className={
+                className={`text-[10px] sm:text-xs ${
                   delivery.showroom_type === 'PRIMARY'
-                    ? 'bg-blue-50 text-blue-700 border-blue-300 font-semibold'
-                    : 'bg-amber-50 text-amber-700 border-amber-300 font-semibold'
-                }
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-medium'
+                    : 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
+                }`}
               >
-                {delivery.showroom_type === 'PRIMARY' ? '📍 Origin: Primary' : '📍 Origin: Secondary'}
+                {delivery.showroom_type === 'PRIMARY' ? '📍 Primary' : '📍 Secondary'}
               </Badge>
             )}
           </div>
 
           {/* State Warning Messages */}
           {delivery.status === 'DONE' && (
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>Delivery completed - No actions available</span>
+            <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700">
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Delivery completed — No actions available</span>
             </div>
           )}
 
           {delivery.status === 'REJECTED_CUSTOMER' && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>Rejected by customer - No actions available</span>
+            <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Rejected by customer — No actions available</span>
             </div>
           )}
 
           {delivery.status === 'POSTPONED_CANCELED' && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>Delivery postponed - No timing edits allowed</span>
+            <div className="flex items-center gap-2 p-2.5 bg-yellow-50 border border-yellow-100 rounded-lg text-xs text-yellow-700">
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Delivery postponed — No timing edits allowed</span>
             </div>
           )}
 
           {/* Assignability Indicator for Not Chosen Deliveries */}
           {showAssignability && canSelfAssignDelivery && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="flex items-center gap-2 p-2.5 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700">
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
               <span>✅ Available for self-assignment</span>
             </div>
           )}
 
           {showAssignability && assignabilityBlocked && (
-            <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="flex items-center gap-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-600">
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
               <span>
                 ❌ Not assignable -
                 {delivery.status === 'REJECTED_CUSTOMER' && 'Rejected by customer'}
@@ -331,8 +342,8 @@ export function DeliveryCard({
 
           {/* Additional Info for Active Deliveries */}
           {showActions && (
-            <div className="pt-2 border-t">
-              <p className="text-xs text-gray-500">
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-[10px] sm:text-xs text-gray-400">
                 {delivery.payment_type === 'CUSTOMER_PAID'
                   ? '📸 Payment screenshot required at day close'
                   : '📁 Footage link required before Send Update'}

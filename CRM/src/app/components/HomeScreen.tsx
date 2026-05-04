@@ -1728,10 +1728,10 @@ export function HomeScreen() {
         />
       ) : (photographerDayState as string) === 'CLOSED' ? (
         <div className="space-y-6 pb-24">
-          {/* Top Bar with Day Closed Banner */}
-          <div className="bg-white border-b pb-4 mb-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Calendar className="h-4 w-4" />
+          {/* Top context bar */}
+          <div className="pb-2 border-b border-gray-100 mb-6">
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-400">
+              <Calendar className="h-3.5 w-3.5" />
               {new Date().toLocaleDateString('en-IN', {
                 weekday: 'long',
                 year: 'numeric',
@@ -1739,35 +1739,36 @@ export function HomeScreen() {
                 day: 'numeric'
               })}
             </div>
-            <h1 className="text-2xl font-bold mt-1">{user?.name}</h1>
 
             {/* V1 SPEC: Strong finality cue - Day Closed visual state */}
-            <div className="mt-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-              <p className="text-sm font-bold text-red-900 text-center">
-                🔒 DAY CLOSED
-              </p>
-              <p className="text-xs text-red-700 text-center mt-1">
-                No further edits, uploads, or timing updates possible until tomorrow
+            <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center">
+              <div className="flex items-center gap-2 text-red-700">
+                 <span className="text-lg">🔒</span>
+                 <span className="font-bold tracking-tight">DAY CLOSED</span>
+              </div>
+              <p className="text-[11px] text-red-500 mt-1 text-center">
+                No further edits or updates possible until tomorrow
               </p>
             </div>
           </div>
 
           {/* SECTION 1: Deliveries Serviced Today - Count Only */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="h-1 w-1 rounded-full bg-[#16A34A]"></div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Deliveries Serviced Today</h2>
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 ml-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Deliveries Serviced Today</h2>
             </div>
-            <Card className="bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 shadow-sm">
+            <Card className="stat-card-green border-0">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm text-gray-600">Completed</div>
-                    <div className="text-5xl font-bold mt-1 text-gray-800">{servicedCount}</div>
+                    <div className="text-xs font-medium text-emerald-600/80">Completed</div>
+                    <div className="text-5xl font-bold mt-1 text-emerald-700 tracking-tighter">{servicedCount}</div>
                   </div>
-                  <CheckCircle2 className="h-14 w-14 text-gray-400" />
+                  <div className="h-16 w-16 bg-emerald-100/50 rounded-2xl flex items-center justify-center">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                  </div>
                 </div>
-                {!adminSupabase && <p className="mt-1">Standard permissions active. Admin tools are restricted in browser for security.</p>}
               </CardContent>
             </Card>
           </div>
@@ -1775,26 +1776,24 @@ export function HomeScreen() {
           {/* SECTION 2: Primary Deliveries - Empty */}
           <TooltipProvider>
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-1 w-1 rounded-full bg-[#2563EB]"></div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Primary Deliveries</h2>
+              <div className="flex items-center gap-2 ml-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
+                <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Deliveries</h2>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button className="ml-1">
-                      <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                      <Info className="h-3.5 w-3.5 text-gray-300 hover:text-gray-400" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p>Showrooms that are permanently assigned to you in the system. These are your regular showrooms.</p>
+                    <p>Showrooms that are permanently assigned to you in the system.</p>
                   </TooltipContent>
                 </Tooltip>
-                <Badge className="bg-[#2563EB] text-white ml-auto">{primaryDeliveries.length}</Badge>
+                <Badge className="bg-indigo-50 text-indigo-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
               </div>
-              <Card className="border-dashed border-2 border-gray-200">
-                <CardContent className="py-8 text-center">
-                  <p className="text-gray-400 text-sm">All deliveries cleared for today</p>
-                </CardContent>
-              </Card>
+              <div className="py-6 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center bg-gray-50/50">
+                  <p className="text-gray-300 text-xs font-medium uppercase tracking-wider">All cleared for today</p>
+              </div>
             </div>
           </TooltipProvider>
 
@@ -1875,10 +1874,10 @@ export function HomeScreen() {
             />
           )}
 
-          {/* Top Bar */}
-          <div className="bg-white border-b pb-4 mb-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Calendar className="h-4 w-4" />
+          {/* Top context bar */}
+          <div className="pb-2 border-b border-gray-100 mb-6">
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-400">
+              <Calendar className="h-3.5 w-3.5" />
               {new Date().toLocaleDateString('en-IN', {
                 weekday: 'long',
                 year: 'numeric',
@@ -1886,21 +1885,20 @@ export function HomeScreen() {
                 day: 'numeric'
               })}
             </div>
-            <h1 className="text-2xl font-bold mt-1">{user?.name}</h1>
           </div>
 
           {/* V1 FIX: If on Full Day Leave, show a dedicated message and skip everything else */}
           {isFullDayLeave ? (
-            <div className="py-12 px-6 text-center">
-              <div className="inline-flex items-center justify-center p-4 bg-blue-100 rounded-full mb-4">
-                <Calendar className="h-8 w-8 text-blue-600" />
+            <div className="py-12 px-6 text-center flex flex-col items-center">
+              <div className="h-20 w-20 bg-indigo-50 text-indigo-500 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
+                <Calendar className="h-10 w-10" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900">On Full Day Leave</h2>
-              <p className="text-gray-600 mt-2">
-                You are on leave today. No deliveries are assigned to you, and regular showroom prompts are disabled.
+              <h2 className="text-xl font-bold text-gray-900 tracking-tight">On Full Day Leave</h2>
+              <p className="text-gray-400 mt-2 text-sm max-w-[240px]">
+                You are on leave today. No deliveries are assigned to you.
               </p>
-              <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-                <p className="text-sm text-gray-500 italic">
+              <div className="mt-10 p-5 bg-white border border-indigo-50 rounded-2xl shadow-sm max-w-[280px]">
+                <p className="text-[11px] text-gray-400 italic leading-relaxed">
                   "Enjoy your day off! The system has unassigned your primary deliveries for others to handle."
                 </p>
               </div>
@@ -1908,19 +1906,21 @@ export function HomeScreen() {
           ) : (
             <>
               {/* SECTION 1: Deliveries Serviced Today - Count Only */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-1 w-1 rounded-full bg-[#16A34A]"></div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Deliveries Serviced Today</h2>
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 ml-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                  <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Deliveries Serviced Today</h2>
                 </div>
-                <Card className="bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 shadow-sm">
+                <Card className="stat-card-green border-0">
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-sm text-gray-600">Completed</div>
-                        <div className="text-5xl font-bold mt-1 text-gray-800">{servicedCount}</div>
+                        <div className="text-xs font-medium text-emerald-600/80">Completed</div>
+                        <div className="text-5xl font-bold mt-1 text-emerald-700 tracking-tighter">{servicedCount}</div>
                       </div>
-                      <CheckCircle2 className="h-14 w-14 text-gray-400" />
+                      <div className="h-16 w-16 bg-emerald-100/50 rounded-2xl flex items-center justify-center">
+                        <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1929,40 +1929,39 @@ export function HomeScreen() {
               {/* SECTION 2: Primary Deliveries */}
               <TooltipProvider>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2 w-full">
+                  <div className="flex items-center justify-between gap-2 w-full px-1">
                     <div className="flex items-center gap-2">
-                      <div className="h-1 w-1 rounded-full bg-[#2563EB]"></div>
-                      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Primary Deliveries</h2>
+                      <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
+                      <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Deliveries</h2>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button className="ml-1">
-                            <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                            <Info className="h-3.5 w-3.5 text-gray-300 hover:text-gray-400" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
-                          <p>Showrooms that are permanently assigned to you in the system. These are your regular showrooms.</p>
+                          <p>Showrooms that are permanently assigned to you in the system.</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
 
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50">
-                          <Plus className="h-4 w-4" />
-                          Add External
+                        <Button variant="outline" size="sm" className="h-7 gap-1 border-indigo-100 text-indigo-600 hover:bg-indigo-50 text-[11px] px-2.5 rounded-lg">
+                          <Plus className="h-3.5 w-3.5" />
+                          External
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                           <DialogTitle>Add External Delivery</DialogTitle>
                           <div className="text-xs text-muted-foreground">
-                            Adding a delivery from a cluster other than your own.
-                            This will be auto-assigned to you.
+                            Adding a delivery from another cluster.
                           </div>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                           <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase">Select Cluster</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Cluster</label>
                             <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Cluster" />
@@ -1977,7 +1976,7 @@ export function HomeScreen() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase">Select Dealership</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Dealership</label>
                             <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Dealership" />
@@ -1996,7 +1995,7 @@ export function HomeScreen() {
                           <Button
                             onClick={handleAddExternalDelivery}
                             disabled={!selectedExternalCluster || !selectedExternalDealership || addingExternal}
-                            className="w-full bg-blue-600 hover:bg-blue-700"
+                            className="w-full btn-gradient"
                           >
                             {addingExternal ? 'Adding...' : 'Add Delivery'}
                           </Button>
@@ -2004,10 +2003,10 @@ export function HomeScreen() {
                       </DialogContent>
                     </Dialog>
 
-                    <Badge className="bg-[#2563EB] text-white ml-auto">{primaryDeliveries.length}</Badge>
+                    <Badge className="bg-indigo-50 text-indigo-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
                   </div>
                   {primaryDeliveries.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="grid gap-3">
                       {primaryDeliveries.map(delivery => (
                         <DeliveryCard
                           key={delivery.id}
@@ -2026,11 +2025,9 @@ export function HomeScreen() {
                       ))}
                     </div>
                   ) : (
-                    <Card className="border-dashed border-2 border-gray-200">
-                      <CardContent className="py-8 text-center">
-                        <p className="text-gray-400 text-sm">No primary deliveries assigned</p>
-                      </CardContent>
-                    </Card>
+                    <div className="py-6 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center bg-gray-50/50">
+                        <p className="text-gray-300 text-xs font-medium uppercase tracking-wider text-center">No primary deliveries</p>
+                    </div>
                   )}
                 </div>
               </TooltipProvider>
@@ -2038,23 +2035,23 @@ export function HomeScreen() {
               {/* SECTION 3: Secondary Deliveries */}
               <TooltipProvider>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1 w-1 rounded-full bg-[#F59E0B]"></div>
-                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Secondary Deliveries (Today)</h2>
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+                    <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Secondary Deliveries (Today)</h2>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button className="ml-1">
-                          <Info className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                          <Info className="h-3.5 w-3.5 text-gray-300 hover:text-gray-400" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p>Showrooms not permanently assigned to you. This includes showrooms assigned to other photographers or showrooms with no primary photographer in your cluster.</p>
+                        <p>Showrooms not permanently assigned to you.</p>
                       </TooltipContent>
                     </Tooltip>
-                    <Badge variant="outline" className="border-[#F59E0B] text-[#F59E0B] ml-auto">{secondaryDeliveries.length}</Badge>
+                    <Badge variant="outline" className="border-amber-100 bg-amber-50 text-amber-600 ml-auto h-5 px-1.5 text-[10px] font-bold">{secondaryDeliveries.length}</Badge>
                   </div>
                   {secondaryDeliveries.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="grid gap-3">
                       {secondaryDeliveries.map(delivery => (
                         <DeliveryCard
                           key={delivery.id}
@@ -2073,35 +2070,34 @@ export function HomeScreen() {
                       ))}
                     </div>
                   ) : (
-                    <Card className="border-dashed border-2 border-gray-200">
-                      <CardContent className="py-8 text-center">
-                        <p className="text-gray-400 text-sm">No secondary deliveries available</p>
-                      </CardContent>
-                    </Card>
+                    <div className="py-6 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center bg-gray-50/50">
+                        <p className="text-gray-300 text-xs font-medium uppercase tracking-wider text-center">No secondary available</p>
+                    </div>
                   )}
                 </div>
               </TooltipProvider>
 
               {/* SECTION 4: Not Chosen Deliveries */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-1 w-1 rounded-full bg-amber-400"></div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Not Chosen Deliveries</h2>
-                  <Badge variant="outline" className="bg-amber-50 border-amber-300 text-amber-700 ml-auto">{notChosenDeliveries.length}</Badge>
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                  <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Not Chosen Deliveries</h2>
+                  <Badge variant="outline" className="bg-red-50 border-red-100 text-red-600 ml-auto h-5 px-1.5 text-[10px] font-bold">{notChosenDeliveries.length}</Badge>
                 </div>
 
                 {/* V1 SPEC: Explain what Not Chosen means and self-assignability rules */}
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-                  <p className="text-xs text-amber-800">
-                    <strong>Not Chosen includes:</strong> Deliveries rejected by all photographers, unassigned primary deliveries after reject cycle, canceled/postponed by admin.
+                <div className="p-3 bg-white/50 border border-red-50 rounded-xl space-y-1.5">
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    Includes deliveries rejected by all or unassigned after expiry.
                   </p>
-                  <p className="text-xs text-red-700 font-semibold">
-                    🚫 You CANNOT self-assign: Customer-rejected, Postponed, or Cancelled deliveries.
+                  <p className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+                    <AlertCircle className="h-2.5 w-2.5" />
+                    Cannot self-assign: Customer-rejected or Postponed.
                   </p>
                 </div>
 
                 {notChosenDeliveries.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="grid gap-3">
                     {notChosenDeliveries.map(delivery => (
                       <DeliveryCard
                         key={delivery.id}
@@ -2118,11 +2114,9 @@ export function HomeScreen() {
                     ))}
                   </div>
                 ) : (
-                  <Card className="border-dashed border-2 border-gray-200">
-                    <CardContent className="py-8 text-center">
-                      <p className="text-gray-400 text-sm">No deliveries in this category</p>
-                    </CardContent>
-                  </Card>
+                  <div className="py-6 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center bg-gray-50/50">
+                      <p className="text-gray-300 text-xs font-medium uppercase tracking-wider text-center">No unassigned items</p>
+                  </div>
                 )}
               </div>
             </>
@@ -2132,22 +2126,22 @@ export function HomeScreen() {
 
       {/* Bottom Sticky Button - V1 SPEC: Always enabled to allow day closure even with zero deliveries */}
       {!showSendUpdate && (photographerDayState as string) === 'ACTIVE' && (
-        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white border-t shadow-lg z-50">
+        <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-indigo-50 shadow-[0_-4px_20px_rgba(79,70,229,0.08)] z-40">
           <Button
-            className="w-full h-16 bg-[#2563EB] hover:bg-blue-700 text-white font-semibold shadow-md flex flex-col items-center justify-center gap-1"
+            className="w-full h-14 btn-gradient flex flex-col items-center justify-center gap-0.5 rounded-xl"
             disabled={isFullDayLeave}
             onClick={() => {
               // Single click - open Send Update screen directly
               setShowSendUpdate(true);
             }}
           >
-            <span className="text-lg">
+            <span className="text-base font-bold tracking-tight">
               {isFullDayLeave ? 'On Full Day Leave' : 'Deliveries Finished?'}
             </span>
-            <span className="text-xs font-normal opacity-90">
+            <span className="text-[10px] font-medium opacity-80 uppercase tracking-wider">
               {isFullDayLeave
                 ? 'Prompts disabled'
-                : 'Close day and send update to admin'}
+                : 'Close day and send update'}
             </span>
           </Button>
         </div>
