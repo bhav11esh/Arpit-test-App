@@ -56,6 +56,8 @@ export function EarningsTracker() {
         totalRapido: number;
         totalPenalty: number;
         emergencyLeavesCount: number;
+        missedUpdatesCount: number;
+        missedUpdatesPenalty: number;
         leaves: any[];
         salaryBenchmark: number;
         daysWorked: number;
@@ -153,6 +155,30 @@ export function EarningsTracker() {
                 }
             });
 
+            // 🚀 V18.2: Send Update Missed Penalty (1000 Rs per day missed, from 5th May 2026 onwards)
+            let missedUpdatesCount = 0;
+            let missedUpdatesPenalty = 0;
+            try {
+                const { data: missedUpdates, error: missedError } = await client.rpc('get_photographer_missing_updates', {
+                    p_photographer_id: selectedPhotographerId || user?.id,
+                    p_start_date: fromStr,
+                    p_end_date: toStr
+                });
+                
+                if (!missedError && missedUpdates) {
+                    missedUpdates.forEach((mu: { missing_date: string }) => {
+                        if (mu.missing_date >= '2026-05-05') {
+                            missedUpdatesCount++;
+                            missedUpdatesPenalty += 1000;
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Error fetching missing updates:", err);
+            }
+
+            totalPenalty += missedUpdatesPenalty;
+
             // --- 🚀 NEW TIERED PAYOUT LOGIC (10/30/50) ---
             const daysWorkedList = Array.from(new Set(filtered.map(d => d.date)));
             const daysWorkedCount = daysWorkedList.length;
@@ -191,6 +217,8 @@ export function EarningsTracker() {
                 totalRapido: rapidoTotal,
                 totalPenalty: totalPenalty,
                 emergencyLeavesCount: totalEmergencyHalves,
+                missedUpdatesCount: missedUpdatesCount,
+                missedUpdatesPenalty: missedUpdatesPenalty,
                 leaves: photographerLeaves,
                 salaryBenchmark: salaryBenchmark,
                 daysWorked: daysWorkedCount,
@@ -429,6 +457,22 @@ export function EarningsTracker() {
                         </div>
                     )}
 
+                    {/* Missed Updates Penalty Display */}
+                    {stats && stats.missedUpdatesCount > 0 && (
+                        <div className="space-y-2 p-3 bg-red-50/50 border border-red-200 rounded-lg">
+                            <h3 className="text-xs font-bold flex items-center gap-2 text-red-900 uppercase tracking-wide">
+                                <AlertTriangle className="h-4 w-4 text-red-600" />
+                                Send Update Missed Penalty
+                            </h3>
+                            <div className="text-sm text-red-800">
+                                You missed sending the end-of-day update on <strong className="text-red-900">{stats.missedUpdatesCount} day(s)</strong> (since May 5th).
+                                <div className="mt-1 font-bold text-red-600">
+                                    Penalty Applied: ₹{stats.missedUpdatesPenalty.toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Breakdown Table */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -497,6 +541,7 @@ export function EarningsTracker() {
                                 <li><strong>Customer Paid:</strong> Photographers settle 30% of collections upfront. The "Pending" amount reconciles this upfront payment against your final tiered share.</li>
                                 <li><strong>Dealer Paid:</strong> Platform collects the full amount via invoice. Your 90/70/50% share is added to your "Credit" to be settled.</li>
                                 <li><strong>Rapido & Penalties:</strong> These are deducted from the Gross Pool *before* splitting, so you don't pay commission on expenses.</li>
+                                <li><strong>Missing Send Update:</strong> A penalty of ₹1000 applies per day if the end-of-day update is not sent (applicable from May 5th, 2026 onwards).</li>
                                 <li><strong>Final Settlement:</strong> Credits (CR) are paid out by Admin; Owed amounts are cleared by Photographer.</li>
                             </ul>
                         </div>
