@@ -255,6 +255,27 @@
     border: 1px solid rgba(220, 38, 38, 0.2) !important;
   }
 
+  /* Normal Leave Calendar Styles */
+  .normal-full {
+    background-color: #E5E7EB !important;
+    border-radius: 9999px !important;
+    border: 1px solid #D1D5DB !important;
+    color: #374151 !important;
+    font-weight: 600 !important;
+  }
+  
+  .normal-first {
+    background: linear-gradient(90deg, #E5E7EB 50%, transparent 50%) !important;
+    border-radius: 9999px !important;
+    border: 1px solid #E5E7EB !important;
+  }
+  
+  .normal-second {
+    background: linear-gradient(270deg, #E5E7EB 50%, transparent 50%) !important;
+    border-radius: 9999px !important;
+    border: 1px solid #E5E7EB !important;
+  }
+
   .missed-update {
     background-color: #DC2626 !important;
     border-radius: 9999px !important;

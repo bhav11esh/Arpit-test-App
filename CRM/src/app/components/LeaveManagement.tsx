@@ -231,13 +231,37 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                                     missedUpdate: (date) => {
                                         const dStr = getLocalDateString(date);
                                         return missedUpdates.includes(dStr);
+                                    },
+                                    normalFull: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const dayLeaves = leaves.filter(l => l.date === dStr);
+                                        return dayLeaves.length === 2 && !dayLeaves.some(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                    },
+                                    normalFirst: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const l = leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                        if (!l) return false;
+                                        if (isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                        const r = leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                        return !r || isEmergencyLeave(r.date, r.half, r.appliedAt);
+                                    },
+                                    normalSecond: (date) => {
+                                        const dStr = getLocalDateString(date);
+                                        const l = leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
+                                        if (!l) return false;
+                                        if (isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
+                                        const f = leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
+                                        return !f || isEmergencyLeave(f.date, f.half, f.appliedAt);
                                     }
                                 }}
                                 modifiersClassNames={{
                                     emergencyFull: "emergency-full",
                                     emergencyFirst: "emergency-first",
                                     emergencySecond: "emergency-second",
-                                    missedUpdate: "missed-update"
+                                    missedUpdate: "missed-update",
+                                    normalFull: "normal-full",
+                                    normalFirst: "normal-first",
+                                    normalSecond: "normal-second"
                                 }}
                                 className="scale-95 md:scale-100 p-0"
                             />
