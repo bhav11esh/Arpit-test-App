@@ -1741,9 +1741,9 @@ export function ViewScreen() {
                                   </div>
                                 ) : (
                                   <div
-                                    className={`flex items-center gap-2 p-1 rounded group ${isAdmin && delivery.status !== 'DONE' ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                                    onClick={() => isAdmin && delivery.status !== 'DONE' && handleStartEdit(delivery.id, 'assigned_user_id', delivery.assigned_user_id || 'unassigned')}
-                                    title={isAdmin && delivery.status !== 'DONE' ? "Click to reassign photographer" : "Read-only after closeout"}
+                                    className={`flex items-center gap-2 p-1 rounded group ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'assigned_user_id', delivery.assigned_user_id || 'unassigned')}
+                                    title={isAdmin ? "Click to reassign photographer" : ""}
                                   >
                                     <span className={!photographer ? "text-red-500 font-medium" : ""}>
                                       {photographer?.name || 'Unassigned'}

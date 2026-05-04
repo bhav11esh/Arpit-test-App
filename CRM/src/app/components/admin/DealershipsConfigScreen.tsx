@@ -457,8 +457,15 @@ export function DealershipsConfigScreen() {
         return hasData;
       }).map((row: any, index: number) => {
         const photographerName = (getValueLocal(row, "Photographer", "Photographer name", "Photographer Name") || "").trim();
+        // V20.0 FIX: Strict matching to prevent false positives (e.g. "Bhuvan" != "Bhuvanesan")
+        // 1. Exact match (case-insensitive)
+        // 2. Fuzzy match ONLY if name lengths are within 2 chars (handles typos, not substrings)
         const photographer = (photographers || []).find(p => 
-          p && p.name && photographerName && (
+          p && p.name && photographerName && 
+          p.name.toLowerCase().trim() === photographerName.toLowerCase()
+        ) || (photographers || []).find(p =>
+          p && p.name && photographerName &&
+          Math.abs(p.name.length - photographerName.length) <= 2 && (
             p.name.toLowerCase().includes(photographerName.toLowerCase()) || 
             photographerName.toLowerCase().includes(p.name.toLowerCase())
           )
