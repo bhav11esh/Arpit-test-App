@@ -113,7 +113,7 @@ export function AcceptRejectDialog({
               <div className="font-bold text-lg text-orange-800 tracking-tight leading-tight">{delivery.delivery_name}</div>
               
               <div className="grid grid-cols-2 gap-y-3">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-500/80 uppercase tracking-tight">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-500/80 uppercase tracking-tight min-w-0">
                   <MapPin className="h-3.5 w-3.5" />
                   <span className="truncate">{delivery.showroom_code}</span>
                 </div>

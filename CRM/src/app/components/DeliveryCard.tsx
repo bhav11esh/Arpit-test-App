@@ -156,7 +156,7 @@ export function DeliveryCard({
           <div className="flex items-start justify-between gap-2 min-w-0">
             <div className="flex-1 min-w-0 overflow-hidden">
               <CardTitle className="text-sm sm:text-base truncate">{delivery.delivery_name}</CardTitle>
-              <div className="flex items-center gap-1.5 mt-1.5 text-xs sm:text-sm text-gray-500">
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs sm:text-sm text-gray-500 min-w-0">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-orange-400" />
                 <span className="truncate">{delivery.showroom_code} • {delivery.cluster_code}</span>
               </div>
@@ -229,10 +229,10 @@ export function DeliveryCard({
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
+              <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0 overflow-hidden">
                 <Clock className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
                 {delivery.timing ? (
-                  <span className="font-medium text-gray-900">{formatTiming(delivery.timing)}</span>
+                  <span className="font-medium text-gray-900 truncate">{formatTiming(delivery.timing)}</span>
                 ) : (
                   <span className="text-gray-400 italic">No timing set</span>
                 )}

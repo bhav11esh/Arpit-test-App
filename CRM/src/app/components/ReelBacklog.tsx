@@ -238,7 +238,7 @@ export function ReelBacklog() {
                     </div>
 
                     {delivery.footage_link && (
-                      <div className="flex items-center gap-2 p-2.5 border border-orange-50 rounded-xl bg-orange-50/30 text-[11px]">
+                      <div className="flex items-center gap-2 p-2.5 border border-orange-50 rounded-xl bg-orange-50/30 text-[11px] min-w-0">
                         <span className="font-bold text-orange-400 uppercase tracking-tighter">Footage:</span>
                         <a
                           href={delivery.footage_link}
@@ -443,7 +443,7 @@ export function ReelBacklog() {
                       </div>
 
                       {task.reel_link && (
-                        <div className="flex items-center gap-2 p-2.5 border border-emerald-100 rounded-xl bg-emerald-50/50">
+                        <div className="flex items-center gap-2 p-2.5 border border-emerald-100 rounded-xl bg-emerald-50/50 min-w-0">
                           <Film className="h-3.5 w-3.5 text-emerald-500" />
                           <a
                             href={task.reel_link}

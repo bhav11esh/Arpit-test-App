@@ -1929,13 +1929,13 @@ export function HomeScreen() {
               {/* SECTION 2: Primary Deliveries */}
               <TooltipProvider>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2 w-full px-1">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
-                      <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Deliveries</h2>
+                  <div className="flex items-center justify-between gap-2 w-full px-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(234,88,12,0.5)] flex-shrink-0"></div>
+                      <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest truncate">Primary Deliveries</h2>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button className="ml-1">
+                          <button className="ml-1 flex-shrink-0">
                             <Info className="h-3.5 w-3.5 text-gray-300 hover:text-gray-400" />
                           </button>
                         </TooltipTrigger>
@@ -1945,65 +1945,67 @@ export function HomeScreen() {
                       </Tooltip>
                     </div>
 
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-7 gap-1 border-orange-100 text-orange-600 hover:bg-orange-50 text-[11px] px-2.5 rounded-lg">
-                          <Plus className="h-3.5 w-3.5" />
-                          External
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Add External Delivery</DialogTitle>
-                          <div className="text-xs text-muted-foreground">
-                            Adding a delivery from another cluster.
-                          </div>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Cluster</label>
-                            <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select Cluster" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {clusters.map(cluster => (
-                                  <SelectItem key={cluster.id} value={cluster.name}>
-                                    {cluster.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Dealership</label>
-                            <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select Dealership" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {dealerships.map(dealership => (
-                                  <SelectItem key={dealership.id} value={dealership.id}>
-                                    {dealership.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button
-                            onClick={handleAddExternalDelivery}
-                            disabled={!selectedExternalCluster || !selectedExternalDealership || addingExternal}
-                            className="w-full btn-gradient"
-                          >
-                            {addingExternal ? 'Adding...' : 'Add Delivery'}
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 gap-1 border-orange-100 text-orange-600 hover:bg-orange-50 text-[11px] px-2.5 rounded-lg">
+                            <Plus className="h-3.5 w-3.5" />
+                            External
                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Add External Delivery</DialogTitle>
+                            <DialogDescription>
+                              Add a delivery for a showroom that is not normally assigned to you.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Cluster</label>
+                              <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select Cluster" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {clusters.map(cluster => (
+                                    <SelectItem key={cluster.id} value={cluster.id}>
+                                      {cluster.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Dealership</label>
+                              <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select Dealership" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {dealerships.map(dealership => (
+                                    <SelectItem key={dealership.id} value={dealership.id}>
+                                      {dealership.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              onClick={handleAddExternalDelivery}
+                              disabled={!selectedExternalCluster || !selectedExternalDealership || addingExternal}
+                              className="w-full btn-gradient"
+                            >
+                              {addingExternal ? 'Adding...' : 'Add Delivery'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
 
-                    <Badge className="bg-orange-50 text-orange-600 border-0 ml-auto h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
+                      <Badge className="bg-orange-50 text-orange-600 border-0 h-5 px-1.5 text-[10px] font-bold">{primaryDeliveries.length}</Badge>
+                    </div>
                   </div>
                   {primaryDeliveries.length > 0 ? (
                     <div className="grid gap-3">
@@ -2035,12 +2037,12 @@ export function HomeScreen() {
               {/* SECTION 3: Secondary Deliveries */}
               <TooltipProvider>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
-                    <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Secondary Deliveries (Today)</h2>
+                  <div className="flex items-center gap-2 px-1 min-w-0">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] flex-shrink-0"></div>
+                    <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest truncate">Secondary Deliveries (Today)</h2>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button className="ml-1">
+                        <button className="ml-1 flex-shrink-0">
                           <Info className="h-3.5 w-3.5 text-gray-300 hover:text-gray-400" />
                         </button>
                       </TooltipTrigger>
@@ -2048,7 +2050,7 @@ export function HomeScreen() {
                         <p>Showrooms not permanently assigned to you.</p>
                       </TooltipContent>
                     </Tooltip>
-                    <Badge variant="outline" className="border-amber-100 bg-amber-50 text-amber-600 ml-auto h-5 px-1.5 text-[10px] font-bold">{secondaryDeliveries.length}</Badge>
+                    <Badge variant="outline" className="border-amber-100 bg-amber-50 text-amber-600 ml-auto flex-shrink-0 h-5 px-1.5 text-[10px] font-bold">{secondaryDeliveries.length}</Badge>
                   </div>
                   {secondaryDeliveries.length > 0 ? (
                     <div className="grid gap-3">
@@ -2079,10 +2081,10 @@ export function HomeScreen() {
 
               {/* SECTION 4: Not Chosen Deliveries */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-2 px-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
-                  <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Not Chosen Deliveries</h2>
-                  <Badge variant="outline" className="bg-red-50 border-red-100 text-red-600 ml-auto h-5 px-1.5 text-[10px] font-bold">{notChosenDeliveries.length}</Badge>
+                <div className="flex items-center gap-2 px-1 min-w-0">
+                  <div className="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)] flex-shrink-0"></div>
+                  <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest truncate">Not Chosen Deliveries</h2>
+                  <Badge variant="outline" className="bg-red-50 border-red-100 text-red-600 ml-auto flex-shrink-0 h-5 px-1.5 text-[10px] font-bold">{notChosenDeliveries.length}</Badge>
                 </div>
 
                 {/* V1 SPEC: Explain what Not Chosen means and self-assignability rules */}
