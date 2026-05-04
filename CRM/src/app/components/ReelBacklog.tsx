@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Film, Check, X, AlertCircle, User, UserCheck } from 'lucide-react';
+import { Film, Check, X, AlertCircle, User, UserCheck, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ReelBacklog() {
