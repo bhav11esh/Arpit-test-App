@@ -30,7 +30,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Calendar, CheckCircle2, Info } from 'lucide-react';
+import { Calendar, CheckCircle2, Info, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getClusterShortCode } from '../lib/utils'; // V1 IMPORT
 import {
