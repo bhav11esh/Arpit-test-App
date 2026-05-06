@@ -10,6 +10,7 @@ import {
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { Badge } from './ui/badge';
 import { Plus, Clock, Trash2, AlertCircle } from 'lucide-react';
 import type { Delivery } from '../types';
 import { toast } from 'sonner';
