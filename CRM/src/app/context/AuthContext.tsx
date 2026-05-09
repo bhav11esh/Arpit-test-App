@@ -95,9 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         setSession(session);
-        if (session?.user) {
-          // V1 OPTIMIZATION: We don't set loading=true here if already false
-          // to prevent "flash of loading" on transient events.
+          if (mounted) setLoading(true);
+          console.log('[Auth] Session detected, fetching user data...');
           const userData = await fetchUserData(session.user.id, session.user.email || '');
 
           if (mounted) {
@@ -146,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[Auth] State change error:', err);
       } finally {
         if (mounted) {
-          // V1 CRITICAL: Always clear loading on the first complete cycle
+          console.log(`[Auth] Finalizing session update: user=${!!session?.user}, loading=false`);
           setLoading(false);
         }
       }

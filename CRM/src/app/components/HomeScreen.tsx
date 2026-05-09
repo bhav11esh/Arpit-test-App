@@ -139,8 +139,11 @@ export function HomeScreen() {
   useEffect(() => {
     if (!user) return;
 
+    let mounted = true;
+
     const fetchDeliveries = async () => {
       try {
+        if (!mounted) return;
         const { supabase: client } = await import('../lib/supabase');
         const today = getOperationalDateString();
         const currentHour = new Date().getHours();
@@ -186,14 +189,21 @@ export function HomeScreen() {
           setDeliveries(activeDeliveries);
         }
       } catch (err) {
-        console.error('Error polling deliveries:', err);
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log('Polling aborted (component unmounted or auth change)');
+        } else {
+          console.error('Error polling deliveries:', err);
+        }
       }
     };
 
     fetchDeliveries(); // Initial fetch
     const pollInterval = setInterval(fetchDeliveries, 5000); // Poll every 5s
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      mounted = false;
+      clearInterval(pollInterval);
+    };
   }, [user, effectiveClusterCode]); // Remove 'deliveries' dependency to avoid loops, relies on setDeliveries check
 
   // Schedule geofence checks for assigned deliveries with timing
@@ -1107,8 +1117,13 @@ export function HomeScreen() {
 
       toast.success('Screenshot uploaded and saved');
     } catch (error) {
-      console.error('Error uploading screenshot:', error);
-      toast.error('Failed to upload screenshot');
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Screenshot upload aborted (auth disruption)');
+        // Don't show toast for AbortError as it's usually a side effect of sign-out
+      } else {
+        console.error('Error uploading screenshot:', error);
+        toast.error('Failed to upload screenshot');
+      }
     }
   };
 

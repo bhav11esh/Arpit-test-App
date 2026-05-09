@@ -32,7 +32,8 @@ export const adminSupabase = supabaseServiceKey
   ? createClient<Database>(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
+      storageKey: 'sb-admin-auth-token' // V1 FIX: Unique key prevents clashing with photographer session
     }
   })
   : null;
