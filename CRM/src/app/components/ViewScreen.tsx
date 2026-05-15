@@ -2964,7 +2964,7 @@ export function ViewScreen() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </>
+        </div>
       )}
     </div>
   );
