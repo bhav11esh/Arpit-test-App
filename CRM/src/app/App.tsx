@@ -26,7 +26,7 @@ import { Layout } from './components/Layout';
 import { BottomNav } from './components/BottomNav';
 import { Toaster } from './components/ui/sonner';
 import { GPSPermissionPrompt } from './components/GPSPermissionPrompt';
-// import { useRegisterSW } from 'virtual:pwa-register/react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { savePushSubscription } from './lib/db/push';
 import { updateUserMonitoring } from './lib/db/users';
 import { checkGeolocationPermission } from './lib/geofence';
@@ -37,12 +37,10 @@ function AppRoutes() {
   const location = useLocation();
 
   // V1 SPEC: PWA Service Worker Registration
-  /*
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW();
-  */
 
   // V1 MONITORING: Heartbeat & GPS/Notification Status tracking
   const lastStatusRef = React.useRef<{ gps: string, notification: string }>({ gps: 'unknown', notification: 'unknown' });

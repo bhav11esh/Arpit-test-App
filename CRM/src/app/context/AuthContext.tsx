@@ -95,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         setSession(session);
+        if (session?.user) {
           if (mounted) setLoading(true);
           console.log('[Auth] Session detected, fetching user data...');
           const userData = await fetchUserData(session.user.id, session.user.email || '');
