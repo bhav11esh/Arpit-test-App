@@ -273,9 +273,6 @@ function AppRoutes() {
 
   return (
     <>
-      <div className="bg-red-600 text-white text-[10px] py-1 text-center font-bold sticky top-0 z-[100] animate-pulse">
-        🚀 MOBILE UI V2.0 DEPLOYED - PLEASE REFRESH IF YOU SEE THIS
-      </div>
       <Routes>
         <Route
           path="/"
