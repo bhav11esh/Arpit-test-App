@@ -575,8 +575,10 @@ export function ReelBacklog() {
                   <Card key={task.id} className="delivery-accent-done opacity-80 shadow-sm">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-base truncate">{delivery.delivery_name}</CardTitle>
+                        <div className="flex-1 min-w-0 pr-2 overflow-hidden">
+                          <CardTitle className="text-sm font-bold leading-tight" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                            {delivery.delivery_name}
+                          </CardTitle>
                           <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                           {/* V1 ADMIN: Show photographer name for admin view */}
                           {user?.role === 'ADMIN' && photographer && (
