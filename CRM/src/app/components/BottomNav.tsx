@@ -69,6 +69,10 @@ export function BottomNav({ userRole }: BottomNavProps) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 nav-glass z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {/* MOBILE VERSION MARKER */}
+      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[7px] px-2 py-0.5 rounded-full font-mono pointer-events-none opacity-40">
+        UI-V2.0-MOBILE
+      </div>
       <div className={`grid ${userRole === 'ADMIN' ? 'grid-cols-3' : 'grid-cols-4'} h-16`}>
         {tabs.map(tab => {
           const Icon = tab.icon;

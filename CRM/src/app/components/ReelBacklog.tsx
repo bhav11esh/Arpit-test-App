@@ -391,13 +391,13 @@ export function ReelBacklog() {
                     </div>
 
                     {delivery.footage_link && (
-                      <div className="flex flex-col gap-1 p-2.5 border border-orange-50 rounded-xl bg-orange-50/30 text-[11px] min-w-0">
+                      <div className="flex flex-col gap-1 p-2.5 border border-orange-50 rounded-xl bg-orange-50/30 text-[11px] w-full overflow-hidden">
                         <span className="font-bold text-orange-400 uppercase tracking-tighter text-[9px]">Footage Link:</span>
                         <a
                           href={delivery.footage_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-orange-600 font-medium hover:underline break-all overflow-wrap-anywhere"
+                          className="text-orange-600 font-medium hover:underline break-all whitespace-normal"
                         >
                           {delivery.footage_link}
                         </a>
@@ -603,7 +603,7 @@ export function ReelBacklog() {
                       </div>
 
                       {task.reel_link && (
-                        <div className="flex flex-col gap-1 p-2.5 border border-emerald-100 rounded-xl bg-emerald-50/50 min-w-0">
+                        <div className="flex flex-col gap-1 p-2.5 border border-emerald-100 rounded-xl bg-emerald-50/50 w-full overflow-hidden">
                           <div className="flex items-center gap-1.5">
                             <Film className="h-3 w-3 text-emerald-500" />
                             <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter">Resolved Reel:</span>
@@ -612,7 +612,7 @@ export function ReelBacklog() {
                             href={task.reel_link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[11px] font-bold text-emerald-700 hover:underline break-all overflow-wrap-anywhere flex-1 tracking-tight"
+                            className="text-[11px] font-bold text-emerald-700 hover:underline break-all whitespace-normal flex-1 tracking-tight"
                           >
                             {task.reel_link}
                           </a>
