@@ -361,9 +361,11 @@ export function ReelBacklog() {
                 <Card key={task.id} className="delivery-accent-pending shadow-sm hover:shadow-md transition-all duration-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base truncate">{delivery.delivery_name}</CardTitle>
-                        <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <CardTitle className="text-sm font-bold break-all leading-tight">
+                          {delivery.delivery_name}
+                        </CardTitle>
+                        <CardDescription className="text-[10px] truncate mt-0.5">{delivery.showroom_code}</CardDescription>
                         {/* V1 ADMIN: Show photographer name for admin view */}
                         {user?.role === 'ADMIN' && photographer && (
                           <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-orange-500 bg-orange-50 w-fit px-2 py-0.5 rounded-full">
@@ -383,8 +385,8 @@ export function ReelBacklog() {
                     )}
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Calendar className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-medium">
+                      <Calendar className="h-3 w-3" />
                       <span>{new Date(delivery.date).toLocaleDateString('en-IN')}</span>
                     </div>
 
@@ -427,11 +429,11 @@ export function ReelBacklog() {
                     {user?.role === 'PHOTOGRAPHER' && (
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button className="w-full btn-gradient h-10" onClick={() => {
+                        <Button className="w-full btn-gradient h-8 text-xs" onClick={() => {
                             setSelectedTask(task);
                             setReelLinkInput(task.reel_link || '');
                           }}>
-                            <Film className="h-4 w-4 mr-2" />
+                            <Film className="h-3.5 w-3.5 mr-2" />
                             Add Reel Link
                           </Button>
                         </DialogTrigger>
@@ -480,12 +482,12 @@ export function ReelBacklog() {
                         }
                       }}>
                         <DialogTrigger asChild>
-                          <Button className="w-full" variant="outline" onClick={() => {
+                          <Button className="w-full h-8 text-xs" variant="outline" onClick={() => {
                             setSelectedTask(task);
                             setSelectedPhotographer(task.assigned_user_id);
                             setReassignDialogOpen(true);
                           }}>
-                            <UserCheck className="h-4 w-4 mr-2" />
+                            <UserCheck className="h-3.5 w-3.5 mr-2" />
                             Reassign Reel Task
                           </Button>
                         </DialogTrigger>
