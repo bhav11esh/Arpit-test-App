@@ -1234,38 +1234,57 @@ export function ViewScreen() {
   }
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Main Tab Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Main Tab</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={mainTab} onValueChange={(v: any) => setMainTab(v)}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {/* V1 SPEC: Separate Data Views from Audit Views */}
-              <SelectItem value="earnings" className="font-semibold">💰 Earnings Tracker</SelectItem>
-              <SelectItem value="data" className="font-semibold">📊 Data Views</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Non-Admin Warning */}
-          {!isAdmin && (
-            <div className="mt-3 flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-800">
-              <Lock className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium">Limited Access</p>
-                <p className="text-xs text-orange-700 mt-1">
-                  Audit Views (screenshot galleries & logs) are restricted to admin users only.
-                </p>
-              </div>
+    <div className="space-y-4 pb-20 p-2 sm:p-4">
+      {/* Top Selectors - Side-by-Side on Desktop, Stacked on Mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Main Tab</label>
+              <Select value={mainTab} onValueChange={(v: any) => setMainTab(v)}>
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="earnings" className="text-sm font-semibold">💰 Earnings Tracker</SelectItem>
+                  <SelectItem value="data" className="text-sm font-semibold">📊 Data Views</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {mainTab === 'data' && (
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">View Mode</label>
+                <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="spreadsheet" className="text-sm font-semibold">📊 Data Views</SelectItem>
+                    <SelectItem value="spreadsheet" className="pl-6 text-sm">Spreadsheet View</SelectItem>
+                    <SelectItem value="portrait" className="pl-6 text-sm">Live Portrait Bookings</SelectItem>
+                    {isAdmin && (
+                      <>
+                        <SelectItem value="payment" disabled className="text-sm font-semibold mt-2">🔒 Audit Views</SelectItem>
+                        <SelectItem value="payment" className="pl-6 text-sm">Payment Screenshots</SelectItem>
+                        <SelectItem value="follow" className="pl-6 text-sm">Follow Screenshots</SelectItem>
+                        <SelectItem value="rapido" className="pl-6 text-sm">Rapido Screenshots</SelectItem>
+                        <SelectItem value="platform_payment" className="pl-6 text-sm">Yourphotocrew Payments</SelectItem>
+                        <SelectItem value="fraud_detection" className="pl-6 text-sm">Fraud Detection</SelectItem>
+                        <SelectItem value="logs" className="pl-6 text-sm">Admin Logs</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Earnings Tracker (Photographer Only) */}
       {mainTab === 'earnings' && (
@@ -1274,209 +1293,126 @@ export function ViewScreen() {
 
       {/* Data Views (Admin + Photographer) */}
       {mainTab === 'data' && (
-        <>
-          {/* View Mode Selector */}
-          <Card>
-            <CardHeader>
-              <CardTitle>View Mode</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* V1 SPEC: Separate Data Views from Audit Views */}
-                  <SelectItem value="spreadsheet" className="font-semibold">📊 Data Views</SelectItem>
-                  <SelectItem value="spreadsheet" className="pl-6">Spreadsheet View</SelectItem>
-                  <SelectItem value="portrait" className="pl-6">Live Portrait Bookings</SelectItem>
-
-                  {/* V1 SPEC: Screenshot galleries and logs are ADMIN-ONLY */}
-                  {isAdmin && (
-                    <>
-                      <SelectItem value="payment" disabled className="font-semibold mt-2">🔒 Audit Views (Admin Only)</SelectItem>
-                      <SelectItem value="payment" className="pl-6">Payment Screenshots</SelectItem>
-                      <SelectItem value="follow" className="pl-6">Follow Screenshots</SelectItem>
-                      <SelectItem value="rapido" className="pl-6">Rapido Screenshots</SelectItem>
-                      <SelectItem value="platform_payment" className="pl-6">Yourphotocrew Payment Screenshots</SelectItem>
-                      <SelectItem value="fraud_detection" className="pl-6">Fraud Detection Photos</SelectItem>
-                      <SelectItem value="logs" className="pl-6">Admin Logs</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-
-              {/* Non-Admin Warning */}
-              {!isAdmin && (
-                <div className="mt-3 flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-800">
-                  <Lock className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">Limited Access</p>
-                    <p className="text-xs text-orange-700 mt-1">
-                      Audit Views (screenshot galleries & logs) are restricted to admin users only.
-                    </p>
-                  </div>
-                </div>
-              )}
-              {/* DEBUG: Admin Client Status */}
-              {isAdmin && (
-                <div className={`mt-3 p-2 rounded text-xs border ${adminSupabase ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
-                  <p className="font-bold flex items-center gap-2">
-                    {adminSupabase ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                    Admin Client: {adminSupabase ? 'ACTIVE' : 'INACTIVE (Check .env VITE_SUPABASE_SERVICE_ROLE_KEY)'}
-                  </p>
-                  {!adminSupabase && <p className="mt-1">You are viewing data with standard permissions. Some records may be hidden.</p>}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div className="space-y-4">
+          {/* Admin Client Status (Compact) */}
+          {isAdmin && (
+            <div className={`p-2 rounded text-[10px] border ${adminSupabase ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              <p className="font-bold flex items-center gap-2">
+                {adminSupabase ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                Admin Client: {adminSupabase ? 'ACTIVE' : 'INACTIVE'}
+              </p>
+            </div>
+          )}
 
           {/* Admin Configuration Access (Admin Only) */}
           {isAdmin && (
-            <>
-              <Card className="border-blue-200 bg-blue-50">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Settings className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-blue-900">System Configuration</p>
-                        <p className="text-xs text-blue-700 mt-1">
-                          Manage clusters, dealerships, photographers, and mappings
-                        </p>
-                      </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Card className="border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => navigate('/admin/config')}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg shrink-0">
+                      <Settings className="h-4 w-4 text-blue-600" />
                     </div>
-                    <Button
-                      onClick={() => navigate('/admin/config')}
-                      variant="default"
-                      className="gap-2"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Configuration
-                    </Button>
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900">Config</p>
+                      <p className="text-[10px] text-blue-700">Clusters & Dealerships</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-purple-200 bg-purple-50">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <Calendar className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-purple-900">Leave Management</p>
-                        <p className="text-xs text-purple-700 mt-1">
-                          View and manage photographer leaves (half-day tracking)
-                        </p>
-                      </div>
+              <Card className="border-purple-200 bg-purple-50 cursor-pointer hover:bg-purple-100 transition-colors" onClick={() => navigate('/admin/leave')}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg shrink-0">
+                      <Calendar className="h-4 w-4 text-purple-600" />
                     </div>
-                    <Button
-                      onClick={() => navigate('/admin/leave')}
-                      variant="default"
-                      className="gap-2"
-                    >
-                      <Calendar className="h-4 w-4" />
-                      Manage Leaves
-                    </Button>
+                    <div>
+                      <p className="text-sm font-semibold text-purple-900">Leaves</p>
+                      <p className="text-[10px] text-purple-700">Manage photographer leave</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-orange-200 bg-orange-50">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        <Bell className="h-5 w-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-orange-900">System Audit</p>
-                        <p className="text-xs text-orange-700 mt-1">
-                          Nudge photographers with pending updates or reel backlog
-                        </p>
-                      </div>
+              <Card 
+                className={`border-orange-200 bg-orange-50 cursor-pointer transition-colors ${auditLoading ? 'opacity-70' : 'hover:bg-orange-100'}`}
+                onClick={!auditLoading ? handleRunAudit : undefined}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 rounded-lg shrink-0">
+                      <ClipboardCheck className={`h-4 w-4 text-orange-600 ${auditLoading ? 'animate-pulse' : ''}`} />
                     </div>
-                    <Button
-                      onClick={handleRunAudit}
-                      disabled={auditLoading}
-                      variant="default"
-                      className="gap-2 bg-orange-600 hover:bg-orange-700 text-white"
-                    >
-                      <ClipboardCheck className={`h-4 w-4 ${auditLoading ? 'animate-pulse' : ''}`} />
-                      {auditLoading ? 'Auditing...' : 'Run System Audit'}
-                    </Button>
+                    <div>
+                      <p className="text-sm font-semibold text-orange-900">{auditLoading ? 'Auditing...' : 'Audit'}</p>
+                      <p className="text-[10px] text-orange-700">Nudge missing updates</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            </>
+            </div>
           )}
 
           {/* Spreadsheet View */}
           {viewMode === 'spreadsheet' && (
             <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Deliveries Covered Log</CardTitle>
-                    <div className="flex items-center gap-2">
-                      {/* V1 SPEC: Undo/Redo buttons for spreadsheet edits */}
-                      <Button
-                        onClick={() => {
-                          console.log('Undo clicked - historyIndex:', historyIndex, 'editHistory.length:', editHistory.length);
-                          handleUndo();
-                        }}
-                        size="sm"
-                        variant="outline"
-                        disabled={historyIndex <= 0}
-                        className="gap-1"
-                        title={`History Index: ${historyIndex}, History Length: ${editHistory.length}`}
-                      >
-                        <Undo2 className="h-3 w-3" />
-                        Undo ({historyIndex})
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          console.log('Redo clicked - historyIndex:', historyIndex, 'editHistory.length:', editHistory.length);
-                          handleRedo();
-                        }}
-                        size="sm"
-                        variant="outline"
-                        disabled={historyIndex >= editHistory.length - 1}
-                        className="gap-1"
-                        title={`History Index: ${historyIndex}, History Length: ${editHistory.length}`}
-                      >
-                        <Redo2 className="h-3 w-3" />
-                        Redo ({editHistory.length})
-                      </Button>
-                       <Button 
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <CardTitle className="text-lg">Deliveries Covered Log</CardTitle>
+                    
+                    {/* Action Buttons Container - Optimized for Mobile */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-md border border-gray-200">
+                        <Button
+                          onClick={handleUndo}
+                          size="sm"
+                          variant="ghost"
+                          disabled={historyIndex <= 0}
+                          className="h-8 px-2 text-[10px]"
+                        >
+                          <Undo2 className="h-3 w-3 mr-1" />
+                          Undo
+                        </Button>
+                        <div className="w-[1px] h-4 bg-gray-200" />
+                        <Button
+                          onClick={handleRedo}
+                          size="sm"
+                          variant="ghost"
+                          disabled={historyIndex >= editHistory.length - 1}
+                          className="h-8 px-2 text-[10px]"
+                        >
+                          Redo
+                          <Redo2 className="h-3 w-3 ml-1" />
+                        </Button>
+                      </div>
+
+                      <Button 
                         onClick={handleBulkSyncPending} 
                         disabled={pendingSyncs.size === 0 || isSyncingBulk}
                         size="sm" 
                         variant={pendingSyncs.size > 0 ? "destructive" : "outline"}
-                        className="gap-2"
+                        className="h-8 text-[10px] gap-1 px-2"
                       >
-                        <BellRing className={`h-4 w-4 ${pendingSyncs.size > 0 ? "animate-pulse" : ""}`} />
-                        {isSyncingBulk ? "Syncing..." : `Sync Now (${pendingSyncs.size} Pending)`}
+                        <BellRing className={`h-3 w-3 ${pendingSyncs.size > 0 ? "animate-pulse" : ""}`} />
+                        {isSyncingBulk ? "..." : `${pendingSyncs.size} Pending`}
                       </Button>
+
                       <Button 
                         onClick={handleBulkSyncVisible} 
                         disabled={isSyncingBulk || filteredDeliveries.length === 0}
                         size="sm" 
                         variant="default"
-                        className="gap-2 bg-blue-600 hover:bg-blue-700"
-                        title={showAllTime ? "Sync all historical records" : `Sync records for ${spreadSheetDate}`}
+                        className="h-8 text-[10px] gap-1 px-2 bg-blue-600 hover:bg-blue-700"
                       >
-                        <RefreshCw className={`h-4 w-4 ${isSyncingBulk ? "animate-spin" : ""}`} />
-                        Sync {filteredDeliveries.length} {showAllTime ? 'Total' : 'for Today'}
+                        <RefreshCw className={`h-3 w-3 ${isSyncingBulk ? "animate-spin" : ""}`} />
+                        Sync {filteredDeliveries.length}
                       </Button>
-                      <Button onClick={handleExportCSV} size="sm" className="gap-2">
-                        <Download className="h-4 w-4" />
-                        Export CSV
+
+                      <Button onClick={handleExportCSV} size="sm" className="h-8 text-[10px] gap-1 px-2">
+                        <Download className="h-3 w-3" />
+                        CSV
                       </Button>
                     </div>
                   </div>
@@ -2080,11 +2016,6 @@ export function ViewScreen() {
                   </Table>
                 </div>
 
-                {/* DEBUG INFO */}
-                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono">
-                  <strong>DEBUG:</strong> historyIndex={historyIndex} | editHistory.length={editHistory.length} |
-                  canUndo={historyIndex > 0 ? 'YES' : 'NO'} | canRedo={historyIndex < editHistory.length - 1 ? 'YES' : 'NO'}
-                </div>
 
                 {/* Add New Row Button */}
                 <div className="mt-4">
