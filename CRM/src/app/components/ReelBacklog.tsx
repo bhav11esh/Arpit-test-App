@@ -206,6 +206,10 @@ export function ReelBacklog() {
 
   return (
     <div className="space-y-4 p-1 sm:p-4 pb-20">
+      {/* DIAGNOSTIC BANNER */}
+      <div className="bg-red-600 text-white text-[9px] py-1.5 px-3 rounded-lg text-center font-black animate-pulse shadow-lg mb-4">
+        🚀 REELS UI V2.1 ACTIVE - WRAPPING FORCED
+      </div>
       {/* NEW: Bounty Board / Post-its Marketplace */}
       {postItReels.length > 0 && user?.role === 'PHOTOGRAPHER' && (
         <div className="space-y-4">
@@ -361,8 +365,8 @@ export function ReelBacklog() {
                 <Card key={task.id} className="delivery-accent-pending shadow-sm hover:shadow-md transition-all duration-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <CardTitle className="text-sm font-bold break-all leading-tight">
+                      <div className="flex-1 min-w-0 pr-2 overflow-hidden">
+                        <CardTitle className="text-sm font-bold leading-tight" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                           {delivery.delivery_name}
                         </CardTitle>
                         <CardDescription className="text-[10px] truncate mt-0.5">{delivery.showroom_code}</CardDescription>
