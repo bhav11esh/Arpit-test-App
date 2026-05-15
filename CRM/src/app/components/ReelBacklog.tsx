@@ -206,10 +206,6 @@ export function ReelBacklog() {
 
   return (
     <div className="space-y-4 p-1 sm:p-4 pb-20">
-      {/* DIAGNOSTIC BANNER */}
-      <div className="bg-red-600 text-white text-[9px] py-1.5 px-3 rounded-lg text-center font-black animate-pulse shadow-lg mb-4">
-        🚀 REELS UI V2.1 ACTIVE - WRAPPING FORCED
-      </div>
       {/* NEW: Bounty Board / Post-its Marketplace */}
       {postItReels.length > 0 && user?.role === 'PHOTOGRAPHER' && (
         <div className="space-y-4">
