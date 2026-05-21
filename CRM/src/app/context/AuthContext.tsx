@@ -96,44 +96,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         setSession(session);
         if (session?.user) {
-          if (mounted) setLoading(true);
+          // Check for cached user profile to prevent screen blanking on reload
+          let cachedUser: User | null = null;
+          try {
+            const cachedStr = localStorage.getItem('crm_user_profile');
+            if (cachedStr) {
+              const parsed = JSON.parse(cachedStr);
+              if (parsed && parsed.email === session.user.email) {
+                cachedUser = parsed;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse cached profile', e);
+          }
+
+          if (cachedUser) {
+            console.log('[Auth] Using cached user profile on startup:', cachedUser.email);
+            setUser(cachedUser);
+            // Immediately stop loading to allow the app shell and UI to render
+            setLoading(false);
+          } else {
+            if (mounted) setLoading(true);
+          }
+
           console.log('[Auth] Session detected, fetching user data...');
           const userData = await fetchUserData(session.user.id, session.user.email || '');
 
           if (mounted) {
             if (userData === undefined) {
-              console.warn('[Auth] FETCH_TIMEOUT: Using session metadata as fallback');
-              // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
-              const meta = session.user.user_metadata || {};
-              
-              // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
-              const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
-              const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
+              if (cachedUser) {
+                console.log('[Auth] Fetch timed out. Keeping cached user profile:', cachedUser.email);
+              } else {
+                console.warn('[Auth] FETCH_TIMEOUT: Using session metadata as fallback');
+                // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
+                const meta = session.user.user_metadata || {};
+                
+                // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
+                const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
+                const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
 
-              const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
-                ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
+                const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
+                  ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
 
-              const fallbackUser: User = {
-                id: session.user.id,
-                email: session.user.email || '',
-                name: meta.name || session.user.email || 'User',
-                role: fallbackRole,
-                active: true,
-                cluster_code: meta.cluster_code || user?.cluster_code || '',
-                city: meta.city || user?.city || 'bengaluru',
-              };
-              setUser(fallbackUser);
-              console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+                const fallbackUser: User = {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: meta.name || session.user.email || 'User',
+                  role: fallbackRole,
+                  active: true,
+                  cluster_code: meta.cluster_code || user?.cluster_code || '',
+                  city: meta.city || user?.city || 'bengaluru',
+                };
+                setUser(fallbackUser);
+                console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+              }
             } else if (!userData) {
               console.warn('[Auth] USER_DATA_NULL: User record missing');
               setUser(null);
+              localStorage.removeItem('crm_user_profile');
             } else if (!userData.active) {
               console.error('[Auth] USER_INACTIVE: Account deactivated');
               // If account is inactive, we clear the user so App.tsx can handle it
               // We DON'T signOut automatically here to allow App to show a specific "Deactivated" screen
               setUser(userData); 
+              localStorage.removeItem('crm_user_profile');
             } else {
               setUser(userData);
+              localStorage.setItem('crm_user_profile', JSON.stringify(userData));
             }
           }
         } else {
@@ -173,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         setUser(userData);
+        localStorage.setItem('crm_user_profile', JSON.stringify(userData));
       }
     } catch (error) {
       throw error;
@@ -186,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
+      localStorage.removeItem('crm_user_profile');
     } catch (error) {
       throw error;
     }
