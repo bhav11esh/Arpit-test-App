@@ -16,6 +16,12 @@ const rowToReelTask = (row: ReelTaskRow): ReelTask => ({
   status: row.status as ReelStatus,
   reassigned_reason: row.reassigned_reason ?? undefined,
   deadline: row.deadline ?? undefined,
+  // V19: Post-it marketplace fields
+  is_post_it: (row as any).is_post_it ?? false,
+  original_user_id: (row as any).original_user_id ?? undefined,
+  claim_deadline: (row as any).claim_deadline ?? undefined,
+  failed_claimants: (row as any).failed_claimants ?? [],
+  post_it_reward: (row as any).post_it_reward ?? undefined,
 });
 
 // Get reel tasks for a user
