@@ -43,6 +43,7 @@ export function ReelBacklog() {
   const [selectedPhotographer, setSelectedPhotographer] = useState('');
   const [postItReels, setPostItReels] = useState<(ReelTask & { delivery?: Delivery })[]>([]);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [bountyFilter, setBountyFilter] = useState<'mine' | 'others'>('others');
 
   useEffect(() => {
     loadData();
@@ -196,6 +197,20 @@ export function ReelBacklog() {
     ? reelTasks.filter(t => t.status === 'RESOLVED')
     : reelTasks.filter(t => t.status === 'RESOLVED' && t.reassigned_reason !== null);
 
+  // V19: Filter bounty board post-its by mine/others + exclude inactive photographers
+  const activeUserIds = new Set(allUsers.filter(u => u.active).map(u => u.id));
+  const filteredPostItReels = postItReels.filter(task => {
+    // Exclude reels from inactive photographers (can't charge penalty)
+    if (task.original_user_id && !activeUserIds.has(task.original_user_id)) return false;
+    // Apply mine/others filter
+    if (bountyFilter === 'mine') {
+      return task.original_user_id === user?.id;
+    } else {
+      // "Others" includes reels from other active photographers + unassigned deliveries
+      return task.original_user_id !== user?.id;
+    }
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -219,9 +234,51 @@ export function ReelBacklog() {
               <span>BOUNTIES ACTIVE</span>
             </div>
           </div>
+
+          {/* V19: Mine / Others filter tabs with bounty ₹ totals */}
+          {(() => {
+            const myReels = postItReels.filter(t => t.original_user_id === user?.id);
+            const othersReels = postItReels.filter(t => t.original_user_id !== user?.id && (!t.original_user_id || activeUserIds.has(t.original_user_id!)));
+            const myTotal = myReels.reduce((sum, t) => sum + (t.post_it_reward || 250), 0);
+            const othersTotal = othersReels.reduce((sum, t) => sum + (t.post_it_reward || 250), 0);
+            return (
+              <div className="flex gap-2 px-1">
+                <button
+                  onClick={() => setBountyFilter('mine')}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-0.5 ${
+                    bountyFilter === 'mine'
+                      ? 'bg-orange-600 text-white border-orange-700 shadow-md shadow-orange-200'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-orange-500'
+                  }`}
+                >
+                  <span>Mine ({myReels.length})</span>
+                  {myTotal > 0 && (
+                    <span className={`text-[9px] font-black ${bountyFilter === 'mine' ? 'text-orange-200' : 'text-red-400'}`}>
+                      -₹{myTotal} at risk
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setBountyFilter('others')}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-0.5 ${
+                    bountyFilter === 'others'
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-md shadow-emerald-200'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-500'
+                  }`}
+                >
+                  <span>Others ({othersReels.length})</span>
+                  {othersTotal > 0 && (
+                    <span className={`text-[9px] font-black ${bountyFilter === 'others' ? 'text-emerald-200' : 'text-emerald-500'}`}>
+                      +₹{othersTotal} to earn
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
           
           <div className="grid gap-4">
-            {postItReels.map(task => {
+            {filteredPostItReels.map(task => {
               const delivery = task.delivery;
               if (!delivery) return null;
               
@@ -300,19 +357,33 @@ export function ReelBacklog() {
                         </div>
                       )}
 
-                      <Button 
-                        size="sm" 
-                        onClick={() => handleClaimPostIt(task.id)}
-                        disabled={claiming === task.id}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9"
-                      >
-                        {claiming === task.id ? 'CLAIMING...' : 'CLAIM BOUNTY'}
-                      </Button>
+                      {/* V19: Only show CLAIM BOUNTY on "others" tab — photographer can't claim their own bounty */}
+                      {bountyFilter === 'others' ? (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleClaimPostIt(task.id)}
+                          disabled={claiming === task.id}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9"
+                        >
+                          {claiming === task.id ? 'CLAIMING...' : 'CLAIM BOUNTY'}
+                        </Button>
+                      ) : (
+                        <div className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100 uppercase tracking-wider">
+                          ⚠️ Penalty on you
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
+            {filteredPostItReels.length === 0 && (
+              <div className="py-8 flex flex-col items-center justify-center bg-white/50 rounded-2xl border border-dashed border-gray-200">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  {bountyFilter === 'mine' ? 'No bounties on you 🎉' : 'No bounties from others right now'}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
