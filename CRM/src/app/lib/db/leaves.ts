@@ -36,6 +36,23 @@ export async function getAllLeaves(): Promise<Leave[]> {
 }
 
 /**
+ * Get leaves for a specific date (used by HomeScreen to optimize polling)
+ */
+export async function getLeavesByDate(date: string): Promise<Leave[]> {
+  const { data, error } = await supabase
+    .from('leaves')
+    .select('*')
+    .eq('date', date);
+
+  if (error) {
+    console.error('Error fetching leaves by date:', error);
+    throw error;
+  }
+
+  return (data || []).map(rowToLeave);
+}
+
+/**
  * Get leaves for a specific photographer (used by LeaveManagement and context)
  */
 export async function getLeaves(photographerId: string, startDate?: string, endDate?: string): Promise<Leave[]> {

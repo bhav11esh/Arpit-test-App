@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // V1 OPTIMIZATION: Reduced timeout to 10s. Better to show dashboard with session
     // than to hang indefinitely on a slow user record fetch.
     const timeoutPromise = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 10000)
+      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 20000)
     );
 
     try {

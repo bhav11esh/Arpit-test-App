@@ -14,7 +14,7 @@ import { scheduleGeofenceCheck } from '../lib/geofence';
 import { createLogEvent } from '../lib/logging';
 import { createRejection, getDistinctRejections, getUserRejections } from '../lib/db/rejections'; // V1 MATCH
 import { getActiveUsersByCluster } from '../lib/db/users'; // V1 MATCH
-import { getAllLeaves } from '../lib/db/leaves'; // V1 IMPORT
+import { getLeavesByDate } from '../lib/db/leaves'; // V1 IMPORT
 import * as screenshotsDb from '../lib/db/screenshots';
 import { shouldShowAcceptRejectPrompt, isPromptExpired, generateDeliveryName, canSelfAssign, getLocalDateString, getOperationalDateString, requestNotificationPermission, sendPushNotification, getShowroomCode } from '../lib/utils';
 import { supabase, adminSupabase } from '../lib/supabase';
@@ -140,8 +140,14 @@ export function HomeScreen() {
     if (!user) return;
 
     let mounted = true;
+    let isFetching = false;
 
     const fetchDeliveries = async () => {
+      if (isFetching) {
+        console.log('[HomeScreen] fetchDeliveries already in progress, skipping poll');
+        return;
+      }
+      isFetching = true;
       try {
         if (!mounted) return;
         const { supabase: client } = await import('../lib/supabase');
@@ -166,9 +172,8 @@ export function HomeScreen() {
 
         // V1 FIX: Fetch leaves for mapping failover logic
         // We need to know who is on leave today to show their showrooms to others in the cluster
-        const todayLeaves = await import('../lib/db/leaves').then(m => m.getAllLeaves());
-        // Filter for today
-        setLeaves(todayLeaves.filter(l => l.date === today));
+        const todayLeaves = await import('../lib/db/leaves').then(m => m.getLeavesByDate(today));
+        setLeaves(todayLeaves);
 
         // Filter and deduplicate for cluster relevance
         const clusterDeliveries = allToday.filter(d =>
@@ -194,6 +199,8 @@ export function HomeScreen() {
         } else {
           console.error('Error polling deliveries:', err);
         }
+      } finally {
+        isFetching = false;
       }
     };
 
@@ -742,17 +749,17 @@ export function HomeScreen() {
       // 3. Get Today's Leaves - V1 FIX: Use admin client to bypass RLS
       // This ensures we can see Mallikarjun's leave for failover check
       const client = supabase;
+      const currentOperationalDate = getOperationalDateString();
       const { data: allLeavesData, error: leavesError } = await client
         .from('leaves')
-        .select('*');
+        .select('*')
+        .eq('date', currentOperationalDate);
 
       if (leavesError) {
         console.error('Error fetching global leaves:', leavesError);
       } else {
-        const currentOperationalDate = getOperationalDateString();
         // Map to app types
         const todayLeaves = ((allLeavesData as any[]) || [])
-          .filter(l => l.date === currentOperationalDate)
           .map(l => ({
             id: l.id,
             photographerId: l.photographer_id,
