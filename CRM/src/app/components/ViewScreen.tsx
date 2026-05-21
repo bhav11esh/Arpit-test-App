@@ -288,6 +288,11 @@ export function ViewScreen() {
 
           // 1. Prepare filters for deliveries
           const filters: any = { status: 'DONE' };
+
+          // Apply date filter at the database level if not showing all time
+          if (!showAllTime && spreadSheetDate) {
+            filters.date = spreadSheetDate;
+          }
           
           // V5.5: Always filter by showroom if one is selected to save memory/bandwidth
           if (showroomId && showroomId !== 'all') {
@@ -306,15 +311,20 @@ export function ViewScreen() {
           // 2. Fetch deliveries matching filter
           const doneDeliveries = await deliveriesDb.getDeliveries(filters, client);
 
-          // 3. Fetch screenshots (Admin View) - V5.5 SCALABILITY FIX
+          // 3. Fetch screenshots (Admin View Only) - V5.5 SCALABILITY FIX
           let realScreenshots: any[] = [];
-          const { getScreenshotsByDeliveries, getAllScreenshots } = await import('../lib/db/screenshots');
           
-          if (showroomId && showroomId !== 'all' && doneDeliveries.length > 0) {
-            const deliveryIds = doneDeliveries.map(d => d.id);
-            realScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
-          } else {
-            realScreenshots = await getAllScreenshots();
+          if (user?.role === 'ADMIN') {
+            const { getScreenshotsByDeliveries, getAllScreenshots } = await import('../lib/db/screenshots');
+            
+            // If showAllTime is false, or if a showroom is selected, only fetch screenshots for the loaded deliveries.
+            // This avoids fetching all historical screenshots.
+            if ((!showAllTime || (showroomId && showroomId !== 'all')) && doneDeliveries.length > 0) {
+              const deliveryIds = doneDeliveries.map(d => d.id);
+              realScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
+            } else if (showAllTime) {
+              realScreenshots = await getAllScreenshots();
+            }
           }
 
           // V6.0 CITY ISOLATION (Gallery): Filter screenshots to only show those from photographers in the admin's city
@@ -355,13 +365,13 @@ export function ViewScreen() {
     }
   };
 
-  // V5.5 Scalability: Reload data when showroom selection changes
+  // V5.5 Scalability: Reload data when showroom, date, or showAllTime selection changes
   useEffect(() => {
     if (user) {
-      console.log(`🎯 Showroom changed to ${selectedShowroom}, reloading data...`);
+      console.log(`🎯 Filters changed (showroom: ${selectedShowroom}, date: ${spreadSheetDate}, showAllTime: ${showAllTime}), reloading data...`);
       loadData(selectedShowroom);
     }
-  }, [selectedShowroom, user?.id]);
+  }, [selectedShowroom, user?.id, spreadSheetDate, showAllTime]);
 
   // V1 SPEC: Refresh data when switching to spreadsheet view to pick up reel link changes
   // Use a ref to track previous viewMode to only load when actually switching
