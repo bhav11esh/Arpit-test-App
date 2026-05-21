@@ -278,7 +278,7 @@ export function ViewScreen() {
     setLoading(true);
 
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Data loading timed out after 10 seconds')), 10000)
+      setTimeout(() => reject(new Error('Data loading timed out after 25 seconds')), 25000)
     );
 
     try {
