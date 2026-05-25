@@ -64,7 +64,6 @@ export function ViewScreen() {
   const [loading, setLoading] = useState(true);
 
   // V1 SPEC: Gallery filters
-  const [selectedDate, setSelectedDate] = useState<string>('all');
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
 
   // V1 SPEC: Spreadsheet showroom filter (log of deliveries covered per showroom)
@@ -321,9 +320,46 @@ export function ViewScreen() {
             // This avoids fetching all historical screenshots.
             if ((!showAllTime || (showroomId && showroomId !== 'all')) && doneDeliveries.length > 0) {
               const deliveryIds = doneDeliveries.map(d => d.id);
-              realScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
+              const deliveryScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
+              realScreenshots = [...deliveryScreenshots];
             } else if (showAllTime) {
               realScreenshots = await getAllScreenshots();
+            }
+
+            // Also fetch showroom-level screenshots (like FRAUD_DETECTION where delivery_id is null)
+            let showroomQuery = client.from('screenshots').select('*').is('deleted_at', null).is('delivery_id', null);
+            
+            if (showroomId && showroomId !== 'all') {
+              const dealership = cityIsolatedDealerships.find(d => d.id === showroomId);
+              if (dealership) {
+                showroomQuery = showroomQuery.eq('showroom_code', getShowroomCode(dealership.name));
+              }
+            }
+            
+            if (!showAllTime && spreadSheetDate) {
+              const startOfDay = `${spreadSheetDate}T00:00:00.000Z`;
+              const endOfDay = `${spreadSheetDate}T23:59:59.999Z`;
+              showroomQuery = showroomQuery.gte('uploaded_at', startOfDay).lte('uploaded_at', endOfDay);
+            } else {
+              showroomQuery = showroomQuery.limit(500);
+            }
+
+            const { data: showroomScreenshots, error: showroomError } = await showroomQuery;
+            if (showroomError) {
+              console.error('Error fetching showroom screenshots:', showroomError);
+            } else if (showroomScreenshots) {
+              const mapped = showroomScreenshots.map((row: any) => ({
+                id: row.id,
+                delivery_id: row.delivery_id,
+                showroom_code: row.showroom_code,
+                user_id: row.user_id,
+                type: row.type,
+                file_url: row.file_url,
+                thumbnail_url: row.thumbnail_url,
+                uploaded_at: row.uploaded_at,
+                deleted_at: row.deleted_at || undefined,
+              }));
+              realScreenshots = [...realScreenshots, ...mapped];
             }
           }
 
@@ -331,8 +367,14 @@ export function ViewScreen() {
           if (user?.role === 'ADMIN' && user.city) {
             const cityPhotographerIds = new Set(cityIsolatedPhotographers.map(p => p.id));
             realScreenshots = realScreenshots.filter(s => {
-              const delivery = doneDeliveries.find(d => d.id === s.delivery_id);
-              return delivery && cityPhotographerIds.has(delivery.assigned_user_id || '');
+              if (cityPhotographerIds.has(s.user_id)) {
+                return true;
+              }
+              if (s.delivery_id) {
+                const delivery = doneDeliveries.find(d => d.id === s.delivery_id);
+                return delivery && cityPhotographerIds.has(delivery.assigned_user_id || '');
+              }
+              return false;
             });
             console.log(`🖼️ [City Isolation] Gallery filtered to ${realScreenshots.length} screenshots for city ${user.city}.`);
           }
@@ -1210,12 +1252,6 @@ export function ViewScreen() {
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
     return screenshotList.filter(s => {
-      // Date filter
-      if (selectedDate !== 'all') {
-        const screenshotDate = getOperationalDateString(new Date(s.uploaded_at));
-        if (screenshotDate !== selectedDate) return false;
-      }
-
       // Photographer filter
       if (selectedPhotographer !== 'all' && s.user_id !== selectedPhotographer) {
         return false;
@@ -2038,55 +2074,83 @@ export function ViewScreen() {
             </Card>
           )}
 
+          {/* Shared Screenshot Galleries Filters */}
+          {['payment', 'follow', 'rapido', 'platform_payment', 'fraud_detection'].includes(viewMode) && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Showroom/Dealership Filter */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Dealership</label>
+                    <SearchableSelect
+                      options={[
+                        { label: "All Dealerships", value: "all" },
+                        ...dealerships.slice().sort((a, b) => a.name.localeCompare(b.name)).map(d => ({
+                          label: d.name,
+                          value: d.id
+                        }))
+                      ]}
+                      value={selectedShowroom}
+                      onValueChange={setSelectedShowroom}
+                      placeholder="Select dealership"
+                    />
+                  </div>
+
+                  {/* Date Filter */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-gray-600">Filter by Date</label>
+                      <div className="flex items-center gap-1.5">
+                        <input 
+                          type="checkbox" 
+                          id="galleryShowAllTime" 
+                          checked={showAllTime} 
+                          onChange={(e) => setShowAllTime(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor="galleryShowAllTime" className="text-xs text-gray-500 cursor-pointer">Show All Time</label>
+                      </div>
+                    </div>
+                    <Input
+                      type="date"
+                      value={spreadSheetDate}
+                      onChange={(e) => {
+                        setSpreadSheetDate(e.target.value);
+                        setShowAllTime(false);
+                      }}
+                      disabled={showAllTime}
+                      className={showAllTime ? 'opacity-50 h-9' : 'h-9'}
+                    />
+                  </div>
+
+                  {/* Photographer Filter */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Photographer</label>
+                    <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All photographers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Photographers</SelectItem>
+                        {uniquePhotographers.map(userId => {
+                          const photographer = allUsers.find(p => p.id === userId);
+                          return (
+                            <SelectItem key={userId} value={userId}>
+                              {photographer?.name || 'Unknown'}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Payment Screenshots Gallery */}
           {viewMode === 'payment' && (
             <div className="space-y-4">
-              {/* V1 SPEC: Filters */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Date</label>
-                      <Select value={selectedDate} onValueChange={setSelectedDate}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All dates" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Dates</SelectItem>
-                          {uniqueDates.map(date => (
-                            <SelectItem key={date} value={date}>
-                              {new Date(date).toLocaleDateString('en-IN', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Photographer</label>
-                      <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All photographers" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Photographers</SelectItem>
-                          {uniquePhotographers.map(userId => {
-                            const photographer = allUsers.find(p => p.id === userId);
-                            return (
-                              <SelectItem key={userId} value={userId}>
-                                {photographer?.name || 'Unknown'}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
               <div className="flex items-center justify-between">
                 <div>
@@ -2799,6 +2863,189 @@ export function ViewScreen() {
                                       </div>
                                     </div>
                                   )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fraud Detection Screenshots Gallery */}
+          {viewMode === 'fraud_detection' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Fraud Detection Gallery</h2>
+                  <p className="text-sm text-gray-500">Admin-only view • Binary artifacts storage</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-[#2563EB] text-white">{filteredFraudDetectionScreenshots.length} images</Badge>
+                  <Button
+                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
+                  >
+                    <Grid className="h-4 w-4 mr-2" />
+                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
+              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
+                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
+                </p>
+              </div>
+
+              {/* V1 SPEC: Screenshot gallery is NOT spreadsheet - distinct mental model */}
+              <div className="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded text-sm">
+                <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-700" />
+                <div className="text-purple-800">
+                  <p className="font-medium">Gallery Mode (Not Spreadsheet)</p>
+                  <p className="text-xs text-purple-700 mt-1">
+                    This is a separate binary artifacts view. Screenshot deletion does NOT affect spreadsheet data, delivery status, or reopen tasks.
+                  </p>
+                </div>
+              </div>
+
+              {filteredFraudDetectionScreenshots.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-gray-500">No fraud detection screenshots available</p>
+                  </CardContent>
+                </Card>
+              ) : galleryViewMode === 'single' ? (
+                /* Single view */
+                <Card>
+                  <CardContent className="p-6 space-y-4">
+                    {/* Image */}
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={filteredFraudDetectionScreenshots[currentImageIndex]?.file_url}
+                        alt="Fraud Detection Screenshot"
+                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
+                      />
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === 0}
+                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        {currentImageIndex + 1} / {filteredFraudDetectionScreenshots.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === filteredFraudDetectionScreenshots.length - 1}
+                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredFraudDetectionScreenshots.length - 1, prev + 1))}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+
+                    {/* Metadata */}
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Showroom Name:</span>
+                        <span className="text-sm text-gray-900">
+                          {(() => {
+                            const code = filteredFraudDetectionScreenshots[currentImageIndex]?.showroom_code;
+                            const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
+                            return dealership ? dealership.name : code || 'Unknown';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
+                        <span className="text-sm text-gray-600">
+                          {allUsers.find(p => p.id === filteredFraudDetectionScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Uploaded At:</span>
+                        <span className="text-sm text-gray-500">
+                          {new Date(filteredFraudDetectionScreenshots[currentImageIndex]?.uploaded_at).toLocaleString('en-IN', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
+                          handleDeleteScreenshot(filteredFraudDetectionScreenshots[currentImageIndex]?.id);
+                          if (currentImageIndex >= filteredFraudDetectionScreenshots.length - 1) {
+                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Screenshot
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                /* Grid view */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredFraudDetectionScreenshots.map((screenshot, index) => {
+                    const code = screenshot.showroom_code;
+                    const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
+                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
+                    return (
+                      <Card
+                        key={screenshot.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+                        onClick={() => {
+                          setCurrentImageIndex(index);
+                          setGalleryViewMode('single');
+                        }}
+                      >
+                        <CardContent className="p-0">
+                          <img
+                            src={screenshot.file_url}
+                            alt="Fraud Detection Screenshot"
+                            className="w-full h-64 object-cover"
+                          />
+                          <div className="p-4 space-y-2 bg-white">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate text-gray-900">
+                                  {dealership ? dealership.name : code || 'Unknown Showroom'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
                                 </div>
                               </div>
                             </div>
