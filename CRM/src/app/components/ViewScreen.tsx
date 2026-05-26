@@ -381,9 +381,9 @@ export function ViewScreen() {
           setScreenshots(realScreenshots);
 
           // 4. Ensure metadata resolution for screenshots
-          const screenshotDeliveryIds = Array.from(new Set(realScreenshots.map(s => s.delivery_id)));
+          const screenshotDeliveryIds = Array.from(new Set(realScreenshots.map(s => s.delivery_id).filter(Boolean)));
           const knownIds = new Set(doneDeliveries.map(d => d.id));
-          const missingIds = screenshotDeliveryIds.filter(id => !knownIds.has(id));
+          const missingIds = screenshotDeliveryIds.filter(id => id && !knownIds.has(id));
 
           let extraDeliveries: Delivery[] = [];
           if (missingIds.length > 0) {
