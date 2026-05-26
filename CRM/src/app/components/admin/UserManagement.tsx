@@ -140,24 +140,38 @@ export function UserManagement() {
           throw new Error('A user with this email already exists.');
         }
 
-        // 1. Create in DB
-        const newUser = await usersDb.createUser({
+        if (!adminSupabase) {
+          throw new Error('Admin privileges required to create users. Service role key not configured.');
+        }
+
+        // 1. Create Auth User
+        const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+          email: formData.email,
+          password: 'TemporaryPassword123!', // Ensure admin resets this immediately
+          email_confirm: true,
+          user_metadata: {
+            name: formData.name,
+            role: formData.role,
+            city: formData.city.toLowerCase().trim()
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (!authData.user) {
+            throw new Error('Failed to create auth user');
+        }
+
+        // 2. Create in DB using the correct Auth ID
+        await usersDb.createUserWithId({
+          id: authData.user.id,
           name: formData.name,
           email: formData.email,
           role: formData.role,
           active: formData.active,
           city: formData.city.toLowerCase().trim() || undefined,
+          last_gps_status: 'UNKNOWN',
         });
-
-        // 2. V6.0 SYNC: Update Metadata if adminSupabase is available (might need to wait for auth trigger)
-        if (adminSupabase && newUser.id) {
-          await adminSupabase.auth.admin.updateUserById(newUser.id, {
-            user_metadata: {
-              role: formData.role,
-              city: formData.city.toLowerCase().trim()
-            }
-          });
-        }
 
         toast.success('User created successfully');
       }
