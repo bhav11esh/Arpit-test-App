@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastFetchedId = React.useRef<string | null>(null);
 
   // Fetch user data from users table based on auth user
-  const fetchUserData = async (authUserId: string, email: string): Promise<User | null> => {
+  const fetchUserData = async (authUserId: string, email: string): Promise<User | null | undefined> => {
     // V1 OPTIMIZATION: Prevent parallel fetches for the same ID
     if (lastFetchedId.current === authUserId && user) {
       console.log('[AuthContext] Already fetched user data for:', authUserId);
@@ -66,7 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', authUserId)
           .single();
 
-        if (error) return null;
+        if (error) {
+          // If PGRST116, it means no rows found (truly doesn't exist)
+          if (error.code === 'PGRST116') return null;
+          // For network or abort errors, throw to reach the catch block
+          throw error;
+        }
 
         if (data) {
           return {
@@ -86,10 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[AuthContext] fetchUserData failed:', error);
       lastFetchedId.current = null; // Allow retry on failure
 
-      if (error instanceof Error && error.message === 'FETCH_USER_TIMEOUT') {
-        return undefined as any;
-      }
-      return null;
+      // Trigger fallback for ALL thrown errors (Timeout, AbortError, Network errors)
+      return undefined;
     }
   };
 
