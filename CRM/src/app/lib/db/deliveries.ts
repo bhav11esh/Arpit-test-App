@@ -174,6 +174,22 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     .single();
 
   if (error) throw error;
+  
+  // V19 FIX: Keep reel_tasks in sync if reel_link is updated from CRM or Google Sync
+  if ('reel_link' in update) {
+    const isResolved = !!update.reel_link && update.reel_link.trim() !== '';
+    const taskUpdate: any = {
+      reel_link: update.reel_link || null,
+      status: isResolved ? 'RESOLVED' : 'PENDING'
+    };
+    if (isResolved) {
+      taskUpdate.is_post_it = false;
+    }
+    await (supabaseClient.from('reel_tasks') as any)
+      .update(taskUpdate)
+      .eq('delivery_id', id);
+  }
+
   return rowToDelivery(data as DeliveryRow);
 };
 
