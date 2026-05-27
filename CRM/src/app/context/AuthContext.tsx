@@ -17,9 +17,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [userState, setUserState] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Safe setter to prevent unnecessary re-renders on tab focus
+  const setUser = React.useCallback((newUser: User | null) => {
+    setUserState(prev => {
+      if (prev === newUser) return prev;
+      if (prev && newUser && JSON.stringify(prev) === JSON.stringify(newUser)) return prev;
+      return newUser;
+    });
+  }, []);
+  const user = userState;
 
   // V1 OPTIMIZATION: Track the last fetched user ID to prevent redundant parallel calls
   const lastFetchedId = React.useRef<string | null>(null);
