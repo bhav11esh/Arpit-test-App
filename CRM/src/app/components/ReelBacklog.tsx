@@ -71,8 +71,8 @@ export function ReelBacklog() {
       // 4. Fetch users
       const allDbUsers = await usersDb.getUsers(client);
 
-      // 5. NEW: Refresh and Fetch Post-its for photographers
-      if (user.role === 'PHOTOGRAPHER') {
+      // 5. NEW: Refresh and Fetch Post-its for photographers and admins
+      if (user.role === 'PHOTOGRAPHER' || user.role === 'ADMIN') {
         try {
           await reelsDb.refreshPostIts(client);
           const availablePostIts = await reelsDb.getPostItReels(client);
@@ -222,7 +222,7 @@ export function ReelBacklog() {
   return (
     <div className="space-y-4 p-1 sm:p-4 pb-20">
       {/* NEW: Bounty Board / Post-its Marketplace */}
-      {postItReels.length > 0 && user?.role === 'PHOTOGRAPHER' && (
+      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || user?.role === 'ADMIN') && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -243,21 +243,23 @@ export function ReelBacklog() {
             const othersTotal = othersReels.reduce((sum, t) => sum + (t.post_it_reward || 250), 0);
             return (
               <div className="flex gap-2 px-1">
-                <button
-                  onClick={() => setBountyFilter('mine')}
-                  className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-0.5 ${
-                    bountyFilter === 'mine'
-                      ? 'bg-orange-600 text-white border-orange-700 shadow-md shadow-orange-200'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-orange-500'
-                  }`}
-                >
-                  <span>Mine ({myReels.length})</span>
-                  {myTotal > 0 && (
-                    <span className={`text-[9px] font-black ${bountyFilter === 'mine' ? 'text-orange-200' : 'text-red-400'}`}>
-                      -₹{myTotal} at risk
-                    </span>
-                  )}
-                </button>
+                {user?.role !== 'ADMIN' && (
+                  <button
+                    onClick={() => setBountyFilter('mine')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-0.5 ${
+                      bountyFilter === 'mine'
+                        ? 'bg-orange-600 text-white border-orange-700 shadow-md shadow-orange-200'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-orange-500'
+                    }`}
+                  >
+                    <span>Mine ({myReels.length})</span>
+                    {myTotal > 0 && (
+                      <span className={`text-[9px] font-black ${bountyFilter === 'mine' ? 'text-orange-200' : 'text-red-400'}`}>
+                        -₹{myTotal} at risk
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => setBountyFilter('others')}
                   className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-0.5 ${
@@ -266,7 +268,7 @@ export function ReelBacklog() {
                       : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-500'
                   }`}
                 >
-                  <span>Others ({othersReels.length})</span>
+                  <span>{user?.role === 'ADMIN' ? 'All Bounties' : 'Others'} ({othersReels.length})</span>
                   {othersTotal > 0 && (
                     <span className={`text-[9px] font-black ${bountyFilter === 'others' ? 'text-emerald-200' : 'text-emerald-500'}`}>
                       +₹{othersTotal} to earn
@@ -358,19 +360,21 @@ export function ReelBacklog() {
                       )}
 
                       {/* V19: Only show CLAIM BOUNTY on "others" tab — photographer can't claim their own bounty */}
-                      {bountyFilter === 'others' ? (
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleClaimPostIt(task.id)}
-                          disabled={claiming === task.id}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9"
-                        >
-                          {claiming === task.id ? 'CLAIMING...' : 'CLAIM BOUNTY'}
-                        </Button>
-                      ) : (
-                        <div className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100 uppercase tracking-wider">
-                          ⚠️ Penalty on you
-                        </div>
+                      {user?.role === 'PHOTOGRAPHER' && (
+                        bountyFilter === 'others' ? (
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleClaimPostIt(task.id)}
+                            disabled={claiming === task.id}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9"
+                          >
+                            {claiming === task.id ? 'CLAIMING...' : 'CLAIM BOUNTY'}
+                          </Button>
+                        ) : (
+                          <div className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100 uppercase tracking-wider">
+                            ⚠️ Penalty on you
+                          </div>
+                        )
                       )}
                     </div>
                   </CardContent>
@@ -628,7 +632,7 @@ export function ReelBacklog() {
 
       {/* Resolved Tasks */}
       {
-        resolvedTasks.length > 0 && (
+        resolvedTasks.length > 0 && user?.role !== 'ADMIN' && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 ml-1">
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
