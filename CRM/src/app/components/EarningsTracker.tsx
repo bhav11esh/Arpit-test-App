@@ -119,10 +119,12 @@ export function EarningsTracker() {
 
                 // V1 Hybrid Logic:
                 // - CUSTOMER_PAID: uses the actual amount collected (d.received_amount)
-                // - DEALERSHIP_PAID: uses the internal fixed rate (dealership.ratePerDelivery)
+                // - DEALERSHIP_PAID: uses the snapshotted amount (d.received_amount) or falls back to internal fixed rate
                 const rate = d.payment_type === 'CUSTOMER_PAID'
                     ? (Number(d.received_amount) || 0)
-                    : (dealership?.ratePerDelivery || 0);
+                    : (d.received_amount !== undefined && d.received_amount !== null 
+                        ? Number(d.received_amount) 
+                        : (dealership?.ratePerDelivery || 0));
 
                 gross += rate;
                 const charge = d.rapido_charge || 0;
@@ -238,7 +240,10 @@ export function EarningsTracker() {
                 .filter(d => d.payment_type !== 'CUSTOMER_PAID')
                 .reduce((acc, d) => {
                     const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
-                    return acc + (dealership?.ratePerDelivery || 0);
+                    const rate = d.received_amount !== undefined && d.received_amount !== null 
+                        ? Number(d.received_amount) 
+                        : (dealership?.ratePerDelivery || 0);
+                    return acc + rate;
                 }, 0);
 
             // Net Pending calculation: Admin's Tiered Share MINUS what was already paid upfront and what was collected by Admin directly

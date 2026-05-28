@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Delivery, Screenshot, ScreenshotType } from '../types';
-import { canSendUpdate } from '../lib/utils';
+import { canSendUpdate, getShowroomCode } from '../lib/utils';
+import { useConfig } from '../context/ConfigContext';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -41,6 +42,7 @@ export function SendUpdateScreen({
   onComplete,
   userClusterCode
 }: SendUpdateScreenProps) {
+  const { dealerships } = useConfig();
   const [editingFootage, setEditingFootage] = useState<string | null>(null);
   const [tempFootageLink, setTempFootageLink] = useState('');
 
@@ -178,11 +180,21 @@ export function SendUpdateScreen({
       // - No further edits allowed
       // - Home screen cleared
       // - Corrections require admin ops only
-      const updatedDeliveries = deliveries.map(d => ({
-        ...d,
-        status: 'DONE' as const,
-        updated_at: new Date().toISOString()
-      }));
+      const updatedDeliveries = deliveries.map(d => {
+        let snapshottedRate = d.received_amount;
+        if (d.payment_type === 'DEALER_PAID' && (!d.received_amount)) {
+          const dealership = dealerships.find(ds => getShowroomCode(ds.name) === d.showroom_code);
+          if (dealership) {
+            snapshottedRate = dealership.ratePerDelivery || 0;
+          }
+        }
+        return {
+          ...d,
+          received_amount: snapshottedRate,
+          status: 'DONE' as const,
+          updated_at: new Date().toISOString()
+        };
+      });
 
       await onComplete(updatedDeliveries);
     } catch (error) {
@@ -630,9 +642,27 @@ export function SendUpdateScreen({
 
                     {/* V1 SPEC: Dealer-paid deliveries - Show clear "no customer interaction" message */}
                     {!isCustomerPaid && (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-900 font-medium">📦 Dealer-paid showroom</p>
-                        <p className="text-xs text-blue-700 mt-1">No customer interaction required. Only footage link needed.</p>
+                      <div className="space-y-4">
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-900 font-medium">🏢 Dealer-paid showroom</p>
+                          <p className="text-xs text-blue-700 mt-1">No customer interaction required. Only footage link needed.</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium flex items-center gap-1">
+                            Custom Amount <span className="text-gray-400 text-xs ml-1">(Special Request Only)</span>
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g. 5000 (Leave blank for default rate)"
+                            className="h-10"
+                            value={delivery.received_amount || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              onUpdateDeliveryFields(delivery.id, { received_amount: val });
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
