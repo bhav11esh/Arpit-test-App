@@ -9,7 +9,7 @@
  * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.
  */
 
-const VERSION = "17.7";
+const VERSION = "17.8";
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))
@@ -138,7 +138,7 @@ function buildColIdx(headers) {
     id: find('crmid', ['id', 'recordid']),
     photog: find('photographer', ['photog', 'user', 'photographername']),
     amount: find('amount', ['received', 'price', 'amt', 'amountreceived', 'receivedamount']),
-    phone: find('phone', ['contact', 'customerphone', 'phonenumber']),
+    phone: find('phone', ['contact', 'customerphone', 'phonenumber', 'customerphonenumber']),
     rapido: find('rapido', ['travel', 'rapi']),
     signature: find('signature', ['sig']),
     updated: find('updatedat', ['updated']),
