@@ -301,13 +301,27 @@ export const getDeliveryById = async (id: string, supabaseClient: SupabaseClient
 export const getDeliveriesByIds = async (ids: string[], supabaseClient: SupabaseClient<Database> = supabase): Promise<Delivery[]> => {
   if (ids.length === 0) return [];
 
-  const { data, error } = await (supabaseClient.from('deliveries') as any)
-    .select('*')
-    .in('id', ids)
-    .order('created_at', { ascending: false });
+  // Chunk IDs to avoid 400 Bad Request due to URL length limits with large `.in()` arrays
+  const chunkSize = 150;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    chunks.push(ids.slice(i, i + chunkSize));
+  }
 
-  if (error) throw error;
-  return (data as DeliveryRow[]).map(rowToDelivery);
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await (supabaseClient.from('deliveries') as any)
+        .select('*')
+        .in('id', chunk)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    })
+  );
+
+  const allData = results.flat();
+  return (allData as DeliveryRow[]).map(rowToDelivery);
 };
 
 // Check for duplicate footage links within a dealership
