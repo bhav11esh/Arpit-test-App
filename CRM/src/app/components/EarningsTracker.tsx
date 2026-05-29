@@ -13,7 +13,7 @@ import {
     PopoverTrigger,
 } from './ui/popover';
 import { Calendar as CalendarIcon, Wallet, Info, AlertTriangle, TrendingUp, Landmark, Calculator } from 'lucide-react';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, min, subMonths } from 'date-fns';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { getUsersByRole } from '../lib/db/users';
@@ -25,11 +25,10 @@ export function EarningsTracker() {
     const { user } = useAuth();
     const { dealerships } = useConfig();
 
-    // Default to last 7 days
-    const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-        from: subDays(new Date(), 6),
-        to: new Date(),
-    });
+    // Generate last 12 months for the dropdown
+    const recentMonths = Array.from({ length: 12 }).map((_, i) => startOfMonth(subMonths(new Date(), i)));
+
+    const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
 
     const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
     const [photographers, setPhotographers] = useState<User[]>([]);
@@ -78,7 +77,7 @@ export function EarningsTracker() {
         if (selectedPhotographerId) {
             fetchEarnings();
         }
-    }, [selectedPhotographerId, dateRange]);
+    }, [selectedPhotographerId, selectedMonth]);
 
     const getShowroomCodeInternal = (dealershipName: string) => {
         return getShowroomCode(dealershipName);
@@ -95,8 +94,10 @@ export function EarningsTracker() {
                 assignedUserId: selectedPhotographerId || user?.id
             }, client);
 
-            const fromStr = format(startOfDay(dateRange.from), 'yyyy-MM-dd');
-            const toStr = format(endOfDay(dateRange.to), 'yyyy-MM-dd');
+            const fromStr = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+            // If current month, cap at today. Otherwise use end of month.
+            const toDate = min([new Date(), endOfMonth(selectedMonth)]);
+            const toStr = format(endOfDay(toDate), 'yyyy-MM-dd');
 
             const filtered = allDoneDeliveries.filter(d => d.date >= fromStr && d.date <= toStr);
 
@@ -341,26 +342,23 @@ export function EarningsTracker() {
                         <div className="space-y-1">
                             <label className="text-sm font-medium text-gray-700">Earnings Period</label>
                             <div className="flex items-center gap-2">
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" className="min-w-[240px] justify-start text-left font-normal bg-white">
-                                            <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
-                                            {format(dateRange.from, 'MMM d, yyyy')} - {format(dateRange.to, 'MMM d, yyyy')}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="range"
-                                            selected={{ from: dateRange.from, to: dateRange.to }}
-                                            onSelect={(range: any) => {
-                                                if (range?.from) {
-                                                    setDateRange({ from: range.from, to: range.to || range.from });
-                                                }
-                                            }}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
+                                <Select value={selectedMonth.toISOString()} onValueChange={(val) => setSelectedMonth(new Date(val))}>
+                                    <SelectTrigger className="w-[240px] bg-white">
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
+                                        <SelectValue placeholder="Select month" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {recentMonths.map(month => {
+                                            const monthStart = startOfMonth(month);
+                                            const monthEnd = min([new Date(), endOfMonth(month)]);
+                                            return (
+                                                <SelectItem key={month.toISOString()} value={month.toISOString()}>
+                                                    {format(month, 'MMMM yyyy')} ({format(monthStart, 'MMM d')} - {format(monthEnd, 'MMM d')})
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
 
