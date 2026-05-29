@@ -513,11 +513,11 @@ export function SendUpdateScreen({
                         </div>
                         <Input
                           type="tel"
-                          placeholder="Enter 10-digit phone number"
+                          placeholder="Enter phone number"
                           className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           value={delivery.customer_phone || ''}
                           onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            const val = e.target.value.replace(/\D/g, '');
                             onUpdateDeliveryFields(delivery.id, { customer_phone: val });
                           }}
                         />

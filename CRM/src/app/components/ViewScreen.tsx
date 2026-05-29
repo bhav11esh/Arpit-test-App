@@ -2253,6 +2253,12 @@ export function ViewScreen() {
                           {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Amount Received:</span>
+                        <span className="text-sm font-semibold text-green-600 mt-1">
+                          {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount ? `₹${deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount}` : 'N/A'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2308,6 +2314,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs font-semibold text-green-600 mt-1">
+                                  Amount Received: {delivery?.received_amount ? `₹${delivery.received_amount}` : 'N/A'}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
