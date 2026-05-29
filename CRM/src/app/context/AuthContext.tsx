@@ -25,7 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setUser = React.useCallback((newUser: User | null) => {
     setUserState(prev => {
       if (prev === newUser) return prev;
-      if (prev && newUser && JSON.stringify(prev) === JSON.stringify(newUser)) return prev;
+      if (prev && newUser) {
+        const { last_active: p1, last_gps_status: p2, ...restPrev } = prev as any;
+        const { last_active: n1, last_gps_status: n2, ...restNew } = newUser as any;
+        if (JSON.stringify(restPrev) === JSON.stringify(restNew)) return prev;
+      }
       return newUser;
     });
   }, []);
