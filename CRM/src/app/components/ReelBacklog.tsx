@@ -140,6 +140,7 @@ export function ReelBacklog() {
           ? { ...t, reel_link: reelLinkInput, status: 'RESOLVED' }
           : t
       ));
+      setPostItReels(prev => prev.filter(t => t.id !== taskId)); // Remove from bounties if resolved
 
       setSelectedTask(null);
       setReelLinkInput('');
@@ -375,6 +376,52 @@ export function ReelBacklog() {
                             ⚠️ Penalty on you
                           </div>
                         )
+                      )}
+
+                      {/* V1 ADMIN: Admin can resolve bounty reels directly */}
+                      {user?.role === 'ADMIN' && (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9" onClick={() => {
+                              setSelectedTask(task);
+                              setReelLinkInput(task.reel_link || '');
+                            }}>
+                              <Film className="h-3.5 w-3.5 mr-2" />
+                              Resolve
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Resolve Bounty Task</DialogTitle>
+                              <DialogDescription>
+                                Add the reel link for {delivery.delivery_name} to resolve this bounty
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Reel Link</Label>
+                                <Input
+                                  type="url"
+                                  placeholder="https://drive.google.com/..."
+                                  value={reelLinkInput}
+                                  onChange={(e) => setReelLinkInput(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => {
+                                setSelectedTask(null);
+                                setReelLinkInput('');
+                              }}>
+                                Cancel
+                              </Button>
+                              <Button onClick={() => handleResolve(task.id)}>
+                                <Check className="h-4 w-4 mr-2" />
+                                Resolve
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       )}
                     </div>
                   </CardContent>
