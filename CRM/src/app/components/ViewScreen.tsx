@@ -1142,7 +1142,9 @@ export function ViewScreen() {
         assigned_user_id: user?.id || null, // V1 FIX: Auto-assign to current user
         footage_link: newRowData.footage_link || null,
         payment_type: selectedDealership.paymentType,
-        received_amount: newRowData.received_amount ? parseFloat(newRowData.received_amount) : undefined,
+        received_amount: newRowData.received_amount 
+          ? parseFloat(newRowData.received_amount) 
+          : (selectedDealership.paymentType === 'DEALER_PAID' ? selectedDealership.ratePerDelivery : undefined),
         customer_phone: newRowData.customer_phone || undefined,
         rapido_charge: newRowData.rapido_charge ? parseFloat(newRowData.rapido_charge) : undefined,
         created_at: new Date().toISOString(),
@@ -1944,6 +1946,20 @@ export function ViewScreen() {
                             </div>
 
                             {/* CONDITIONAL PAYMENT FIELDS */}
+                            {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'DEALER_PAID' && (
+                              <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-semibold uppercase text-blue-500">Payment Amount (Optional)</label>
+                                  <Input
+                                    type="number"
+                                    value={newRowData.received_amount}
+                                    onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
+                                    placeholder="Defaults to dealership rate"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
                             {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'CUSTOMER_PAID' && (
                               <div className="grid grid-cols-2 gap-4 border-t pt-4">
                                 <div className="space-y-2">
