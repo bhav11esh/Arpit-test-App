@@ -68,6 +68,10 @@ export function EarningsTracker() {
         deliveryCount: number;
         postItBonus: number;
         postItPenalty: number;
+        postItPenalty: number;
+        payoutModel: 'PERCENTAGE' | 'FIXED';
+        unpaidLeavesDeduction: number;
+        totalWorkingDays: number;
         breakdown: { name: string; count: number; rate: number; rapido: number; total: number }[];
     } | null>(null);
 
@@ -99,6 +103,18 @@ export function EarningsTracker() {
             const toDate = min([new Date(), endOfMonth(selectedMonth)]);
             const toStr = format(endOfDay(toDate), 'yyyy-MM-dd');
 
+            const targetUser = isAdmin ? photographers.find(p => p.id === (selectedPhotographerId || user?.id)) : user;
+            
+            const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
+                if (!targetUser?.fixed_start_date) return 'PERCENTAGE';
+                if (dateStr < targetUser.fixed_start_date) return 'PERCENTAGE';
+                if (targetUser.fixed_end_date && dateStr >= targetUser.fixed_end_date) return 'PERCENTAGE';
+                return 'FIXED';
+            };
+
+            const isHybridMonth = getPayoutModelForDate(fromStr) !== getPayoutModelForDate(toStr);
+            const overallPayoutModel = isHybridMonth ? 'HYBRID' : getPayoutModelForDate(fromStr);
+
             const filtered = allDoneDeliveries.filter(d => d.date >= fromStr && d.date <= toStr);
 
             const itemRate = (count: number, totalRate: number) => {
@@ -106,154 +122,179 @@ export function EarningsTracker() {
                 return Math.round(totalRate / count);
             };
 
-            // Calculate earnings
-            let gross = 0;
-            let rapidoTotal = 0;
+            // Calculate earnings segmented
+            let grossPct = 0;
+            let rapidoPct = 0;
+            let grossFixed = 0;
+            let rapidoFixed = 0;
             const breakdownMap = new Map<string, { count: number; rate: number; rapido: number }>();
 
             filtered.forEach(d => {
-                // Find matching dealership
-                const dealership = dealerships.find(ds => {
-                    const code = getShowroomCodeInternal(ds.name);
-                    return code === d.showroom_code;
-                });
-
-                // V1 Hybrid Logic:
-                // - CUSTOMER_PAID: uses the actual amount collected (d.received_amount)
-                // - DEALERSHIP_PAID: uses the snapshotted amount (d.received_amount) or falls back to internal fixed rate
+                const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
                 const rate = d.payment_type === 'CUSTOMER_PAID'
                     ? (Number(d.received_amount) || 0)
                     : (d.received_amount !== undefined && d.received_amount !== null 
                         ? Number(d.received_amount) 
                         : (dealership?.ratePerDelivery || 0));
-
-                gross += rate;
+                
                 const charge = d.rapido_charge || 0;
-                rapidoTotal += charge;
+                
+                if (getPayoutModelForDate(d.date) === 'PERCENTAGE') {
+                    grossPct += rate;
+                    rapidoPct += charge;
+                } else {
+                    grossFixed += rate;
+                    rapidoFixed += charge;
+                }
 
                 const dsName = dealership?.name || d.showroom_code || 'Unknown Showroom';
                 const current = breakdownMap.get(dsName) || { count: 0, rate: 0, rapido: 0 };
                 current.count += 1;
-                // For breakdown, we'll store the total collected amount for this dealership
                 current.rate += rate;
                 current.rapido += charge;
                 breakdownMap.set(dsName, current);
             });
 
-            // 🚀 V18.0: Penalty Calculation (Consolidated by Month)
+            // 🚀 V18.0: Penalty Calculation (Consolidated by Month & Segmented)
             const photographerLeaves = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
-            const emergencyByMonth = new Map<string, number>();
+            const emergencyByMonthPct = new Map<string, number>();
+            const emergencyByMonthFixed = new Map<string, number>();
             let totalEmergencyHalves = 0;
+            let unpaidLeavesDeductionFixed = 0;
 
             photographerLeaves.forEach(l => {
+                const model = getPayoutModelForDate(l.date);
                 if (isEmergencyLeave(l.date, l.half, l.appliedAt)) {
                     totalEmergencyHalves++;
-                    const monthKey = l.date.substring(0, 7); // "YYYY-MM"
-                    emergencyByMonth.set(monthKey, (emergencyByMonth.get(monthKey) || 0) + 1);
+                    const monthKey = l.date.substring(0, 7);
+                    if (model === 'PERCENTAGE') {
+                        emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
+                    } else {
+                        emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
+                    }
+                }
+                
+                if (model === 'FIXED') {
+                    const leaveDate = new Date(l.date);
+                    if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
+                        unpaidLeavesDeductionFixed += 500;
+                    }
                 }
             });
 
-            let totalPenalty = 0;
-            emergencyByMonth.forEach((count) => {
-                if (count > 6) {
-                    totalPenalty += (count - 6) * 250;
-                }
-            });
+            let penaltyPct = 0;
+            emergencyByMonthPct.forEach(count => { if (count > 6) penaltyPct += (count - 6) * 250; });
+            let penaltyFixed = 0;
+            emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
 
-            // 🚀 V18.2: Send Update Missed Penalty (1000 Rs per day missed, from 5th May 2026 onwards)
+            // 🚀 V18.2: Send Update Missed Penalty Segmented
             let missedUpdatesCount = 0;
-            let missedUpdatesPenalty = 0;
+            let missedUpdatesPenaltyPct = 0;
+            let missedUpdatesPenaltyFixed = 0;
             try {
-                const { data: missedUpdates, error: missedError } = await client.rpc('get_photographer_missing_updates', {
+                const { data: missedUpdates } = await client.rpc('get_photographer_missing_updates', {
                     p_photographer_id: selectedPhotographerId || user?.id,
                     p_start_date: fromStr,
                     p_end_date: toStr
                 });
-                
-                if (!missedError && missedUpdates) {
+                if (missedUpdates) {
                     missedUpdates.forEach((mu: { missing_date: string }) => {
                         if (mu.missing_date >= '2026-05-05') {
                             missedUpdatesCount++;
-                            missedUpdatesPenalty += 1000;
+                            if (getPayoutModelForDate(mu.missing_date) === 'PERCENTAGE') {
+                                missedUpdatesPenaltyPct += 1000;
+                            } else {
+                                missedUpdatesPenaltyFixed += 1000;
+                            }
                         }
                     });
                 }
-            } catch (err) {
-                console.error("Error fetching missing updates:", err);
-            }
+            } catch (err) {}
 
-            totalPenalty += missedUpdatesPenalty;
+            penaltyPct += missedUpdatesPenaltyPct;
+            penaltyFixed += missedUpdatesPenaltyFixed;
 
-            // 🚀 V18.3: Post-it Marketplace Rewards & Penalties
+            // 🚀 V18.3: Post-it Rewards Segmented (Assigned entirely to PERCENTAGE if hybrid, or whatever model applies today)
+            // For simplicity, we just add it to PERCENTAGE if present, else FIXED
             let postItBonus = 0;
             let postItPenalty = 0;
             try {
-                // Fetch resolved reel tasks where the user was either the claimer (bonus) or the breacher (penalty)
-                const { data: relatedReelTasks, error: reelError } = await client
+                const { data: relatedReelTasks } = await client
                     .from('reel_tasks')
                     .select('*')
                     .eq('status', 'RESOLVED')
                     .or(`assigned_user_id.eq.${selectedPhotographerId || user?.id},original_user_id.eq.${selectedPhotographerId || user?.id}`);
-
-                if (!reelError && relatedReelTasks) {
+                if (relatedReelTasks) {
                     relatedReelTasks.forEach((rt: any) => {
-                        // REWARD: They resolved someone else's reel
-                        if (rt.assigned_user_id === (selectedPhotographerId || user?.id) && rt.original_user_id !== null && rt.original_user_id !== rt.assigned_user_id) {
-                            postItBonus += rt.post_it_reward || 0;
-                        }
-                        // PENALTY: Someone else resolved their breached reel
-                        if (rt.original_user_id === (selectedPhotographerId || user?.id) && rt.assigned_user_id !== rt.original_user_id) {
-                            postItPenalty += rt.post_it_reward || 0;
-                        }
+                        if (rt.assigned_user_id === (selectedPhotographerId || user?.id) && rt.original_user_id !== null && rt.original_user_id !== rt.assigned_user_id) postItBonus += rt.post_it_reward || 0;
+                        if (rt.original_user_id === (selectedPhotographerId || user?.id) && rt.assigned_user_id !== rt.original_user_id) postItPenalty += rt.post_it_reward || 0;
                     });
                 }
-            } catch (err) {
-                console.error("Error fetching reel bounties:", err);
+            } catch (err) {}
+
+            // Assign post-its to the model that covers the end of the month
+            if (getPayoutModelForDate(toStr) === 'PERCENTAGE') {
+                grossPct += postItBonus;
+                penaltyPct += postItPenalty;
+            } else {
+                grossFixed += postItBonus;
+                penaltyFixed += postItPenalty;
             }
 
-            gross += postItBonus;
-            totalPenalty += postItPenalty;
+            // --- 🚀 NEW HYBRID PAYOUT LOGIC ---
+            let adminShare = 0;
+            let photographerShare = 0;
+            let salaryBenchmark = 0;
+            let daysWorkedCount = 0;
+            let totalSettledDaily = 0;
+            let totalDealerRevenue = 0;
+            let amountPending = 0;
+            let totalWorkingDaysFixed = 0;
 
-            // --- 🚀 NEW TIERED PAYOUT LOGIC (10/30/50) ---
-            const daysWorkedList = Array.from(new Set(filtered.map(d => d.date)));
-            const daysWorkedCount = daysWorkedList.length;
-            const salaryBenchmark = daysWorkedCount * 1000;
-            const netAmountPool = gross - rapidoTotal - totalPenalty;
+            // 1. Calculate PERCENTAGE portion
+            const pctDeliveries = filtered.filter(d => getPayoutModelForDate(d.date) === 'PERCENTAGE');
+            const daysWorkedList = Array.from(new Set(pctDeliveries.map(d => d.date)));
+            daysWorkedCount = daysWorkedList.length;
+            salaryBenchmark = daysWorkedCount * 1000;
+            const netAmountPool = grossPct - rapidoPct - penaltyPct;
 
-            // Tier Calculation
             const tier1 = Math.min(netAmountPool, salaryBenchmark);
             const tier2 = Math.max(0, Math.min(netAmountPool - salaryBenchmark, salaryBenchmark));
             const tier3 = Math.max(0, netAmountPool - (2 * salaryBenchmark));
 
-            // Admin Share (Net Payable)
-            const adminShare = (tier1 * 0.10) + (tier2 * 0.30) + (tier3 * 0.50);
+            let adminSharePct = (tier1 * 0.10) + (tier2 * 0.30) + (tier3 * 0.50);
+            let photographerSharePct = (tier1 * 0.90) + (tier2 * 0.70) + (tier3 * 0.50);
+
+            let settledPct = pctDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID').reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
+            let dealerRevPct = pctDeliveries.filter(d => d.payment_type !== 'CUSTOMER_PAID').reduce((acc, d) => {
+                const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
+                return acc + (d.received_amount !== undefined && d.received_amount !== null ? Number(d.received_amount) : (dealership?.ratePerDelivery || 0));
+            }, 0);
             
-            // Photographer Share (Net Earnings)
-            const photographerShare = (tier1 * 0.90) + (tier2 * 0.70) + (tier3 * 0.50);
+            let amountPendingPct = adminSharePct - settledPct - dealerRevPct;
 
-            // Daily settlements calculation (Photographer pays 30% of individual receipts daily)
-            const totalSettledDaily = filtered
-                .filter(d => d.payment_type === 'CUSTOMER_PAID')
-                .reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
+            // 2. Calculate FIXED portion
+            for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
+                if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'FIXED') {
+                    totalWorkingDaysFixed++;
+                }
+            }
+            
+            const basePayoutFixed = (totalWorkingDaysFixed * 1000) - unpaidLeavesDeductionFixed;
+            let photographerShareFixed = basePayoutFixed + rapidoFixed - penaltyFixed;
+            if (getPayoutModelForDate(toStr) !== 'PERCENTAGE') photographerShareFixed += postItBonus;
 
-            // Dealer-paid revenue calculation (Money collected directly by Admin via invoice)
-            const totalDealerRevenue = filtered
-                .filter(d => d.payment_type !== 'CUSTOMER_PAID')
-                .reduce((acc, d) => {
-                    const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
-                    const rate = d.received_amount !== undefined && d.received_amount !== null 
-                        ? Number(d.received_amount) 
-                        : (dealership?.ratePerDelivery || 0);
-                    return acc + rate;
-                }, 0);
-
-            // Net Pending calculation: Admin's Tiered Share MINUS what was already paid upfront and what was collected by Admin directly
-            const amountPending = adminShare - totalSettledDaily - totalDealerRevenue;
+            // 3. Sum up
+            adminShare = adminSharePct; // Fixed admin share is irrelevant as they just owe the photog
+            photographerShare = photographerSharePct + photographerShareFixed;
+            totalSettledDaily = settledPct;
+            totalDealerRevenue = dealerRevPct;
+            amountPending = amountPendingPct - photographerShareFixed; // Admin owes photog for the fixed portion
 
             setStats({
-                grossEarnings: gross,
-                totalRapido: rapidoTotal,
-                totalPenalty: totalPenalty,
+                grossEarnings: grossPct + grossFixed,
+                totalRapido: rapidoPct + rapidoFixed,
+                totalPenalty: penaltyPct + penaltyFixed,
                 emergencyLeavesCount: totalEmergencyHalves,
                 missedUpdatesCount: missedUpdatesCount,
                 missedUpdatesPenalty: missedUpdatesPenalty,
@@ -268,6 +309,9 @@ export function EarningsTracker() {
                 deliveryCount: filtered.length,
                 postItBonus: postItBonus,
                 postItPenalty: postItPenalty,
+                payoutModel: overallPayoutModel as 'PERCENTAGE' | 'FIXED' | 'HYBRID',
+                unpaidLeavesDeduction: unpaidLeavesDeductionFixed,
+                totalWorkingDays: totalWorkingDaysFixed,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
                     name,
                     count: data.count,
@@ -305,7 +349,9 @@ export function EarningsTracker() {
                                 <Badge variant="outline" className={`text-lg py-1 px-3 ${stats.amountPending > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
                                     {stats.amountPending > 0 ? 'Owed to Admin: ' : 'Your Credit: '}₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
                                 </Badge>
-                                <span className="text-[10px] text-gray-400 font-medium uppercase">Reconciled vs. 30% Upfront & Invoices</span>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase">
+                                    {stats.payoutModel === 'FIXED' ? 'Final Month Payout (Admin Owes You)' : 'Reconciled vs. 30% Upfront & Invoices'}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -382,7 +428,7 @@ export function EarningsTracker() {
                         </div>
                     </div>
                     {/* 🚀 NEW: Payout & Settlement Metric Cards */}
-                    {stats && (
+                    {stats && stats.payoutModel === 'PERCENTAGE' && (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <Card className="bg-blue-50/50 border-blue-100">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
@@ -421,6 +467,72 @@ export function EarningsTracker() {
                                     </div>
                                     <div className={`text-[10px] mt-1 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                         {stats.amountPending > 0 ? 'Balance to clear' : 'Admin owes you (Credit)'}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+                    
+                    {/* 🚀 FIXED PAYOUT Metric Cards */}
+                    {stats && stats.payoutModel === 'FIXED' && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <Card className="bg-blue-50/50 border-blue-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Calculator className="h-5 w-5 text-blue-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Base Salary</div>
+                                    <div className="text-xl font-bold text-blue-900">₹{(stats.totalWorkingDays * 1000).toLocaleString()}</div>
+                                    <div className="text-[10px] text-blue-600 mt-1">{stats.totalWorkingDays} eligible days in month</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-orange-50/50 border-orange-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <AlertTriangle className="h-5 w-5 text-orange-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Leave Deductions</div>
+                                    <div className="text-xl font-bold text-orange-900">-₹{stats.unpaidLeavesDeduction.toLocaleString()}</div>
+                                    <div className="text-[10px] text-orange-600 mt-1">Unpaid leaves taken</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-purple-50/50 border-purple-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <TrendingUp className="h-5 w-5 text-purple-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Rapido & Bonuses</div>
+                                    <div className="text-xl font-bold text-purple-900">
+                                        +₹{(stats.totalRapido + stats.postItBonus).toLocaleString()}
+                                    </div>
+                                    <div className="text-[10px] text-purple-600 mt-1">Added to base salary</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-emerald-50/50 border-emerald-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Wallet className="h-5 w-5 mb-2 text-emerald-600" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Final Net Payout</div>
+                                    <div className="text-xl font-bold text-emerald-900">
+                                        ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                    </div>
+                                    <div className="text-[10px] text-emerald-600 mt-1">Total to be paid to you</div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* 🚀 HYBRID PAYOUT Metric Cards */}
+                    {stats && stats.payoutModel === 'HYBRID' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Card className="bg-indigo-50/50 border-indigo-100 md:col-span-3">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Calculator className="h-5 w-5 text-indigo-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Hybrid Month Summary</div>
+                                    <div className="text-2xl font-bold text-indigo-900">
+                                        ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                        {stats.amountPending < 0 && ' (CR)'}
+                                    </div>
+                                    <div className="text-xs text-indigo-600 mt-1 max-w-lg">
+                                        You transitioned between payout models this month. 
+                                        Your earnings are a combined sum of the Percentage model and the Fixed model for their respective days.
+                                        {stats.amountPending > 0 ? ' (Balance to clear to Admin)' : ' (Admin owes you)'}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -604,17 +716,26 @@ export function EarningsTracker() {
                         <Info className="h-4 w-4 flex-shrink-0" />
                         <div>
                             <p className="font-semibold mb-1">Earnings Policy:</p>
-                            <ul className="list-disc ml-4 space-y-1">
-                                <li>Earnings are calculated based on deliveries with "DONE" status.</li>
-                                <li>Earnings are calculated based on deliveries with "DONE" status.</li>
-                                <li><strong>Salary Benchmark:</strong> ₹1000 × Working Days. (Defines the tiers for commission)</li>
-                                <li><strong>Tiered Split (Earnings):</strong> You keep 90% of revenue up to benchmark, 70% in the next tier, and 50% thereafter.</li>
-                                <li><strong>Customer Paid:</strong> Photographers settle 30% of collections upfront. The "Pending" amount reconciles this upfront payment against your final tiered share.</li>
-                                <li><strong>Dealer Paid:</strong> Platform collects the full amount via invoice. Your 90/70/50% share is added to your "Credit" to be settled.</li>
-                                <li><strong>Rapido & Penalties:</strong> These are deducted from the Gross Pool *before* splitting, so you don't pay commission on expenses.</li>
-                                <li><strong>Missing Send Update:</strong> A penalty of ₹1000 applies per day if the end-of-day update is not sent (applicable from May 5th, 2026 onwards).</li>
-                                <li><strong>Final Settlement:</strong> Credits (CR) are paid out by Admin; Owed amounts are cleared by Photographer.</li>
-                            </ul>
+                            {stats?.payoutModel === 'FIXED' ? (
+                                <ul className="list-disc ml-4 space-y-1">
+                                    <li><strong>Fixed Payout:</strong> You earn a fixed ₹1,000 per working day, including zero-delivery days and Tuesdays.</li>
+                                    <li><strong>Leave Deductions:</strong> Full-day leaves deduct ₹1,000, half-days deduct ₹500 (except on Tuesdays).</li>
+                                    <li><strong>Expenses & Bonuses:</strong> Rapido reimbursements and Post-It bonuses are added directly to your fixed payout.</li>
+                                    <li><strong>Penalties:</strong> Standard penalties (missed updates, emergency leaves) apply and are deducted.</li>
+                                    <li><strong>Settlements:</strong> You do not collect customer cash directly (paid to company account), so the final payout is paid directly to you.</li>
+                                </ul>
+                            ) : (
+                                <ul className="list-disc ml-4 space-y-1">
+                                    <li>Earnings are calculated based on deliveries with "DONE" status.</li>
+                                    <li><strong>Salary Benchmark:</strong> ₹1000 × Working Days. (Defines the tiers for commission)</li>
+                                    <li><strong>Tiered Split (Earnings):</strong> You keep 90% of revenue up to benchmark, 70% in the next tier, and 50% thereafter.</li>
+                                    <li><strong>Customer Paid:</strong> Photographers settle 30% of collections upfront. The "Pending" amount reconciles this upfront payment against your final tiered share.</li>
+                                    <li><strong>Dealer Paid:</strong> Platform collects the full amount via invoice. Your 90/70/50% share is added to your "Credit" to be settled.</li>
+                                    <li><strong>Rapido & Penalties:</strong> These are deducted from the Gross Pool *before* splitting, so you don't pay commission on expenses.</li>
+                                    <li><strong>Missing Send Update:</strong> A penalty of ₹1000 applies per day if the end-of-day update is not sent (applicable from May 5th, 2026 onwards).</li>
+                                    <li><strong>Final Settlement:</strong> Credits (CR) are paid out by Admin; Owed amounts are cleared by Photographer.</li>
+                                </ul>
+                            )}
                         </div>
                     </div>
                 </CardContent>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Delivery, Screenshot, ScreenshotType } from '../types';
 import { canSendUpdate, getShowroomCode } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -42,6 +43,7 @@ export function SendUpdateScreen({
   onComplete,
   userClusterCode
 }: SendUpdateScreenProps) {
+  const { user } = useAuth();
   const { dealerships } = useConfig();
   const [editingFootage, setEditingFootage] = useState<string | null>(null);
   const [tempFootageLink, setTempFootageLink] = useState('');
@@ -352,7 +354,7 @@ export function SendUpdateScreen({
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1">
                               <Upload className="h-4 w-4" />
-                              Customer Payment
+                              {user?.payout_model === 'FIXED' ? 'Payment screenshot from customer directly to company account' : 'Customer Payment'}
                               <span className="text-red-500">*</span>
                             </Label>
                             {hasPaymentScreenshot ? (
@@ -380,8 +382,9 @@ export function SendUpdateScreen({
                           )}
                         </div>
 
-                        {/* 2. Platform Settlement Screenshot (30%) */}
-                        <div className="space-y-2">
+                        {/* 2. Platform Settlement Screenshot (30%) - Hidden for FIXED payout */}
+                        {user?.payout_model !== 'FIXED' && (
+                          <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1 text-orange-700">
                               <Wallet className="h-4 w-4" />
@@ -430,6 +433,7 @@ export function SendUpdateScreen({
                             )}
                           </div>
                         </div>
+                        )}
                       </div>
                     )}
 

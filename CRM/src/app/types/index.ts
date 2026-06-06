@@ -69,6 +69,9 @@ export interface User {
   last_active?: string; // ISO timestamp of last app check-in
   last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
   city?: string; // V6.0: For city-level admin isolation
+  payout_model?: 'PERCENTAGE' | 'FIXED';
+  fixed_start_date?: string; // YYYY-MM-DD
+  fixed_end_date?: string; // YYYY-MM-DD
 }
 
 export interface Delivery {
