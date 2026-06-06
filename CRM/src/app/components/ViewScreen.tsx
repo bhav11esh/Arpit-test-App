@@ -390,6 +390,26 @@ export function ViewScreen() {
             extraDeliveries = await deliveriesDb.getDeliveriesByIds(missingIds, client);
           }
 
+          // V1 FIX: Fetch Customer Paid deliveries for Fraud Detection screenshots so the count is accurate regardless of Date Filter
+          const fraudScreenshots = realScreenshots.filter(s => s.type === 'FRAUD_DETECTION');
+          if (fraudScreenshots.length > 0) {
+            const dates = Array.from(new Set(fraudScreenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
+            const userIds = Array.from(new Set(fraudScreenshots.map(s => s.user_id)));
+            
+            if (dates.length > 0 && userIds.length > 0) {
+              const { data: fraudDeliveries } = await client.from('deliveries')
+                .select('*')
+                .in('date', dates)
+                .in('assigned_user_id', userIds)
+                .eq('status', 'DONE')
+                .eq('payment_type', 'CUSTOMER_PAID');
+                
+              if (fraudDeliveries) {
+                extraDeliveries = [...extraDeliveries, ...fraudDeliveries];
+              }
+            }
+          }
+
           const uniqueDeliveries = Array.from(new Map([...doneDeliveries, ...extraDeliveries].map(d => [d.id, d])).values());
 
           setDeliveries(uniqueDeliveries);
@@ -2993,7 +3013,7 @@ export function ViewScreen() {
                           {(() => {
                             const code = filteredFraudDetectionScreenshots[currentImageIndex]?.showroom_code;
                             const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
-                            return dealership ? getShowroomDisplayName(dealership.id) : code || 'Unknown';
+                            return dealership ? getShowroomDisplayName(dealership.id) : (code === 'GENERAL' ? 'Unassigned (General)' : code || 'Unknown');
                           })()}
                         </span>
                       </div>
@@ -3077,7 +3097,7 @@ export function ViewScreen() {
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-semibold truncate text-gray-900">
-                                  {dealership ? getShowroomDisplayName(dealership.id) : code || 'Unknown Showroom'}
+                                  {dealership ? getShowroomDisplayName(dealership.id) : (code === 'GENERAL' ? 'Unassigned (General)' : code || 'Unknown Showroom')}
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
