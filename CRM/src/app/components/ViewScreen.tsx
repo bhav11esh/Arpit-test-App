@@ -2993,7 +2993,7 @@ export function ViewScreen() {
                           {(() => {
                             const code = filteredFraudDetectionScreenshots[currentImageIndex]?.showroom_code;
                             const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
-                            return dealership ? dealership.name : code || 'Unknown';
+                            return dealership ? getShowroomDisplayName(dealership.id) : code || 'Unknown';
                           })()}
                         </span>
                       </div>
@@ -3013,6 +3013,23 @@ export function ViewScreen() {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Customer Deliveries Done:</span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {(() => {
+                            const screenshot = filteredFraudDetectionScreenshots[currentImageIndex];
+                            if (!screenshot) return 0;
+                            const targetDate = getOperationalDateString(new Date(screenshot.uploaded_at));
+                            return deliveries.filter(d => 
+                              d.showroom_code === screenshot.showroom_code &&
+                              d.assigned_user_id === screenshot.user_id &&
+                              d.payment_type === 'CUSTOMER_PAID' &&
+                              d.status === 'DONE' &&
+                              d.date === targetDate
+                            ).length;
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -3060,7 +3077,7 @@ export function ViewScreen() {
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-semibold truncate text-gray-900">
-                                  {dealership ? dealership.name : code || 'Unknown Showroom'}
+                                  {dealership ? getShowroomDisplayName(dealership.id) : code || 'Unknown Showroom'}
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
@@ -3071,6 +3088,18 @@ export function ViewScreen() {
                                     month: 'short',
                                     day: 'numeric'
                                   })}
+                                </div>
+                                <div className="text-xs font-semibold text-blue-600 mt-1">
+                                  Customer Deliveries: {(() => {
+                                    const targetDate = getOperationalDateString(new Date(screenshot.uploaded_at));
+                                    return deliveries.filter(d => 
+                                      d.showroom_code === screenshot.showroom_code &&
+                                      d.assigned_user_id === screenshot.user_id &&
+                                      d.payment_type === 'CUSTOMER_PAID' &&
+                                      d.status === 'DONE' &&
+                                      d.date === targetDate
+                                    ).length;
+                                  })()}
                                 </div>
                               </div>
                             </div>
