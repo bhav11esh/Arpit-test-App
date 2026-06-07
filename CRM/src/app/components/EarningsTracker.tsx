@@ -177,23 +177,16 @@ export function EarningsTracker() {
 
             sortedLeaves.forEach(l => {
                 const model = getPayoutModelForDate(l.date);
-                if (isEmergencyLeave(l.date, l.half, l.appliedAt)) {
-                    totalEmergencyHalves++;
-                    const monthKey = l.date.substring(0, 7);
-                    if (model === 'PERCENTAGE') {
-                        emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
-                    } else {
-                        emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
-                    }
-                }
-                
                 const leaveDate = new Date(l.date);
+                let isForgiven = false;
+
                 // Standard unpaid leave check (not a Tuesday)
                 if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
                     if (availableCarryForwardHalves > 0) {
                         // Forgive this half-day leave using a carry-forward
                         availableCarryForwardHalves--;
                         carryForwardedDates.add(l.date);
+                        isForgiven = true;
                         
                         if (model === 'PERCENTAGE') {
                             unpaidLeavesDeductionPctHalves++;
@@ -203,6 +196,17 @@ export function EarningsTracker() {
                         if (model === 'FIXED') {
                             unpaidLeavesDeductionFixed += 500;
                         }
+                    }
+                }
+
+                // If the leave was forgiven, it acts as a weekoff and loses its emergency status!
+                if (!isForgiven && isEmergencyLeave(l.date, l.half, l.appliedAt)) {
+                    totalEmergencyHalves++;
+                    const monthKey = l.date.substring(0, 7);
+                    if (model === 'PERCENTAGE') {
+                        emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
+                    } else {
+                        emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
                     }
                 }
             });
