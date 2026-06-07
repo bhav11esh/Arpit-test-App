@@ -339,7 +339,7 @@ export function EarningsTracker() {
                 totalPenalty: penaltyPct + penaltyFixed,
                 emergencyLeavesCount: totalEmergencyHalves,
                 missedUpdatesCount: missedUpdatesCount,
-                missedUpdatesPenalty: missedUpdatesPenalty,
+                missedUpdatesPenalty: missedUpdatesPenaltyPct + missedUpdatesPenaltyFixed,
                 leaves: photographerLeaves,
                 salaryBenchmark: salaryBenchmark,
                 daysWorked: daysWorkedCount,
