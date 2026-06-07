@@ -1986,7 +1986,10 @@ export function HomeScreen() {
                           <div className="grid gap-4 py-4">
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Cluster</label>
-                              <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
+                              <Select value={selectedExternalCluster} onValueChange={(val) => {
+                                setSelectedExternalCluster(val);
+                                setSelectedExternalDealership(''); // Reset dealership when cluster changes
+                              }}>
                                 <SelectTrigger className="w-full">
                                   <SelectValue placeholder="Select Cluster" />
                                 </SelectTrigger>
@@ -2001,12 +2004,14 @@ export function HomeScreen() {
                             </div>
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Dealership</label>
-                              <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
+                              <Select value={selectedExternalDealership} onValueChange={(val) => setSelectedExternalDealership(val)}>
                                 <SelectTrigger className="w-full">
                                   <SelectValue placeholder="Select Dealership" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {dealerships.map(dealership => (
+                                  {dealerships
+                                    .filter(d => !selectedExternalCluster || mappings.some(m => m.clusterId === selectedExternalCluster && m.dealershipId === d.id))
+                                    .map(dealership => (
                                     <SelectItem key={dealership.id} value={dealership.id}>
                                       {dealership.name}
                                     </SelectItem>
