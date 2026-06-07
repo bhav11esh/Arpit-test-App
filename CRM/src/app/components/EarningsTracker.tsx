@@ -157,12 +157,25 @@ export function EarningsTracker() {
 
             // 🚀 V18.0: Penalty Calculation (Consolidated by Month & Segmented)
             const photographerLeaves = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
+            const sortedLeaves = [...photographerLeaves].sort((a, b) => a.date.localeCompare(b.date));
+            
             const emergencyByMonthPct = new Map<string, number>();
             const emergencyByMonthFixed = new Map<string, number>();
             let totalEmergencyHalves = 0;
             let unpaidLeavesDeductionFixed = 0;
+            let unpaidLeavesDeductionPctHalves = 0;
 
-            photographerLeaves.forEach(l => {
+            // 🚀 V18.4: Tuesday Weekoff Carry-Forward Logic
+            // 1. Find all worked Tuesdays (Tuesdays with > 0 deliveries)
+            const workedTuesdays = Array.from(new Set(
+                filtered.filter(d => new Date(d.date).getDay() === 2).map(d => d.date)
+            )).sort();
+            
+            // 1 worked Tuesday = 2 half-day leave offsets
+            let availableCarryForwardHalves = workedTuesdays.length * 2;
+            const carryForwardedDates = new Set<string>();
+
+            sortedLeaves.forEach(l => {
                 const model = getPayoutModelForDate(l.date);
                 if (isEmergencyLeave(l.date, l.half, l.appliedAt)) {
                     totalEmergencyHalves++;
@@ -174,10 +187,22 @@ export function EarningsTracker() {
                     }
                 }
                 
-                if (model === 'FIXED') {
-                    const leaveDate = new Date(l.date);
-                    if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
-                        unpaidLeavesDeductionFixed += 500;
+                const leaveDate = new Date(l.date);
+                // Standard unpaid leave check (not a Tuesday)
+                if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
+                    if (availableCarryForwardHalves > 0) {
+                        // Forgive this half-day leave using a carry-forward
+                        availableCarryForwardHalves--;
+                        carryForwardedDates.add(l.date);
+                        
+                        if (model === 'PERCENTAGE') {
+                            unpaidLeavesDeductionPctHalves++;
+                        }
+                    } else {
+                        // No carry-forwards left, deduct normally
+                        if (model === 'FIXED') {
+                            unpaidLeavesDeductionFixed += 500;
+                        }
                     }
                 }
             });
@@ -187,7 +212,7 @@ export function EarningsTracker() {
             let penaltyFixed = 0;
             emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
 
-            // 🚀 V18.2: Send Update Missed Penalty Segmented
+            // 🚀 V18.2 & V18.4: Send Update Missed Penalty Segmented & Exemptions
             let missedUpdatesCount = 0;
             let missedUpdatesPenaltyPct = 0;
             let missedUpdatesPenaltyFixed = 0;
@@ -200,6 +225,16 @@ export function EarningsTracker() {
                 if (missedUpdates) {
                     missedUpdates.forEach((mu: { missing_date: string }) => {
                         if (mu.missing_date >= '2026-05-05') {
+                            const dateObj = new Date(mu.missing_date);
+                            const isTuesday = dateObj.getDay() === 2;
+                            const isWorkedTuesday = workedTuesdays.includes(mu.missing_date);
+                            const isCarryForwarded = carryForwardedDates.has(mu.missing_date);
+
+                            // Exempt regular un-worked Tuesdays
+                            if (isTuesday && !isWorkedTuesday) return;
+                            // Exempt carry-forwarded weekoff dates
+                            if (isCarryForwarded) return;
+
                             missedUpdatesCount++;
                             if (getPayoutModelForDate(mu.missing_date) === 'PERCENTAGE') {
                                 missedUpdatesPenaltyPct += 1000;
@@ -214,8 +249,7 @@ export function EarningsTracker() {
             penaltyPct += missedUpdatesPenaltyPct;
             penaltyFixed += missedUpdatesPenaltyFixed;
 
-            // 🚀 V18.3: Post-it Rewards Segmented (Assigned entirely to PERCENTAGE if hybrid, or whatever model applies today)
-            // For simplicity, we just add it to PERCENTAGE if present, else FIXED
+            // 🚀 V18.3: Post-it Rewards Segmented
             let postItBonus = 0;
             let postItPenalty = 0;
             try {
@@ -254,7 +288,11 @@ export function EarningsTracker() {
             // 1. Calculate PERCENTAGE portion
             const pctDeliveries = filtered.filter(d => getPayoutModelForDate(d.date) === 'PERCENTAGE');
             const daysWorkedList = Array.from(new Set(pctDeliveries.map(d => d.date)));
-            daysWorkedCount = daysWorkedList.length;
+            
+            // 🚀 V18.4: Add carry-forward days to PERCENTAGE working days count
+            const carryForwardedDaysPct = unpaidLeavesDeductionPctHalves / 2;
+            daysWorkedCount = daysWorkedList.length + carryForwardedDaysPct;
+            
             salaryBenchmark = daysWorkedCount * 1000;
             const netAmountPool = grossPct - rapidoPct - penaltyPct;
 
