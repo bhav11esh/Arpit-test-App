@@ -213,6 +213,7 @@ export interface Leave {
   half: LeaveHalf; // FIRST_HALF or SECOND_HALF
   appliedBy: LeaveAppliedBy; // Who created this leave
   appliedAt: string; // ISO timestamp
+  convertedToWorkingDay?: boolean;
 }
 
 export interface DeliveryRejection {

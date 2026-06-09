@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { Delivery, Screenshot, ScreenshotType } from '../types';
 import { canSendUpdate, getShowroomCode } from '../lib/utils';
-import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -43,7 +42,6 @@ export function SendUpdateScreen({
   onComplete,
   userClusterCode
 }: SendUpdateScreenProps) {
-  const { user } = useAuth();
   const { dealerships } = useConfig();
   const [editingFootage, setEditingFootage] = useState<string | null>(null);
   const [tempFootageLink, setTempFootageLink] = useState('');
@@ -129,22 +127,22 @@ export function SendUpdateScreen({
   const hasDeliveries = deliveries.length > 0;
 
   // V1 SPEC: Fraud Detection Showroom Cards
-  // Calculate unique showrooms covered today (Only for CUSTOMER_PAID deliveries)
-  const customerPaidDeliveries = deliveries.filter(d => d.payment_type === 'CUSTOMER_PAID');
-  const uniqueShowroomCodes = Array.from(new Set(customerPaidDeliveries.map(d => d.showroom_code).filter(Boolean)));
-  
-  const uniqueShowrooms = uniqueShowroomCodes.map(code => {
-    const matchingDelivery = deliveries.find(d => d.showroom_code === code);
-    let name = code;
-    if (matchingDelivery && matchingDelivery.delivery_name.includes('_')) {
-      const parts = matchingDelivery.delivery_name.split('_');
-      if (parts.length > 1) {
-        // Extract name (skip date parts[0])
-        name = parts.slice(1).join('_').replace(/_[1-9][0-9]?_[0-9][0-9]?$/, '');
+  // Calculate unique showrooms covered today
+  const uniqueShowroomCodes = Array.from(new Set(deliveries.map(d => d.showroom_code).filter(Boolean)));
+  const uniqueShowrooms = uniqueShowroomCodes.length > 0
+    ? uniqueShowroomCodes.map(code => {
+      const matchingDelivery = deliveries.find(d => d.showroom_code === code);
+      let name = code;
+      if (matchingDelivery && matchingDelivery.delivery_name.includes('_')) {
+        const parts = matchingDelivery.delivery_name.split('_');
+        if (parts.length > 1) {
+          // Extract name (skip date parts[0])
+          name = parts.slice(1).join('_').replace(/_[1-9][0-9]?_[0-9][0-9]?$/, '');
+        }
       }
-    }
-    return { code, name };
-  });
+      return { code, name };
+    })
+    : [{ code: 'GENERAL', name: 'Fraud Detection' }];
 
   const isFraudDetectionComplete = (showroomCode: string): boolean => {
     const fraudScreenshots = screenshots.get(`showroom_${showroomCode}`) || [];
@@ -231,7 +229,7 @@ export function SendUpdateScreen({
             <div
               className="bg-[#2563EB] h-2 rounded-full transition-all duration-300"
               style={{
-                width: `${totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 100}%`
+                width: `${(completedTasks / totalTasks) * 100}%`
               }}
             />
           </div>
@@ -354,7 +352,7 @@ export function SendUpdateScreen({
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1">
                               <Upload className="h-4 w-4" />
-                              {user?.payout_model === 'FIXED' ? 'Payment screenshot from customer directly to company account' : 'Customer Payment'}
+                              Customer Payment
                               <span className="text-red-500">*</span>
                             </Label>
                             {hasPaymentScreenshot ? (
@@ -382,9 +380,8 @@ export function SendUpdateScreen({
                           )}
                         </div>
 
-                        {/* 2. Platform Settlement Screenshot (30%) - Hidden for FIXED payout */}
-                        {user?.payout_model !== 'FIXED' && (
-                          <div className="space-y-2">
+                        {/* 2. Platform Settlement Screenshot (30%) */}
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1 text-orange-700">
                               <Wallet className="h-4 w-4" />
@@ -433,7 +430,6 @@ export function SendUpdateScreen({
                             )}
                           </div>
                         </div>
-                        )}
                       </div>
                     )}
 
@@ -681,7 +677,6 @@ export function SendUpdateScreen({
         )}
 
         {/* Fraud Detection Cards */}
-        {uniqueShowrooms.length > 0 && (
         <div className="pt-6 border-t border-gray-200">
           <h2 className="text-lg font-bold mb-4 px-1">Fraud Detection Requirements</h2>
           <div className="space-y-4">
@@ -766,7 +761,6 @@ export function SendUpdateScreen({
             })}
           </div>
         </div>
-        )}
       </div>
 
       {/* Fixed Bottom Button - V1 SPEC: No confirmation dialog, immediate action */}

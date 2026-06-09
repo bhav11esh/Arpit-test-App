@@ -313,7 +313,24 @@ export function EarningsTracker() {
                     pDeliveries.filter(d => new Date(d.date).getDay() === 2).map(d => d.date)
                 )).sort();
                 
-                let availableCarryForwardHalves = workedTuesdays.length * 2;
+                // Count completed deliveries per Tuesday
+                const tuesdayDeliveriesCount = new Map<string, number>();
+                pDeliveries.forEach(d => {
+                    const dateObj = new Date(d.date);
+                    if (dateObj.getDay() === 2) {
+                        tuesdayDeliveriesCount.set(d.date, (tuesdayDeliveriesCount.get(d.date) || 0) + 1);
+                    }
+                });
+
+                let availableCarryForwardHalves = 0;
+                tuesdayDeliveriesCount.forEach((count) => {
+                    if (count === 1) {
+                        availableCarryForwardHalves += 1;
+                    } else if (count >= 2) {
+                        availableCarryForwardHalves += 2;
+                    }
+                });
+
                 const carryForwardedDates = new Set<string>();
                 let totalEmergencyHalves = 0;
                 let unpaidLeavesDeductionFixed = 0;
@@ -326,7 +343,10 @@ export function EarningsTracker() {
                     const leaveDate = new Date(l.date);
                     let isForgiven = false;
 
-                    if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
+                    if (l.convertedToWorkingDay) {
+                        isForgiven = true;
+                        carryForwardedDates.add(l.date);
+                    } else if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
                         if (availableCarryForwardHalves > 0) {
                             availableCarryForwardHalves--;
                             carryForwardedDates.add(l.date);
@@ -374,8 +394,10 @@ export function EarningsTracker() {
                             const isWorkedTuesday = workedTuesdays.includes(mu.missing_date);
                             const isCarryForwarded = carryForwardedDates.has(mu.missing_date);
 
+                            const originalLeavesOnDate = pLeaves.filter(l => l.date === mu.missing_date).length;
+                            if (originalLeavesOnDate === 2) return; // Exempt if originally a full-day leave
                             if (isTuesday && !isWorkedTuesday) return;
-                            if (isCarryForwarded) return;
+                            if (isCarryForwarded && originalLeavesOnDate !== 1) return; // Exempt from penalty only if not originally a half-day leave
 
                             missedUpdatesCount++;
                             if (!isSendUpdateForgiven) {
@@ -839,23 +861,23 @@ export function EarningsTracker() {
                                         emergencyFull: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const dayLeaves = stats.leaves.filter(l => l.date === dStr);
-                                            return dayLeaves.length === 2 && dayLeaves.every(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                            return dayLeaves.length === 2 && dayLeaves.every(l => !l.convertedToWorkingDay && isEmergencyLeave(l.date, l.half, l.appliedAt));
                                         },
                                         emergencyFirst: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const l = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
-                                            if (!l) return false;
+                                            if (!l || l.convertedToWorkingDay) return false;
                                             if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
                                             const r = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
-                                            return !r || !isEmergencyLeave(r.date, r.half, r.appliedAt);
+                                            return !r || r.convertedToWorkingDay || !isEmergencyLeave(r.date, r.half, r.appliedAt);
                                         },
                                         emergencySecond: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const l = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
-                                            if (!l) return false;
+                                            if (!l || l.convertedToWorkingDay) return false;
                                             if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
                                             const f = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
-                                            return !f || !isEmergencyLeave(f.date, f.half, f.appliedAt);
+                                            return !f || f.convertedToWorkingDay || !isEmergencyLeave(f.date, f.half, f.appliedAt);
                                         }
                                     }}
                                     modifiersClassNames={{

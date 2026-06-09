@@ -15,7 +15,8 @@ const rowToLeave = (row: LeaveRow): Leave => ({
   date: row.date,
   half: row.half as LeaveHalf,
   appliedBy: row.applied_by as LeaveAppliedBy,
-  appliedAt: row.applied_at
+  appliedAt: row.applied_at,
+  convertedToWorkingDay: row.converted_to_working_day
 });
 
 /**

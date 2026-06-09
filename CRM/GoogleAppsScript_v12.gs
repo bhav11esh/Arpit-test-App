@@ -36,7 +36,7 @@ function doPost(e) {
 
     if (action === 'delete') return deleteRow(sheet, finalColIdx, id);
     if (action === 'read') return readSheet(sheet, tz);
-    if (action === 'bulk_sync' || action === 'sync_bulk') return processBulkSync(sheet, deliveries, tz, headerRowInfo.index, finalColIdx, finalHeaders);
+    if (deliveries) return processBulkSync(sheet, deliveries, tz, headerRowInfo.index, finalColIdx, finalHeaders);
     return processSync(sheet, delivery, tz, headerRowInfo.index, finalColIdx, finalHeaders);
 
   } catch (err) {
@@ -88,7 +88,10 @@ function processBulkSync(sheet, deliveries, tz, headerIndex, colIdx, headers) {
   deliveries.forEach(delivery => {
     const matchIdx = findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz);
     if (matchIdx > -1) {
-      writeDeliveryToRow(sheet, matchIdx + 1, delivery, colIdx);
+      const rowNum = matchIdx + 1;
+      const originalRow = data[matchIdx];
+      const updatedRow = updateRowArray(originalRow, delivery, headers, colIdx);
+      sheet.getRange(rowNum, 1, 1, updatedRow.length).setValues([updatedRow]);
       updatedIndices.add(matchIdx);
       stats.updated++;
     } else {
@@ -96,7 +99,8 @@ function processBulkSync(sheet, deliveries, tz, headerIndex, colIdx, headers) {
       sheet.appendRow(newRow);
       stats.appended++;
       // Sync local arrays for next iteration
-      displayData.push(newRow.map(c => c === null ? "" : String(c)));
+      data.push(newRow);
+      displayData.push(newRow.map(c => String(c)));
     }
   });
   return ContentService.createTextOutput(JSON.stringify({ status: 'success', stats }))
@@ -108,7 +112,8 @@ function processSync(sheet, delivery, tz, headerIndex, colIdx, headers) {
   const displayData = sheet.getDataRange().getDisplayValues();
   const matchIdx = findRowIndex(displayData, data, delivery, colIdx, null, tz);
   if (matchIdx > -1) {
-    writeDeliveryToRow(sheet, matchIdx + 1, delivery, colIdx);
+    const updatedRow = updateRowArray(data[matchIdx], delivery, headers, colIdx);
+    sheet.getRange(matchIdx + 1, 1, 1, updatedRow.length).setValues([updatedRow]);
     return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'updated' }));
   } else {
     sheet.appendRow(createRowArray(delivery, headers, colIdx));
@@ -128,10 +133,10 @@ function buildColIdx(headers) {
   };
   return {
     date: find('date', ['deliverydate', 'shootdate']),
-    name: find('deliveryname', ['name', 'customername', 'customer']),
+    name: find('customername', ['name', 'deliveryname', 'customer']),
     link: find('footagelink', ['link', 'drivelink', 'footage']),
     id: find('crmid', ['id', 'recordid']),
-    photog: find('photographer', ['photog', 'user', 'photographername', 'assigned', 'assignedto', 'employee', 'team', 'member', 'editor', 'crew', 'photographers', 'shotby']),
+    photog: find('photographer', ['photog', 'user', 'photographername']),
     amount: find('amount', ['received', 'price', 'amt', 'amountreceived', 'receivedamount']),
     phone: find('phone', ['contact', 'customerphone', 'phonenumber', 'customerphonenumber']),
     rapido: find('rapido', ['travel', 'rapi']),
@@ -148,7 +153,7 @@ function findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz) {
   const targetPhotog = String(delivery.photographer_name || "").trim().toLowerCase();
   const targetDate = normalizeDate(delivery.date, tz);
 
-  for (let i = displayData.length - 1; i >= 1; i--) {
+  for (let i = 1; i < displayData.length; i++) {
     if (updatedIndices && updatedIndices.has(i)) continue;
     
     // 1. PRIMARY MATCH: CRM ID
@@ -162,25 +167,24 @@ function findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz) {
       if (targetReelID && rowStr.includes(targetReelID)) return i;
     }
 
-    // 3. Fallback: Date + Link (Exact match) OR Date + Photographer
+    // 3. Fallback: Date + Photographer + (Optional) Text Match
     // 🚀 V17.6: We use displayData[i] (what you see) instead of data[i] 
     // to avoid "Date Flipping" by US-locale sheets.
     const rowDateRaw = colIdx.date > -1 ? normalizeDate(displayData[i][colIdx.date], tz) : "";
     if (targetDate && rowDateRaw === targetDate) {
-      // Check for exact link match first (strong indicator)
-      const rowFLink = colIdx.link > -1 ? String(displayData[i][colIdx.link]).trim().toLowerCase() : "";
-      const targetFLink = String(delivery.footage_link || "").trim().toLowerCase();
-      const rowRLink = colIdx.reel > -1 ? String(displayData[i][colIdx.reel]).trim().toLowerCase() : "";
-      const targetRLink = String(delivery.reel_link || "").trim().toLowerCase();
-      
-      const fMatch = targetFLink && rowFLink && targetFLink === rowFLink;
-      const rMatch = targetRLink && rowRLink && targetRLink === rowRLink;
-      
-      if (fMatch || rMatch) return i;
-
-      // Check for Photographer match (if links didn't match exactly or were empty)
       const rowPhotog = colIdx.photog > -1 ? String(displayData[i][colIdx.photog]).trim().toLowerCase() : "";
       if (targetPhotog && rowPhotog && (targetPhotog.includes(rowPhotog) || rowPhotog.includes(targetPhotog))) {
+        if (!targetLinkID && !targetReelID) {
+          const rowFLink = colIdx.link > -1 ? String(displayData[i][colIdx.link]).trim().toLowerCase() : "";
+          const targetFLink = String(delivery.footage_link || "").trim().toLowerCase();
+          const rowRLink = colIdx.reel > -1 ? String(displayData[i][colIdx.reel]).trim().toLowerCase() : "";
+          const targetRLink = String(delivery.reel_link || "").trim().toLowerCase();
+          const fMatch = (targetFLink && rowFLink && targetFLink === rowFLink);
+          const rMatch = (targetRLink && rowRLink && targetRLink === rowRLink);
+          if (fMatch || rMatch) return i;
+          if (!targetFLink && !rowFLink && !targetRLink && !rowRLink) return i;
+          continue;
+        }
         return i;
       }
     }
@@ -188,22 +192,8 @@ function findRowIndex(displayData, data, delivery, colIdx, updatedIndices, tz) {
   return -1;
 }
 
-function writeDeliveryToRow(sheet, rowNum, delivery, colIdx) {
-  if (colIdx.id > -1) sheet.getRange(rowNum, colIdx.id + 1).setValue(String(delivery.id || ""));
-  if (colIdx.date > -1 && delivery.date) sheet.getRange(rowNum, colIdx.date + 1).setValue(delivery.date);
-  if (colIdx.name > -1) sheet.getRange(rowNum, colIdx.name + 1).setValue(delivery.delivery_name || "");
-  if (colIdx.link > -1) sheet.getRange(rowNum, colIdx.link + 1).setValue(delivery.footage_link || "");
-  if (colIdx.reel > -1) sheet.getRange(rowNum, colIdx.reel + 1).setValue(delivery.reel_link || "");
-  if (colIdx.photog > -1) sheet.getRange(rowNum, colIdx.photog + 1).setValue(delivery.photographer_name || "");
-  if (colIdx.amount > -1) sheet.getRange(rowNum, colIdx.amount + 1).setValue(delivery.received_amount || 0);
-  if (colIdx.phone > -1) sheet.getRange(rowNum, colIdx.phone + 1).setValue(delivery.customer_phone || "");
-  if (colIdx.rapido > -1) sheet.getRange(rowNum, colIdx.rapido + 1).setValue(delivery.rapido_charge || 0);
-  if (colIdx.signature > -1) sheet.getRange(rowNum, colIdx.signature + 1).setValue(delivery.signature || "");
-  if (colIdx.updated > -1) sheet.getRange(rowNum, colIdx.updated + 1).setValue(Utilities.formatDate(new Date(), "GMT+5:30", "dd/MM/yyyy HH:mm:ss"));
-}
-
-function createRowArray(delivery, headers, colIdx) {
-  const row = new Array(headers.length).fill(null);
+function updateRowArray(row, delivery, headers, colIdx) {
+  while(row.length < headers.length) row.push("");
   if (colIdx.id > -1) row[colIdx.id] = String(delivery.id || "");
   if (colIdx.date > -1 && delivery.date) row[colIdx.date] = delivery.date;
   if (colIdx.name > -1) row[colIdx.name] = delivery.delivery_name || "";
@@ -216,6 +206,10 @@ function createRowArray(delivery, headers, colIdx) {
   if (colIdx.signature > -1) row[colIdx.signature] = delivery.signature || "";
   if (colIdx.updated > -1) row[colIdx.updated] = Utilities.formatDate(new Date(), "GMT+5:30", "dd/MM/yyyy HH:mm:ss");
   return row;
+}
+
+function createRowArray(delivery, headers, colIdx) {
+  return updateRowArray(new Array(headers.length).fill(""), delivery, headers, colIdx);
 }
 
 function repairHeadersIfNeeded(sheet, headIdx, headers) {
@@ -247,7 +241,7 @@ function deleteRow(sheet, colIdx, id) {
 
 function extractId(s) {
   if (!s) return "";
-  const match = String(s).match(/[-\w]{15,}/);
+  const match = String(s).match(/[-\w]{25,}/);
   return match ? match[0] : "";
 }
 

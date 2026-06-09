@@ -325,6 +325,7 @@ export interface Database {
           half: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at: string
+          converted_to_working_day: boolean
         }
         Insert: {
           id?: string
@@ -333,6 +334,7 @@ export interface Database {
           half: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at?: string
+          converted_to_working_day?: boolean
         }
         Update: {
           id?: string
@@ -341,6 +343,7 @@ export interface Database {
           half?: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by?: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at?: string
+          converted_to_working_day?: boolean
         }
       }
       log_events: {
