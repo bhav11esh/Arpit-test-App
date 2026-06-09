@@ -34,6 +34,7 @@ export function EarningsTracker() {
     const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
     const [photographers, setPhotographers] = useState<User[]>([]);
     const isAdmin = user?.role === 'ADMIN';
+    const isOrgImpact = selectedPhotographerId === 'YOURPHOTOCREW_IMPACT';
 
     const [forgivenPenalties, setForgivenPenalties] = useState<string[]>([]);
     const [togglingEmergency, setTogglingEmergency] = useState(false);
@@ -42,9 +43,9 @@ export function EarningsTracker() {
     // Initialize selected ID
     useEffect(() => {
         if (user && !selectedPhotographerId) {
-            setSelectedPhotographerId(user.id);
+            setSelectedPhotographerId(isAdmin ? 'YOURPHOTOCREW_IMPACT' : user.id);
         }
-    }, [user]);
+    }, [user, isAdmin]);
 
     // Fetch photographers if admin
     useEffect(() => {
@@ -93,7 +94,7 @@ export function EarningsTracker() {
     };
 
     const handleToggleEmergencyLeaveForgive = async () => {
-        if (!selectedPhotographerId) return;
+        if (!selectedPhotographerId || selectedPhotographerId === 'YOURPHOTOCREW_IMPACT') return;
         setTogglingEmergency(true);
         try {
             const isForgiven = forgivenPenalties.includes('EMERGENCY_LEAVE');
@@ -114,7 +115,7 @@ export function EarningsTracker() {
     };
 
     const handleToggleSendUpdateForgive = async () => {
-        if (!selectedPhotographerId) return;
+        if (!selectedPhotographerId || selectedPhotographerId === 'YOURPHOTOCREW_IMPACT') return;
         setTogglingSendUpdate(true);
         try {
             const isForgiven = forgivenPenalties.includes('SEND_UPDATE');
@@ -139,163 +140,241 @@ export function EarningsTracker() {
         try {
             const client = supabase;
 
-            // Fetch all DONE deliveries for the selected photographer
-            const allDoneDeliveries = await deliveriesDb.getDeliveries({
-                status: 'DONE',
-                assignedUserId: selectedPhotographerId || user?.id
-            }, client);
-
             const fromStr = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
             // If current month, cap at today. Otherwise use end of month.
             const toDate = min([new Date(), endOfMonth(selectedMonth)]);
             const toStr = format(endOfDay(toDate), 'yyyy-MM-dd');
 
+            let currentPhotographers = photographers;
+            if (isOrgImpact && currentPhotographers.length === 0) {
+                currentPhotographers = await getUsersByRole('PHOTOGRAPHER');
+                setPhotographers(currentPhotographers);
+            }
+
+            // Fetch done deliveries
+            let deliveriesFilter: any = { status: 'DONE' };
+            if (!isOrgImpact) {
+                deliveriesFilter.assignedUserId = selectedPhotographerId || user?.id;
+            }
+            const allDoneDeliveries = await deliveriesDb.getDeliveries(deliveriesFilter, client);
+            const filteredDeliveries = allDoneDeliveries.filter(d => d.date >= fromStr && d.date <= toStr);
+
+            // Fetch leaves
+            let allLeaves: any[] = [];
+            if (isOrgImpact) {
+                const { data: leavesData, error: leavesError } = await client
+                    .from('leaves')
+                    .select('*')
+                    .gte('date', fromStr)
+                    .lte('date', toStr);
+                if (leavesError) throw leavesError;
+                allLeaves = leavesData || [];
+            } else {
+                const leavesData = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
+                allLeaves = leavesData || [];
+            }
+
+            // Fetch forgiven penalties
+            let allForgiven: any[] = [];
+            const targetMonth = format(selectedMonth, 'yyyy-MM');
+            if (isOrgImpact) {
+                const { data: forgivenData, error: forgivenError } = await client
+                    .from('penalty_forgiveness')
+                    .select('*')
+                    .eq('month', targetMonth);
+                if (forgivenError) throw forgivenError;
+                allForgiven = forgivenData || [];
+                setForgivenPenalties([]);
+            } else {
+                const forgiven = await penaltiesDb.getPenaltyForgiveness(
+                    selectedPhotographerId || user?.id,
+                    targetMonth
+                );
+                allForgiven = forgiven.map(pType => ({ photographer_id: selectedPhotographerId || user?.id, penalty_type: pType }));
+                setForgivenPenalties(forgiven);
+            }
+
+            // Fetch reel tasks
+            let allReelTasks: any[] = [];
+            const { data: reelTasksData } = await client
+                .from('reel_tasks')
+                .select('*')
+                .eq('status', 'RESOLVED');
+            allReelTasks = reelTasksData || [];
+
+            // Fetch missed updates
+            let missedUpdatesMap = new Map<string, any[]>();
+            if (isOrgImpact) {
+                const missedUpdatesPromises = currentPhotographers.map(p => 
+                    client.rpc('get_photographer_missing_updates', {
+                        p_photographer_id: p.id,
+                        p_start_date: fromStr,
+                        p_end_date: toStr
+                    }).then(({ data }) => {
+                        missedUpdatesMap.set(p.id, data || []);
+                    })
+                );
+                await Promise.all(missedUpdatesPromises);
+            } else {
+                const targetId = selectedPhotographerId || user?.id;
+                if (targetId) {
+                    const { data } = await client.rpc('get_photographer_missing_updates', {
+                        p_photographer_id: targetId,
+                        p_start_date: fromStr,
+                        p_end_date: toStr
+                    });
+                    missedUpdatesMap.set(targetId, data || []);
+                }
+            }
+
+            // Single photographer model detection
             const targetUser = isAdmin ? photographers.find(p => p.id === (selectedPhotographerId || user?.id)) : user;
-            
-            const forgiven = await penaltiesDb.getPenaltyForgiveness(
-                selectedPhotographerId || user?.id,
-                format(selectedMonth, 'yyyy-MM')
-            );
-            setForgivenPenalties(forgiven);
-            const isEmergencyLeaveForgiven = forgiven.includes('EMERGENCY_LEAVE');
-            const isSendUpdateForgiven = forgiven.includes('SEND_UPDATE');
-            
-            const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
+            const getPayoutModelForDateSingle = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
                 if (!targetUser?.fixed_start_date) return 'PERCENTAGE';
                 if (dateStr < targetUser.fixed_start_date) return 'PERCENTAGE';
                 if (targetUser.fixed_end_date && dateStr >= targetUser.fixed_end_date) return 'PERCENTAGE';
                 return 'FIXED';
             };
 
-            const isHybridMonth = getPayoutModelForDate(fromStr) !== getPayoutModelForDate(toStr);
-            const overallPayoutModel = isHybridMonth ? 'HYBRID' : getPayoutModelForDate(fromStr);
+            const photographersToProcess = isOrgImpact ? currentPhotographers : (targetUser ? [targetUser] : []);
 
-            const filtered = allDoneDeliveries.filter(d => d.date >= fromStr && d.date <= toStr);
-
-            const itemRate = (count: number, totalRate: number) => {
-                if (count === 0) return 0;
-                return Math.round(totalRate / count);
-            };
-
-            // Calculate earnings segmented
-            let grossPct = 0;
-            let rapidoPct = 0;
-            let grossFixed = 0;
-            let rapidoFixed = 0;
+            let totalGrossEarnings = 0;
+            let totalRapido = 0;
+            let totalPenalty = 0;
+            let totalEmergencyLeavesCount = 0;
+            let totalMissedUpdatesCount = 0;
+            let totalMissedUpdatesPenalty = 0;
+            let totalSalaryBenchmark = 0;
+            let totalDaysWorked = 0;
+            let totalNetPayableAdmin = 0;
+            let totalNetEarningsPhotographer = 0;
+            let totalSettledDailySum = 0;
+            let totalAmountPending = 0;
+            let totalWorkingDaysSum = 0;
+            let totalUnpaidLeavesDeductionSum = 0;
             const breakdownMap = new Map<string, { count: number; rate: number; rapido: number }>();
 
-            filtered.forEach(d => {
-                const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
-                const rate = d.payment_type === 'CUSTOMER_PAID'
-                    ? (Number(d.received_amount) || 0)
-                    : (d.received_amount !== undefined && d.received_amount !== null 
-                        ? Number(d.received_amount) 
-                        : (dealership?.ratePerDelivery || 0));
+            photographersToProcess.forEach(p => {
+                const pDeliveries = filteredDeliveries.filter(d => d.assigned_user_id === p.id);
+                const pLeaves = allLeaves.filter(l => l.photographer_id === p.id);
+                const pForgiven = allForgiven
+                    .filter(f => f.photographer_id === p.id)
+                    .map(f => f.penalty_type);
                 
-                const charge = d.rapido_charge || 0;
+                const pReelTasks = allReelTasks.filter(rt => 
+                    rt.assigned_user_id === p.id || rt.original_user_id === p.id
+                );
                 
-                if (getPayoutModelForDate(d.date) === 'PERCENTAGE') {
-                    grossPct += rate;
-                    rapidoPct += charge;
-                } else {
-                    grossFixed += rate;
-                    rapidoFixed += charge;
-                }
+                const pMissedUpdates = missedUpdatesMap.get(p.id) || [];
 
-                const dsName = dealership?.name || d.showroom_code || 'Unknown Showroom';
-                const current = breakdownMap.get(dsName) || { count: 0, rate: 0, rapido: 0 };
-                current.count += 1;
-                current.rate += rate;
-                current.rapido += charge;
-                breakdownMap.set(dsName, current);
-            });
+                const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
+                    if (!p.fixed_start_date) return 'PERCENTAGE';
+                    if (dateStr < p.fixed_start_date) return 'PERCENTAGE';
+                    if (p.fixed_end_date && dateStr >= p.fixed_end_date) return 'PERCENTAGE';
+                    return 'FIXED';
+                };
 
-            // 🚀 V18.0: Penalty Calculation (Consolidated by Month & Segmented)
-            const photographerLeaves = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
-            const sortedLeaves = [...photographerLeaves].sort((a, b) => a.date.localeCompare(b.date));
-            
-            const emergencyByMonthPct = new Map<string, number>();
-            const emergencyByMonthFixed = new Map<string, number>();
-            let totalEmergencyHalves = 0;
-            let unpaidLeavesDeductionFixed = 0;
-            let unpaidLeavesDeductionPctHalves = 0;
+                const isEmergencyLeaveForgiven = pForgiven.includes('EMERGENCY_LEAVE');
+                const isSendUpdateForgiven = pForgiven.includes('SEND_UPDATE');
 
-            // 🚀 V18.4: Tuesday Weekoff Carry-Forward Logic
-            // 1. Find all worked Tuesdays (Tuesdays with > 0 deliveries)
-            const workedTuesdays = Array.from(new Set(
-                filtered.filter(d => new Date(d.date).getDay() === 2).map(d => d.date)
-            )).sort();
-            
-            // 1 worked Tuesday = 2 half-day leave offsets
-            let availableCarryForwardHalves = workedTuesdays.length * 2;
-            const carryForwardedDates = new Set<string>();
+                let grossPct = 0;
+                let rapidoPct = 0;
+                let grossFixed = 0;
+                let rapidoFixed = 0;
 
-            sortedLeaves.forEach(l => {
-                const model = getPayoutModelForDate(l.date);
-                const leaveDate = new Date(l.date);
-                let isForgiven = false;
-
-                // Standard unpaid leave check (not a Tuesday)
-                if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
-                    if (availableCarryForwardHalves > 0) {
-                        // Forgive this half-day leave using a carry-forward
-                        availableCarryForwardHalves--;
-                        carryForwardedDates.add(l.date);
-                        isForgiven = true;
-                        
-                        if (model === 'PERCENTAGE') {
-                            unpaidLeavesDeductionPctHalves++;
-                        }
+                pDeliveries.forEach(d => {
+                    const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
+                    const rate = d.payment_type === 'CUSTOMER_PAID'
+                        ? (Number(d.received_amount) || 0)
+                        : (d.received_amount !== undefined && d.received_amount !== null 
+                            ? Number(d.received_amount) 
+                            : (dealership?.ratePerDelivery || 0));
+                    
+                    const charge = d.rapido_charge || 0;
+                    
+                    if (getPayoutModelForDate(d.date) === 'PERCENTAGE') {
+                        grossPct += rate;
+                        rapidoPct += charge;
                     } else {
-                        // No carry-forwards left, deduct normally
-                        if (model === 'FIXED') {
-                            unpaidLeavesDeductionFixed += 500;
-                        }
+                        grossFixed += rate;
+                        rapidoFixed += charge;
                     }
-                }
 
-                // If the leave was forgiven, it acts as a weekoff and loses its emergency status!
-                if (!isForgiven && isEmergencyLeave(l.date, l.half, l.appliedAt)) {
-                    totalEmergencyHalves++;
-                    const monthKey = l.date.substring(0, 7);
-                    if (model === 'PERCENTAGE') {
-                        emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
-                    } else {
-                        emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
-                    }
-                }
-            });
-
-            let penaltyPct = 0;
-            if (!isEmergencyLeaveForgiven) {
-                emergencyByMonthPct.forEach(count => { if (count > 6) penaltyPct += (count - 6) * 250; });
-            }
-            let penaltyFixed = 0;
-            if (!isEmergencyLeaveForgiven) {
-                emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
-            }
-
-            // 🚀 V18.2 & V18.4: Send Update Missed Penalty Segmented & Exemptions
-            let missedUpdatesCount = 0;
-            let missedUpdatesPenaltyPct = 0;
-            let missedUpdatesPenaltyFixed = 0;
-            try {
-                const { data: missedUpdates } = await client.rpc('get_photographer_missing_updates', {
-                    p_photographer_id: selectedPhotographerId || user?.id,
-                    p_start_date: fromStr,
-                    p_end_date: toStr
+                    const dsName = dealership?.name || d.showroom_code || 'Unknown Showroom';
+                    const current = breakdownMap.get(dsName) || { count: 0, rate: 0, rapido: 0 };
+                    current.count += 1;
+                    current.rate += rate;
+                    current.rapido += charge;
+                    breakdownMap.set(dsName, current);
                 });
-                if (missedUpdates) {
-                    missedUpdates.forEach((mu: { missing_date: string }) => {
+
+                const sortedLeaves = [...pLeaves].sort((a, b) => a.date.localeCompare(b.date));
+                const workedTuesdays = Array.from(new Set(
+                    pDeliveries.filter(d => new Date(d.date).getDay() === 2).map(d => d.date)
+                )).sort();
+                
+                let availableCarryForwardHalves = workedTuesdays.length * 2;
+                const carryForwardedDates = new Set<string>();
+                let totalEmergencyHalves = 0;
+                let unpaidLeavesDeductionFixed = 0;
+                let unpaidLeavesDeductionPctHalves = 0;
+                const emergencyByMonthPct = new Map<string, number>();
+                const emergencyByMonthFixed = new Map<string, number>();
+
+                sortedLeaves.forEach(l => {
+                    const model = getPayoutModelForDate(l.date);
+                    const leaveDate = new Date(l.date);
+                    let isForgiven = false;
+
+                    if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
+                        if (availableCarryForwardHalves > 0) {
+                            availableCarryForwardHalves--;
+                            carryForwardedDates.add(l.date);
+                            isForgiven = true;
+                            if (model === 'PERCENTAGE') {
+                                unpaidLeavesDeductionPctHalves++;
+                            }
+                        } else {
+                            if (model === 'FIXED') {
+                                unpaidLeavesDeductionFixed += 500;
+                            }
+                        }
+                    }
+
+                    if (!isForgiven && isEmergencyLeave(l.date, l.half, l.appliedAt)) {
+                        totalEmergencyHalves++;
+                        const monthKey = l.date.substring(0, 7);
+                        if (model === 'PERCENTAGE') {
+                            emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
+                        } else {
+                            emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
+                        }
+                    }
+                });
+
+                let penaltyPct = 0;
+                if (!isEmergencyLeaveForgiven) {
+                    emergencyByMonthPct.forEach(count => { if (count > 6) penaltyPct += (count - 6) * 250; });
+                }
+                let penaltyFixed = 0;
+                if (!isEmergencyLeaveForgiven) {
+                    emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
+                }
+
+                let missedUpdatesCount = 0;
+                let missedUpdatesPenaltyPct = 0;
+                let missedUpdatesPenaltyFixed = 0;
+
+                // Admins do not get penalized
+                if (p.role !== 'ADMIN') {
+                    pMissedUpdates.forEach((mu: { missing_date: string }) => {
                         if (mu.missing_date >= '2026-05-05') {
                             const dateObj = new Date(mu.missing_date);
                             const isTuesday = dateObj.getDay() === 2;
                             const isWorkedTuesday = workedTuesdays.includes(mu.missing_date);
                             const isCarryForwarded = carryForwardedDates.has(mu.missing_date);
 
-                            // Exempt regular un-worked Tuesdays
                             if (isTuesday && !isWorkedTuesday) return;
-                            // Exempt carry-forwarded weekoff dates
                             if (isCarryForwarded) return;
 
                             missedUpdatesCount++;
@@ -309,131 +388,136 @@ export function EarningsTracker() {
                         }
                     });
                 }
-            } catch (err) {}
 
-            penaltyPct += missedUpdatesPenaltyPct;
-            penaltyFixed += missedUpdatesPenaltyFixed;
+                penaltyPct += missedUpdatesPenaltyPct;
+                penaltyFixed += missedUpdatesPenaltyFixed;
 
-            // 🚀 V18.3: Post-it Rewards Segmented
-            let postItBonus = 0;
-            let postItPenalty = 0;
-            try {
-                const { data: relatedReelTasks } = await client
-                    .from('reel_tasks')
-                    .select('*')
-                    .eq('status', 'RESOLVED')
-                    .or(`assigned_user_id.eq.${selectedPhotographerId || user?.id},original_user_id.eq.${selectedPhotographerId || user?.id}`);
-                if (relatedReelTasks) {
-                    relatedReelTasks.forEach((rt: any) => {
-                        if (rt.assigned_user_id === (selectedPhotographerId || user?.id) && rt.original_user_id !== null && rt.original_user_id !== rt.assigned_user_id) postItBonus += rt.post_it_reward || 0;
-                        if (rt.original_user_id === (selectedPhotographerId || user?.id) && rt.assigned_user_id !== rt.original_user_id) postItPenalty += rt.post_it_reward || 0;
-                    });
+                let postItBonus = 0;
+                let postItPenalty = 0;
+                pReelTasks.forEach((rt: any) => {
+                    if (rt.assigned_user_id === p.id && rt.original_user_id !== null && rt.original_user_id !== rt.assigned_user_id) postItBonus += rt.post_it_reward || 0;
+                    if (rt.original_user_id === p.id && rt.assigned_user_id !== rt.original_user_id) postItPenalty += rt.post_it_reward || 0;
+                });
+
+                if (getPayoutModelForDate(toStr) === 'PERCENTAGE') {
+                    grossPct += postItBonus;
+                    penaltyPct += postItPenalty;
+                } else {
+                    grossFixed += postItBonus;
+                    penaltyFixed += postItPenalty;
                 }
-            } catch (err) {}
 
-            // Assign post-its to the model that covers the end of the month
-            if (getPayoutModelForDate(toStr) === 'PERCENTAGE') {
-                grossPct += postItBonus;
-                penaltyPct += postItPenalty;
-            } else {
-                grossFixed += postItBonus;
-                penaltyFixed += postItPenalty;
-            }
+                // Model calculations
+                let adminShare = 0;
+                let photographerShare = 0;
+                let salaryBenchmark = 0;
+                let daysWorkedCount = 0;
+                let totalSettledDaily = 0;
+                let totalDealerRevenue = 0;
+                let amountPending = 0;
+                let totalWorkingDaysFixed = 0;
 
-            // --- 🚀 NEW HYBRID PAYOUT LOGIC ---
-            let adminShare = 0;
-            let photographerShare = 0;
-            let salaryBenchmark = 0;
-            let daysWorkedCount = 0;
-            let totalSettledDaily = 0;
-            let totalDealerRevenue = 0;
-            let amountPending = 0;
-            let totalWorkingDaysFixed = 0;
-
-            // 1. Calculate PERCENTAGE portion
-            const pctDeliveries = filtered.filter(d => getPayoutModelForDate(d.date) === 'PERCENTAGE');
-            
-            let totalCalendarDaysPct = 0;
-            for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
-                if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'PERCENTAGE') {
-                    totalCalendarDaysPct++;
+                const pctDeliveries = pDeliveries.filter(d => getPayoutModelForDate(d.date) === 'PERCENTAGE');
+                
+                let totalCalendarDaysPct = 0;
+                for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
+                    if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'PERCENTAGE') {
+                        totalCalendarDaysPct++;
+                    }
                 }
-            }
 
-            let totalAppliedLeavesPctHalves = 0;
-            sortedLeaves.forEach(l => {
-                const model = getPayoutModelForDate(l.date);
-                if (model === 'PERCENTAGE' && l.date >= fromStr && l.date <= toStr) {
-                    totalAppliedLeavesPctHalves++;
+                let totalAppliedLeavesPctHalves = 0;
+                sortedLeaves.forEach(l => {
+                    const model = getPayoutModelForDate(l.date);
+                    if (model === 'PERCENTAGE' && l.date >= fromStr && l.date <= toStr) {
+                        totalAppliedLeavesPctHalves++;
+                    }
+                });
+
+                let forgivenLeavesPctHalves = 0;
+                carryForwardedDates.forEach(dateStr => {
+                    if (getPayoutModelForDate(dateStr) === 'PERCENTAGE') {
+                        forgivenLeavesPctHalves++;
+                    }
+                });
+
+                daysWorkedCount = totalCalendarDaysPct - ((totalAppliedLeavesPctHalves - forgivenLeavesPctHalves) / 2);
+                salaryBenchmark = daysWorkedCount * 1000;
+                
+                const netAmountPool = grossPct - rapidoPct - penaltyPct;
+                const tier1 = Math.min(netAmountPool, salaryBenchmark);
+                const tier2 = Math.max(0, Math.min(netAmountPool - salaryBenchmark, salaryBenchmark));
+                const tier3 = Math.max(0, netAmountPool - (2 * salaryBenchmark));
+
+                let adminSharePct = (tier1 * 0.10) + (tier2 * 0.30) + (tier3 * 0.50);
+                let photographerSharePct = (tier1 * 0.90) + (tier2 * 0.70) + (tier3 * 0.50);
+
+                let settledPct = pctDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID').reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
+                let dealerRevPct = pctDeliveries.filter(d => d.payment_type !== 'CUSTOMER_PAID').reduce((acc, d) => {
+                    const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
+                    return acc + (d.received_amount !== undefined && d.received_amount !== null ? Number(d.received_amount) : (dealership?.ratePerDelivery || 0));
+                }, 0);
+                
+                let amountPendingPct = adminSharePct - settledPct - dealerRevPct;
+
+                for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
+                    if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'FIXED') {
+                        totalWorkingDaysFixed++;
+                    }
                 }
+                
+                const basePayoutFixed = (totalWorkingDaysFixed * 1000) - unpaidLeavesDeductionFixed;
+                let photographerShareFixed = basePayoutFixed + rapidoFixed - penaltyFixed;
+                if (getPayoutModelForDate(toStr) !== 'PERCENTAGE') photographerShareFixed += postItBonus;
+
+                adminShare = adminSharePct;
+                photographerShare = photographerSharePct + photographerShareFixed;
+                totalSettledDaily = settledPct;
+                totalDealerRevenue = dealerRevPct;
+                amountPending = amountPendingPct - photographerShareFixed;
+
+                // Accumulate totals
+                totalGrossEarnings += (grossPct + grossFixed);
+                totalRapido += (rapidoPct + rapidoFixed);
+                totalPenalty += (penaltyPct + penaltyFixed);
+                totalEmergencyLeavesCount += totalEmergencyHalves;
+                totalMissedUpdatesCount += missedUpdatesCount;
+                totalMissedUpdatesPenalty += (missedUpdatesPenaltyPct + missedUpdatesPenaltyFixed);
+                totalSalaryBenchmark += salaryBenchmark;
+                totalDaysWorked += daysWorkedCount;
+                totalNetPayableAdmin += adminShare;
+                totalNetEarningsPhotographer += photographerShare;
+                totalSettledDailySum += totalSettledDaily;
+                totalAmountPending += amountPending;
+                totalWorkingDaysSum += totalWorkingDaysFixed;
+                totalUnpaidLeavesDeductionSum += unpaidLeavesDeductionFixed;
             });
 
-            let forgivenLeavesPctHalves = 0;
-            carryForwardedDates.forEach(dateStr => {
-                if (getPayoutModelForDate(dateStr) === 'PERCENTAGE') {
-                    forgivenLeavesPctHalves++;
-                }
-            });
-
-            daysWorkedCount = totalCalendarDaysPct - ((totalAppliedLeavesPctHalves - forgivenLeavesPctHalves) / 2);
-            
-            salaryBenchmark = daysWorkedCount * 1000;
-            const netAmountPool = grossPct - rapidoPct - penaltyPct;
-
-            const tier1 = Math.min(netAmountPool, salaryBenchmark);
-            const tier2 = Math.max(0, Math.min(netAmountPool - salaryBenchmark, salaryBenchmark));
-            const tier3 = Math.max(0, netAmountPool - (2 * salaryBenchmark));
-
-            let adminSharePct = (tier1 * 0.10) + (tier2 * 0.30) + (tier3 * 0.50);
-            let photographerSharePct = (tier1 * 0.90) + (tier2 * 0.70) + (tier3 * 0.50);
-
-            let settledPct = pctDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID').reduce((acc, d) => acc + ((d.received_amount || 0) * 0.3), 0);
-            let dealerRevPct = pctDeliveries.filter(d => d.payment_type !== 'CUSTOMER_PAID').reduce((acc, d) => {
-                const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
-                return acc + (d.received_amount !== undefined && d.received_amount !== null ? Number(d.received_amount) : (dealership?.ratePerDelivery || 0));
-            }, 0);
-            
-            let amountPendingPct = adminSharePct - settledPct - dealerRevPct;
-
-            // 2. Calculate FIXED portion
-            for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
-                if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'FIXED') {
-                    totalWorkingDaysFixed++;
-                }
-            }
-            
-            const basePayoutFixed = (totalWorkingDaysFixed * 1000) - unpaidLeavesDeductionFixed;
-            let photographerShareFixed = basePayoutFixed + rapidoFixed - penaltyFixed;
-            if (getPayoutModelForDate(toStr) !== 'PERCENTAGE') photographerShareFixed += postItBonus;
-
-            // 3. Sum up
-            adminShare = adminSharePct; // Fixed admin share is irrelevant as they just owe the photog
-            photographerShare = photographerSharePct + photographerShareFixed;
-            totalSettledDaily = settledPct;
-            totalDealerRevenue = dealerRevPct;
-            amountPending = amountPendingPct - photographerShareFixed; // Admin owes photog for the fixed portion
+            const overallPayoutModel = isOrgImpact
+                ? 'PERCENTAGE'
+                : (getPayoutModelForDateSingle(fromStr) !== getPayoutModelForDateSingle(toStr) ? 'HYBRID' : getPayoutModelForDateSingle(fromStr));
 
             setStats({
-                grossEarnings: grossPct + grossFixed,
-                totalRapido: rapidoPct + rapidoFixed,
-                totalPenalty: penaltyPct + penaltyFixed,
-                emergencyLeavesCount: totalEmergencyHalves,
-                missedUpdatesCount: missedUpdatesCount,
-                missedUpdatesPenalty: missedUpdatesPenaltyPct + missedUpdatesPenaltyFixed,
-                leaves: photographerLeaves,
-                salaryBenchmark: salaryBenchmark,
-                daysWorked: daysWorkedCount,
-                netPayableAdmin: adminShare,
-                netEarningsPhotographer: photographerShare,
-                totalSettledDaily: totalSettledDaily,
-                amountPending: amountPending,
-                netEarnings: photographerShare, // For backward compatibility
-                deliveryCount: filtered.length,
-                postItBonus: postItBonus,
-                postItPenalty: postItPenalty,
+                grossEarnings: totalGrossEarnings,
+                totalRapido: totalRapido,
+                totalPenalty: totalPenalty,
+                emergencyLeavesCount: totalEmergencyLeavesCount,
+                missedUpdatesCount: totalMissedUpdatesCount,
+                missedUpdatesPenalty: totalMissedUpdatesPenalty,
+                leaves: isOrgImpact ? [] : (allLeaves || []),
+                salaryBenchmark: totalSalaryBenchmark,
+                daysWorked: totalDaysWorked,
+                netPayableAdmin: totalNetPayableAdmin,
+                netEarningsPhotographer: totalNetEarningsPhotographer,
+                totalSettledDaily: totalSettledDailySum,
+                amountPending: totalAmountPending,
+                netEarnings: totalNetEarningsPhotographer,
+                deliveryCount: isOrgImpact ? filteredDeliveries.length : filteredDeliveries.filter(d => d.assigned_user_id === selectedPhotographerId || d.assigned_user_id === user?.id).length,
+                postItBonus: 0,
+                postItPenalty: 0,
                 payoutModel: overallPayoutModel as 'PERCENTAGE' | 'FIXED' | 'HYBRID',
-                unpaidLeavesDeduction: unpaidLeavesDeductionFixed,
-                totalWorkingDays: totalWorkingDaysFixed,
+                unpaidLeavesDeduction: totalUnpaidLeavesDeductionSum,
+                totalWorkingDays: totalWorkingDaysSum,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
                     name,
                     count: data.count,
@@ -469,10 +553,16 @@ export function EarningsTracker() {
                         {stats && (
                             <div className="flex flex-col items-end gap-1">
                                 <Badge variant="outline" className={`text-lg py-1 px-3 ${stats.amountPending > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                                    {stats.amountPending > 0 ? 'Owed to Admin: ' : 'Your Credit: '}₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                    {isOrgImpact
+                                        ? (stats.amountPending > 0 ? 'Owed to Admin: ' : 'Your Credit: ')
+                                        : (stats.amountPending > 0 ? 'Owed to Admin: ' : 'Your Credit: ')
+                                    }₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
                                 </Badge>
                                 <span className="text-[10px] text-gray-400 font-medium uppercase">
-                                    {stats.payoutModel === 'FIXED' ? 'Final Month Payout (Admin Owes You)' : 'Reconciled vs. 30% Upfront & Invoices'}
+                                    {isOrgImpact
+                                        ? 'Total Organization Settlement'
+                                        : (stats.payoutModel === 'FIXED' ? 'Final Month Payout (Admin Owes You)' : 'Reconciled vs. 30% Upfront & Invoices')
+                                    }
                                 </span>
                             </div>
                         )}
@@ -489,18 +579,16 @@ export function EarningsTracker() {
                                     value={selectedPhotographerId || ''}
                                     onValueChange={setSelectedPhotographerId}
                                 >
-                                    <SelectTrigger className="min-w-[200px] bg-white">
+                                    <SelectTrigger className="min-w-[240px] bg-white">
                                         <SelectValue placeholder="Select Photographer" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value={user.id}>Your Own Earnings</SelectItem>
+                                        <SelectItem value="YOURPHOTOCREW_IMPACT">Yourphotocrew Impact</SelectItem>
                                         <hr className="my-1 border-gray-100" />
                                         {photographers.map(p => (
-                                            p.id !== user.id && (
-                                                <SelectItem key={p.id} value={p.id}>
-                                                    {p.name}
-                                                </SelectItem>
-                                            )
+                                            <SelectItem key={p.id} value={p.id}>
+                                                {p.name}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -555,40 +643,56 @@ export function EarningsTracker() {
                             <Card className="bg-blue-50/50 border-blue-100">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
                                     <Calculator className="h-5 w-5 text-blue-600 mb-2" />
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Salary Benchmark</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                        {isOrgImpact ? 'Total Salary Benchmark' : 'Salary Benchmark'}
+                                    </div>
                                     <div className="text-xl font-bold text-blue-900">₹{stats.salaryBenchmark.toLocaleString()}</div>
-                                    <div className="text-[10px] text-blue-600 mt-1">{stats.daysWorked} working days</div>
+                                    <div className="text-[10px] text-blue-600 mt-1">
+                                        {isOrgImpact ? `${stats.daysWorked.toFixed(1)} total working days` : `${stats.daysWorked} working days`}
+                                    </div>
                                 </CardContent>
                             </Card>
 
                             <Card className="bg-green-50/50 border-green-100">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
                                     <TrendingUp className="h-5 w-5 text-green-600 mb-2" />
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Net Earnings (You)</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                        {isOrgImpact ? 'Total Photographers Net Earnings' : 'Net Earnings (You)'}
+                                    </div>
                                     <div className="text-xl font-bold text-green-900">₹{Math.round(stats.netEarningsPhotographer).toLocaleString()}</div>
-                                    <div className="text-[10px] text-green-600 mt-1">After 10/30/50% split</div>
+                                    <div className="text-[10px] text-green-600 mt-1">
+                                        {isOrgImpact ? 'Total photographers share' : 'After 10/30/50% split'}
+                                    </div>
                                 </CardContent>
                             </Card>
 
                             <Card className="bg-purple-50/50 border-purple-100">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
                                     <Landmark className="h-5 w-5 text-purple-600 mb-2" />
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Admin Share</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                        {isOrgImpact ? 'Total Admin Share (Company Margin)' : 'Admin Share'}
+                                    </div>
                                     <div className="text-xl font-bold text-purple-900">₹{Math.round(stats.netPayableAdmin).toLocaleString()}</div>
-                                    <div className="text-[10px] text-purple-600 mt-1">Platform's commission</div>
+                                    <div className="text-[10px] text-purple-600 mt-1">
+                                        {isOrgImpact ? 'Net margin made by organisation' : 'Platform\'s commission'}
+                                    </div>
                                 </CardContent>
                             </Card>
 
                             <Card className={stats.amountPending > 0 ? "bg-red-50/50 border-red-100" : "bg-emerald-50/50 border-emerald-100"}>
                                 <CardContent className="p-4 flex flex-col items-center text-center">
                                     <Wallet className={`h-5 w-5 mb-2 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Amount Pending</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                        {isOrgImpact ? 'Reconciliation Amount' : 'Amount Pending'}
+                                    </div>
                                     <div className={`text-xl font-bold ${stats.amountPending > 0 ? 'text-red-900' : 'text-emerald-900'}`}>
                                         ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
                                         {stats.amountPending < 0 && ' (CR)'}
                                     </div>
                                     <div className={`text-[10px] mt-1 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                        {stats.amountPending > 0 ? 'Balance to clear' : 'Admin owes you (Credit)'}
+                                        {isOrgImpact
+                                            ? (stats.amountPending > 0 ? 'Total Owed to Admin' : 'Total Admin owes photographers (Credit)')
+                                            : (stats.amountPending > 0 ? 'Balance to clear' : 'Admin owes you (Credit)')}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -596,7 +700,7 @@ export function EarningsTracker() {
                     )}
                     
                     {/* 🚀 FIXED PAYOUT Metric Cards */}
-                    {stats && stats.payoutModel === 'FIXED' && (
+                    {stats && stats.payoutModel === 'FIXED' && !isOrgImpact && (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <Card className="bg-blue-50/50 border-blue-100">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
@@ -641,7 +745,7 @@ export function EarningsTracker() {
                     )}
 
                     {/* 🚀 HYBRID PAYOUT Metric Cards */}
-                    {stats && stats.payoutModel === 'HYBRID' && (
+                    {stats && stats.payoutModel === 'HYBRID' && !isOrgImpact && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Card className="bg-indigo-50/50 border-indigo-100 md:col-span-3">
                                 <CardContent className="p-4 flex flex-col items-center text-center">
@@ -696,7 +800,7 @@ export function EarningsTracker() {
                     )}
 
                     {/* Visual Emergency Calendar (V18.1) */}
-                    {stats && stats.emergencyLeavesCount > 0 && (
+                    {!isOrgImpact && stats && stats.emergencyLeavesCount > 0 && (
                         <div className="space-y-3 p-4 bg-red-50/30 border border-red-100 rounded-lg">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                 <h3 className="text-sm font-semibold flex items-center gap-2 text-red-800">
@@ -787,7 +891,7 @@ export function EarningsTracker() {
                     )}
 
                     {/* Missed Updates Penalty Display */}
-                    {stats && stats.missedUpdatesCount > 0 && (
+                    {!isOrgImpact && stats && stats.missedUpdatesCount > 0 && (
                         <div className="space-y-2 p-3 bg-red-50/50 border border-red-200 rounded-lg">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                 <h3 className="text-xs font-bold flex items-center gap-2 text-red-900 uppercase tracking-wide">
