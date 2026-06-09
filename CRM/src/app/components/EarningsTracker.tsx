@@ -168,7 +168,15 @@ export function EarningsTracker() {
                     .gte('date', fromStr)
                     .lte('date', toStr);
                 if (leavesError) throw leavesError;
-                allLeaves = leavesData || [];
+                allLeaves = (leavesData || []).map((row: any) => ({
+                    id: row.id,
+                    photographerId: row.photographer_id,
+                    date: row.date,
+                    half: row.half,
+                    appliedBy: row.applied_by,
+                    appliedAt: row.applied_at,
+                    convertedToWorkingDay: row.converted_to_working_day
+                }));
             } else {
                 const leavesData = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
                 allLeaves = leavesData || [];
@@ -256,7 +264,7 @@ export function EarningsTracker() {
 
             photographersToProcess.forEach(p => {
                 const pDeliveries = filteredDeliveries.filter(d => d.assigned_user_id === p.id);
-                const pLeaves = allLeaves.filter(l => l.photographer_id === p.id);
+                const pLeaves = allLeaves.filter(l => l.photographerId === p.id);
                 const pForgiven = allForgiven
                     .filter(f => f.photographer_id === p.id)
                     .map(f => f.penalty_type);
