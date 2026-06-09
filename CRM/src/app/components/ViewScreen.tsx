@@ -1194,6 +1194,10 @@ export function ViewScreen() {
 
   // Add new row handlers
   const handleStartAddRow = () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can add new delivery rows');
+      return;
+    }
     setNewRowData({
       date: getOperationalDateString(),
       showroom_id: '',
@@ -1210,6 +1214,10 @@ export function ViewScreen() {
   };
 
   const handleSaveNewRow = async () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can add new delivery rows');
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1217,6 +1225,7 @@ export function ViewScreen() {
       // Validate required fields
       if (!newRowData.date || !newRowData.showroom_id) {
         toast.error('Please fill in required fields: Date and Showroom');
+        setIsSubmitting(false);
         return;
       }
 
@@ -2045,7 +2054,8 @@ export function ViewScreen() {
                         })}
 
                       {/* Add New Row Dialog */}
-                      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      {isAdmin && (
+                        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                         <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
                           <DialogHeader className="px-6 py-4 border-b">
                             <DialogTitle>Add New Delivery Record</DialogTitle>
@@ -2227,18 +2237,21 @@ export function ViewScreen() {
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
 
 
                 {/* Add New Row Button */}
-                <div className="mt-4">
-                  <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
-                    <Plus className="h-4 w-4" />
-                    Add New Delivery Row
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="mt-4">
+                    <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
+                      <Plus className="h-4 w-4" />
+                      Add New Delivery Row
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
