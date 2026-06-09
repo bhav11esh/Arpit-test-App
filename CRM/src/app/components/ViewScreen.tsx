@@ -8,7 +8,7 @@ import * as deliveriesDb from '../lib/db/deliveries';
 import * as reelsDb from '../lib/db/reels';
 import { adminSupabase, supabase } from '../lib/supabase';
 import type { Delivery } from '../types';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -56,7 +56,7 @@ export function ViewScreen() {
   // 4. Logs View (admin audit trail)
   // 5. Portrait View (live_bookings)
   // V1 RULE: Photographers must NEVER see screenshot galleries (modes 2 & 3)
-  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'rapido' | 'logs' | 'portrait'>('spreadsheet');
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'rapido' | 'logs' | 'portrait' | 'missed_send_update'>('spreadsheet');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -118,6 +118,38 @@ export function ViewScreen() {
   // V6.0 CONFLICT RESOLUTION
   const [conflictDelivery, setConflictDelivery] = useState<Delivery | null>(null);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+
+  const [missedSendUpdateData, setMissedSendUpdateData] = useState<{
+    photographerId: string;
+    name: string;
+    completedCount: number;
+    totalCount: number;
+    hasSentUpdate: boolean;
+    leaveText: string | null;
+  }[]>([]);
+  const [missedSendUpdateLoading, setMissedSendUpdateLoading] = useState(false);
+
+  const handleNudgePhotographer = async (photographerId: string, name: string, pendingCount: number) => {
+    try {
+      const title = '⚠️ Action Required: Day End Update';
+      const body = `You have ${pendingCount} deliveries pending today. Please submit "Send Update" immediately.`;
+
+      await notificationsDb.createNotification({
+        user_id: photographerId,
+        title,
+        body,
+        type: 'DAY_CLOSURE'
+      });
+
+      const { sendPushToUser } = await import('../lib/db/push');
+      await sendPushToUser(photographerId, { title, body });
+
+      toast.success(`Nudged ${name} successfully!`);
+    } catch (error) {
+      console.error('Failed to nudge photographer:', error);
+      toast.error('Failed to send nudge');
+    }
+  };
 
   // V1 SPEC: Only ADMIN can access screenshot galleries
   const isAdmin = user?.role === 'ADMIN';
@@ -446,6 +478,106 @@ export function ViewScreen() {
     }
     prevViewMode.current = viewMode;
   }, [viewMode]);
+
+  // Missed Send Update / Covered 0 Delivery fetcher
+  useEffect(() => {
+    if (viewMode !== 'missed_send_update' || !user) return;
+
+    const fetchAuditData = async () => {
+      setMissedSendUpdateLoading(true);
+      try {
+        const dateStr = spreadSheetDate;
+        
+        // 1. Get active photographers
+        const activePhotographers = cityIsolatedPhotographers.filter(p => p.active === true);
+        
+        // 2. Fetch log events for SEND_UPDATE_COMPLETED around dateStr
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const start = new Date(year, month - 1, day - 1, 0, 0, 0); // Widen range to be timezone safe
+        const end = new Date(year, month - 1, day + 2, 23, 59, 59);
+        
+        const { data: logs, error: logsError } = await supabase
+          .from('log_events')
+          .select('*')
+          .eq('type', 'SEND_UPDATE_COMPLETED')
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString());
+          
+        if (logsError) throw logsError;
+        
+        // Filter logs by operational date in JS
+        const sentUpdateUserIds = new Set(
+          (logs || [])
+            .filter(le => getOperationalDateString(new Date(le.created_at)) === dateStr)
+            .map(le => le.actor_user_id)
+        );
+        
+        // 3. Fetch leaves for dateStr
+        const { data: leaves, error: leavesError } = await supabase
+          .from('leaves')
+          .select('*')
+          .eq('date', dateStr);
+          
+        if (leavesError) throw leavesError;
+
+        // 4. Fetch all deliveries for dateStr directly (so we see ASSIGNED / UNASSIGNED / DONE / etc.)
+        const { data: dayDeliveriesRaw, error: deliveriesError } = await supabase
+          .from('deliveries')
+          .select('*')
+          .eq('date', dateStr)
+          .is('deleted_at', null);
+
+        if (deliveriesError) throw deliveriesError;
+        
+        // 5. Process each photographer
+        const results = activePhotographers.map(p => {
+          // Deliveries assigned to this photographer on this date
+          const dayDeliveries = (dayDeliveriesRaw || []).filter(d => 
+            d.assigned_user_id === p.id
+          );
+          
+          const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
+          const totalCount = dayDeliveries.length;
+          const hasSentUpdate = sentUpdateUserIds.has(p.id);
+          
+          // Determine leave status
+          const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
+          let leaveText = null;
+          if (userLeaves.length >= 2) {
+            leaveText = 'Full Day Leave';
+          } else if (userLeaves.length === 1) {
+            leaveText = userLeaves[0].half === 'FIRST_HALF' ? '1st Half Leave' : '2nd Half Leave';
+          }
+          
+          return {
+            photographerId: p.id,
+            name: p.name,
+            completedCount,
+            totalCount,
+            hasSentUpdate,
+            leaveText
+          };
+        });
+        
+        // 6. Filter results: Keep only those who:
+        // - Completed 0 deliveries (completedCount === 0)
+        // - OR missed send update (hasSentUpdate === false)
+        // (i.e. exclude those who completed > 0 AND sent update)
+        const filteredResults = results.filter(r => 
+          r.completedCount === 0 || !r.hasSentUpdate
+        );
+        
+        setMissedSendUpdateData(filteredResults);
+      } catch (err) {
+        console.error('Failed to fetch missed send update audit data:', err);
+        toast.error('Failed to load audit results');
+      } finally {
+        setMissedSendUpdateLoading(false);
+      }
+    };
+    
+    fetchAuditData();
+  }, [viewMode, spreadSheetDate, cityIsolatedPhotographers, user]);
 
   // V1 CRITICAL: Enforce admin-only access for screenshot galleries
   // If non-admin attempts to access payment/follow views, redirect to spreadsheet
@@ -1344,6 +1476,7 @@ export function ViewScreen() {
                         <SelectItem value="platform_payment" className="pl-6 text-sm">Yourphotocrew Payments</SelectItem>
                         <SelectItem value="fraud_detection" className="pl-6 text-sm">Fraud Detection</SelectItem>
                         <SelectItem value="logs" className="pl-6 text-sm">Admin Logs</SelectItem>
+                        <SelectItem value="missed_send_update" className="pl-6 text-sm">Missed Send Update/Covered 0 delivery</SelectItem>
                       </>
                     )}
                   </SelectContent>
@@ -3141,6 +3274,135 @@ export function ViewScreen() {
           {/* Admin Logs Viewer */}
           {viewMode === 'logs' && (
             <AdminLogsViewer />
+          )}
+
+          {/* Missed Send Update / Covered 0 Delivery View */}
+          {viewMode === 'missed_send_update' && (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Missed Send Update / 0 Delivery</h2>
+                  <p className="text-sm text-gray-500">Audit daily activity and daily update submissions</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-[#E11D48] text-white">
+                    {missedSendUpdateData.length} photographers
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Date Selector Card */}
+              <Card>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-sm text-gray-700">Select Audit Date</h3>
+                    <p className="text-xs text-gray-500">Auditing activity and updates for this specific date</p>
+                  </div>
+                  <div className="w-full sm:w-64">
+                    <Input
+                      type="date"
+                      value={spreadSheetDate}
+                      onChange={(e) => {
+                        setSpreadSheetDate(e.target.value);
+                        setShowAllTime(false);
+                      }}
+                      className="h-9"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Results */}
+              {missedSendUpdateLoading ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-400">
+                    <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <span>Loading audit data for {spreadSheetDate}...</span>
+                  </CardContent>
+                </Card>
+              ) : missedSendUpdateData.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-500">
+                    <p className="font-medium text-green-600 mb-1">All clear! 🎉</p>
+                    <p className="text-xs text-gray-400">Every photographer either completed deliveries and sent their update, or had no activity to report.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {missedSendUpdateData.map(p => {
+                    const hasZeroDeliveries = p.completedCount === 0;
+                    const hasMissedUpdate = !p.hasSentUpdate;
+
+                    return (
+                      <Card key={p.photographerId} className={`border transition-all hover:shadow-md ${
+                        hasMissedUpdate && !hasZeroDeliveries
+                          ? 'border-red-100 bg-red-50/10'
+                          : hasZeroDeliveries && p.leaveText
+                            ? 'border-blue-100 bg-blue-50/10'
+                            : 'border-amber-100 bg-amber-50/10'
+                      }`}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-base font-bold text-gray-900">{p.name}</CardTitle>
+                              <CardDescription className="text-xs text-gray-500">
+                                ID: {p.photographerId.substring(0, 8)}...
+                              </CardDescription>
+                            </div>
+                            <div className="flex flex-col gap-1 items-end">
+                              {p.leaveText && (
+                                <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                                  {p.leaveText}
+                                </Badge>
+                              )}
+                              {hasZeroDeliveries ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+                                  0 Deliveries
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-semibold">
+                                  {p.completedCount} / {p.totalCount} Done
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2 text-xs text-gray-700">
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Deliveries Completed:</span>
+                              <span className="font-bold">{p.completedCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Total Deliveries:</span>
+                              <span className="font-bold">{p.totalCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">End-of-Day Update status:</span>
+                              <span className={`font-bold ${p.hasSentUpdate ? 'text-green-600' : 'text-red-600'}`}>
+                                {p.hasSentUpdate ? 'COMPLETED' : 'MISSED'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Individual Nudge Button */}
+                          {!p.hasSentUpdate && !hasZeroDeliveries && (
+                            <Button
+                              onClick={() => handleNudgePhotographer(p.photographerId, p.name, p.totalCount - p.completedCount)}
+                              className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs py-2 h-8"
+                            >
+                              <BellRing className="h-3 w-3 mr-1.5" />
+                              Nudge Photographer
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Audit & Nudge Dialog */}
