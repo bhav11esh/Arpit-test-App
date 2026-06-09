@@ -12,7 +12,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from './ui/popover';
-import { Calendar as CalendarIcon, Wallet, Info, AlertTriangle, TrendingUp, Landmark, Calculator } from 'lucide-react';
+import { Calendar as CalendarIcon, Wallet, Info, AlertTriangle, TrendingUp, Landmark, Calculator, Trophy } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, min, subMonths } from 'date-fns';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -20,6 +20,7 @@ import { getUsersByRole } from '../lib/db/users';
 import { User } from '../types';
 import { getShowroomCode, isEmergencyLeave } from '../lib/utils';
 import * as leavesDb from '../lib/db/leaves';
+import * as penaltiesDb from '../lib/db/penalties';
 
 export function EarningsTracker() {
     const { user } = useAuth();
@@ -33,6 +34,10 @@ export function EarningsTracker() {
     const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
     const [photographers, setPhotographers] = useState<User[]>([]);
     const isAdmin = user?.role === 'ADMIN';
+
+    const [forgivenPenalties, setForgivenPenalties] = useState<string[]>([]);
+    const [togglingEmergency, setTogglingEmergency] = useState(false);
+    const [togglingSendUpdate, setTogglingSendUpdate] = useState(false);
 
     // Initialize selected ID
     useEffect(() => {
@@ -87,6 +92,48 @@ export function EarningsTracker() {
         return getShowroomCode(dealershipName);
     };
 
+    const handleToggleEmergencyLeaveForgive = async () => {
+        if (!selectedPhotographerId) return;
+        setTogglingEmergency(true);
+        try {
+            const isForgiven = forgivenPenalties.includes('EMERGENCY_LEAVE');
+            const targetMonth = format(selectedMonth, 'yyyy-MM');
+            if (isForgiven) {
+                await penaltiesDb.unforgivePenalty(selectedPhotographerId, targetMonth, 'EMERGENCY_LEAVE');
+                toast.success('Emergency leave penalty reinstated');
+            } else {
+                await penaltiesDb.forgivePenalty(selectedPhotographerId, targetMonth, 'EMERGENCY_LEAVE');
+                toast.success('Emergency leave penalty forgiven successfully');
+            }
+            await fetchEarnings();
+        } catch (err) {
+            toast.error('Failed to update penalty status');
+        } finally {
+            setTogglingEmergency(false);
+        }
+    };
+
+    const handleToggleSendUpdateForgive = async () => {
+        if (!selectedPhotographerId) return;
+        setTogglingSendUpdate(true);
+        try {
+            const isForgiven = forgivenPenalties.includes('SEND_UPDATE');
+            const targetMonth = format(selectedMonth, 'yyyy-MM');
+            if (isForgiven) {
+                await penaltiesDb.unforgivePenalty(selectedPhotographerId, targetMonth, 'SEND_UPDATE');
+                toast.success('Send Update penalty reinstated');
+            } else {
+                await penaltiesDb.forgivePenalty(selectedPhotographerId, targetMonth, 'SEND_UPDATE');
+                toast.success('Send Update penalty forgiven successfully');
+            }
+            await fetchEarnings();
+        } catch (err) {
+            toast.error('Failed to update penalty status');
+        } finally {
+            setTogglingSendUpdate(false);
+        }
+    };
+
     const fetchEarnings = async () => {
         setLoading(true);
         try {
@@ -104,6 +151,14 @@ export function EarningsTracker() {
             const toStr = format(endOfDay(toDate), 'yyyy-MM-dd');
 
             const targetUser = isAdmin ? photographers.find(p => p.id === (selectedPhotographerId || user?.id)) : user;
+            
+            const forgiven = await penaltiesDb.getPenaltyForgiveness(
+                selectedPhotographerId || user?.id,
+                format(selectedMonth, 'yyyy-MM')
+            );
+            setForgivenPenalties(forgiven);
+            const isEmergencyLeaveForgiven = forgiven.includes('EMERGENCY_LEAVE');
+            const isSendUpdateForgiven = forgiven.includes('SEND_UPDATE');
             
             const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
                 if (!targetUser?.fixed_start_date) return 'PERCENTAGE';
@@ -212,9 +267,13 @@ export function EarningsTracker() {
             });
 
             let penaltyPct = 0;
-            emergencyByMonthPct.forEach(count => { if (count > 6) penaltyPct += (count - 6) * 250; });
+            if (!isEmergencyLeaveForgiven) {
+                emergencyByMonthPct.forEach(count => { if (count > 6) penaltyPct += (count - 6) * 250; });
+            }
             let penaltyFixed = 0;
-            emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
+            if (!isEmergencyLeaveForgiven) {
+                emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
+            }
 
             // 🚀 V18.2 & V18.4: Send Update Missed Penalty Segmented & Exemptions
             let missedUpdatesCount = 0;
@@ -240,10 +299,12 @@ export function EarningsTracker() {
                             if (isCarryForwarded) return;
 
                             missedUpdatesCount++;
-                            if (getPayoutModelForDate(mu.missing_date) === 'PERCENTAGE') {
-                                missedUpdatesPenaltyPct += 1000;
-                            } else {
-                                missedUpdatesPenaltyFixed += 1000;
+                            if (!isSendUpdateForgiven) {
+                                if (getPayoutModelForDate(mu.missing_date) === 'PERCENTAGE') {
+                                    missedUpdatesPenaltyPct += 1000;
+                                } else {
+                                    missedUpdatesPenaltyFixed += 1000;
+                                }
                             }
                         }
                     });
@@ -291,11 +352,30 @@ export function EarningsTracker() {
 
             // 1. Calculate PERCENTAGE portion
             const pctDeliveries = filtered.filter(d => getPayoutModelForDate(d.date) === 'PERCENTAGE');
-            const daysWorkedList = Array.from(new Set(pctDeliveries.map(d => d.date)));
             
-            // 🚀 V18.4: Add carry-forward days to PERCENTAGE working days count
-            const carryForwardedDaysPct = unpaidLeavesDeductionPctHalves / 2;
-            daysWorkedCount = daysWorkedList.length + carryForwardedDaysPct;
+            let totalCalendarDaysPct = 0;
+            for (let d = startOfMonth(selectedMonth); d <= toDate; d = new Date(d.getTime() + 86400000)) {
+                if (getPayoutModelForDate(format(d, 'yyyy-MM-dd')) === 'PERCENTAGE') {
+                    totalCalendarDaysPct++;
+                }
+            }
+
+            let totalAppliedLeavesPctHalves = 0;
+            sortedLeaves.forEach(l => {
+                const model = getPayoutModelForDate(l.date);
+                if (model === 'PERCENTAGE' && l.date >= fromStr && l.date <= toStr) {
+                    totalAppliedLeavesPctHalves++;
+                }
+            });
+
+            let forgivenLeavesPctHalves = 0;
+            carryForwardedDates.forEach(dateStr => {
+                if (getPayoutModelForDate(dateStr) === 'PERCENTAGE') {
+                    forgivenLeavesPctHalves++;
+                }
+            });
+
+            daysWorkedCount = totalCalendarDaysPct - ((totalAppliedLeavesPctHalves - forgivenLeavesPctHalves) / 2);
             
             salaryBenchmark = daysWorkedCount * 1000;
             const netAmountPool = grossPct - rapidoPct - penaltyPct;
@@ -618,10 +698,34 @@ export function EarningsTracker() {
                     {/* Visual Emergency Calendar (V18.1) */}
                     {stats && stats.emergencyLeavesCount > 0 && (
                         <div className="space-y-3 p-4 bg-red-50/30 border border-red-100 rounded-lg">
-                            <h3 className="text-sm font-semibold flex items-center gap-2 text-red-800">
-                                <AlertTriangle className="h-4 w-4 text-red-600" />
-                                Emergency Leaves Overview ({stats.emergencyLeavesCount} halves)
-                            </h3>
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                <h3 className="text-sm font-semibold flex items-center gap-2 text-red-800">
+                                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                                    Emergency Leaves Overview ({stats.emergencyLeavesCount} halves)
+                                    {forgivenPenalties.includes('EMERGENCY_LEAVE') && (
+                                        <Badge className="bg-green-600 text-white ml-2 normal-case font-semibold">Forgiven</Badge>
+                                    )}
+                                </h3>
+                                {isAdmin && (
+                                    <Button
+                                        size="sm"
+                                        variant={forgivenPenalties.includes('EMERGENCY_LEAVE') ? "default" : "outline"}
+                                        className={forgivenPenalties.includes('EMERGENCY_LEAVE') 
+                                            ? "bg-green-600 hover:bg-green-700 text-white border-green-600" 
+                                            : "border-red-300 text-red-700 hover:bg-red-50"}
+                                        onClick={handleToggleEmergencyLeaveForgive}
+                                        disabled={togglingEmergency}
+                                    >
+                                        {togglingEmergency ? (
+                                            <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                        ) : forgivenPenalties.includes('EMERGENCY_LEAVE') ? (
+                                            "Unforgive Penalty"
+                                        ) : (
+                                            "Forgive Penalty"
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
                             <div className="flex flex-col md:flex-row items-center gap-6 bg-white p-3 rounded border border-red-100 shadow-sm">
                                 <Calendar
                                     mode="single"
@@ -685,14 +789,42 @@ export function EarningsTracker() {
                     {/* Missed Updates Penalty Display */}
                     {stats && stats.missedUpdatesCount > 0 && (
                         <div className="space-y-2 p-3 bg-red-50/50 border border-red-200 rounded-lg">
-                            <h3 className="text-xs font-bold flex items-center gap-2 text-red-900 uppercase tracking-wide">
-                                <AlertTriangle className="h-4 w-4 text-red-600" />
-                                Send Update Missed Penalty
-                            </h3>
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                <h3 className="text-xs font-bold flex items-center gap-2 text-red-900 uppercase tracking-wide">
+                                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                                    Send Update Missed Penalty
+                                    {forgivenPenalties.includes('SEND_UPDATE') && (
+                                        <Badge className="bg-green-600 text-white ml-2 normal-case font-semibold">Forgiven</Badge>
+                                    )}
+                                </h3>
+                                {isAdmin && (
+                                    <Button
+                                        size="sm"
+                                        variant={forgivenPenalties.includes('SEND_UPDATE') ? "default" : "outline"}
+                                        className={forgivenPenalties.includes('SEND_UPDATE') 
+                                            ? "bg-green-600 hover:bg-green-700 text-white border-green-600" 
+                                            : "border-red-300 text-red-700 hover:bg-red-50"}
+                                        onClick={handleToggleSendUpdateForgive}
+                                        disabled={togglingSendUpdate}
+                                    >
+                                        {togglingSendUpdate ? (
+                                            <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                        ) : forgivenPenalties.includes('SEND_UPDATE') ? (
+                                            "Unforgive Penalty"
+                                        ) : (
+                                            "Forgive Penalty"
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
                             <div className="text-sm text-red-800">
                                 You missed sending the end-of-day update on <strong className="text-red-900">{stats.missedUpdatesCount} day(s)</strong> (since May 5th).
                                 <div className="mt-1 font-bold text-red-600">
-                                    Penalty Applied: ₹{stats.missedUpdatesPenalty.toLocaleString()}
+                                    {forgivenPenalties.includes('SEND_UPDATE') ? (
+                                        <span className="text-green-600 line-through font-semibold">Penalty Applied: ₹{(stats.missedUpdatesCount * 1000).toLocaleString()} (Forgiven)</span>
+                                    ) : (
+                                        <span>Penalty Applied: ₹{stats.missedUpdatesPenalty.toLocaleString()}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -1172,7 +1172,7 @@ export function ViewScreen() {
       };
 
       // Add reel_link if provided
-      (newDelivery as any).reel_link = newRowData.reel_link || '';
+      (newDelivery as any).reel_link = newRowData.reel_link && newRowData.reel_link.trim() !== '' ? newRowData.reel_link.trim() : null;
 
       // V1 SPEC: Replace the placeholder row with the actual delivery
       // and update edit history for undo/redo  
