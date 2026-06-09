@@ -23,6 +23,9 @@ export interface Database {
           last_active: string | null
           last_gps_status: 'ON' | 'OFF' | 'UNKNOWN' | null
           city: string | null
+          payout_model: 'PERCENTAGE' | 'FIXED' | null
+          fixed_start_date: string | null
+          fixed_end_date: string | null
         }
         Insert: {
           id?: string
@@ -37,6 +40,9 @@ export interface Database {
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          fixed_start_date?: string | null
+          fixed_end_date?: string | null
         }
         Update: {
           id?: string
@@ -51,6 +57,9 @@ export interface Database {
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          fixed_start_date?: string | null
+          fixed_end_date?: string | null
         }
       }
       clusters: {
