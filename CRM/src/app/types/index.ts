@@ -197,6 +197,7 @@ export interface Mapping {
   mappingType: MappingType; // PRIMARY or SECONDARY
   latitude: number;
   longitude: number;
+  map_link?: string | null;
 }
 
 // V1 LEAVE MANAGEMENT
@@ -234,3 +235,10 @@ export interface DeliveryRejection {
  * - Full-day leave = FIRST_HALF + SECOND_HALF records on same date
  * - Leaves are retained for at least 2 months for salary reconciliation
  */
+
+export interface CityWeekoff {
+  city: string;
+  weekoff_day_index: number;
+  created_at?: string;
+  updated_at?: string;
+}

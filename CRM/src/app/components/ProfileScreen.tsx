@@ -6,12 +6,22 @@ import { simulateApiDelay } from '../lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw } from 'lucide-react';
+import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw, MapPin, ExternalLink, Loader2 } from 'lucide-react';
 import { LeaveManagement } from './LeaveManagement';
-import { updateUserMonitoring } from '../lib/db/users';
+import { updateUserMonitoring, getUsers } from '../lib/db/users';
 import { checkGeolocationPermission } from '../lib/geofence';
 import { createLogEvent } from '../lib/db/logs';
 import { toast } from 'sonner';
+import { getMappings, getClusters, getDealerships } from '../lib/db/config';
+import { getLeavesByDate } from '../lib/db/leaves';
+import { getOperationalDateString } from '../lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from './ui/dialog';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -25,9 +35,139 @@ export function ProfileScreen() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // States for available showrooms
+  const [isShowroomsOpen, setIsShowroomsOpen] = useState(false);
+  const [availableShowrooms, setAvailableShowrooms] = useState<any[]>([]);
+  const [isLoadingShowrooms, setIsLoadingShowrooms] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState<boolean | null>(null);
+
   useEffect(() => {
     loadStats();
   }, [user]);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+      ;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  const getCoords = (): Promise<GeolocationCoordinates | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocationEnabled(true);
+          resolve(position.coords);
+        },
+        (error) => {
+          console.warn('Geolocation failed:', error);
+          setLocationEnabled(false);
+          resolve(null);
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 3600000 }
+      );
+    });
+  };
+
+  const handleOpenAvailableShowrooms = async () => {
+    setIsShowroomsOpen(true);
+    setIsLoadingShowrooms(true);
+    try {
+      const todayDate = getOperationalDateString();
+      const [coords, mappings, clusters, dealerships, users, leaves] = await Promise.all([
+        getCoords(),
+        getMappings(),
+        getClusters(),
+        getDealerships(),
+        getUsers(),
+        getLeavesByDate(todayDate),
+      ]);
+
+      const clustersMap = new Map(clusters.map(c => [c.id, c.name]));
+      const dealershipsMap = new Map(dealerships.map(d => [d.id, d]));
+      const usersMap = new Map(users.map(u => [u.id, u]));
+      
+      // Determine leaves today
+      const leavesSet = new Set(leaves.map(l => l.photographerId));
+
+      const primaryMappings = mappings.filter(m => m.mappingType === 'PRIMARY');
+      const list: any[] = [];
+
+      for (const m of primaryMappings) {
+        const clusterName = clustersMap.get(m.clusterId) || 'Unknown Cluster';
+        const dealership = dealershipsMap.get(m.dealershipId);
+        const dealershipName = dealership ? dealership.name : 'Unknown Showroom';
+
+        let isAvailable = false;
+        let reason: 'unassigned' | 'inactive' | 'leave' = 'unassigned';
+        let assignedPhotographerName = '';
+
+        if (!m.photographerId) {
+          isAvailable = true;
+          reason = 'unassigned';
+        } else {
+          const assignedUser = usersMap.get(m.photographerId);
+          if (assignedUser) {
+            assignedPhotographerName = assignedUser.name;
+            if (!assignedUser.active) {
+              isAvailable = true;
+              reason = 'inactive';
+            } else if (leavesSet.has(m.photographerId)) {
+              isAvailable = true;
+              reason = 'leave';
+            }
+          } else {
+            isAvailable = true;
+            reason = 'unassigned';
+          }
+        }
+
+        if (isAvailable) {
+          let distance: number | undefined;
+          if (coords && m.latitude && m.longitude && m.latitude !== 0 && m.longitude !== 0) {
+            distance = calculateDistance(coords.latitude, coords.longitude, m.latitude, m.longitude);
+          }
+
+          list.push({
+            mappingId: m.id,
+            clusterName,
+            dealershipName,
+            mapLink: m.map_link || null,
+            reason,
+            assignedPhotographerName,
+            distance,
+          });
+        }
+      }
+
+      // Sort by distance (closest first)
+      list.sort((a, b) => {
+        if (a.distance !== undefined && b.distance !== undefined) {
+          return a.distance - b.distance;
+        }
+        if (a.distance !== undefined) return -1;
+        if (b.distance !== undefined) return 1;
+        return a.clusterName.localeCompare(b.clusterName);
+      });
+
+      setAvailableShowrooms(list);
+    } catch (error) {
+      console.error('Failed to load available showrooms:', error);
+      toast.error('Failed to load available showrooms');
+    } finally {
+      setIsLoadingShowrooms(false);
+    }
+  };
 
   const loadStats = async () => {
     if (!user) return;
@@ -198,6 +338,28 @@ export function ProfileScreen() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Showroom Coverage Card */}
+          <Card className="border-orange-100/50 shadow-sm bg-gradient-to-br from-white to-orange-50/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-orange-500" />
+                Showroom Coverage
+              </CardTitle>
+              <CardDescription className="text-xs">
+                View showrooms that are available today due to photographer leaves, deactivations, or empty assignments.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={handleOpenAvailableShowrooms}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 h-9"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                View Available Showrooms Today
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -229,6 +391,89 @@ export function ProfileScreen() {
         <LogOut className="h-4 w-4" />
         Logout
       </Button>
+
+      {/* Available Showrooms Modal */}
+      <Dialog open={isShowroomsOpen} onOpenChange={setIsShowroomsOpen}>
+        <DialogContent className="max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-gray-900">
+              <MapPin className="h-5 w-5 text-orange-500" />
+              Available Showrooms Today
+            </DialogTitle>
+            <DialogDescription>
+              {locationEnabled === false ? (
+                <span className="text-red-500 text-xs font-semibold">
+                  ⚠️ Location permission is disabled or timed out. Showrooms cannot be sorted by distance.
+                </span>
+              ) : (
+                "Showrooms currently without active coverage, sorted by distance."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingShowrooms ? (
+            <div className="flex flex-col items-center justify-center p-8 gap-3">
+              <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+              <p className="text-sm text-gray-500 font-medium">Determining availability and distances...</p>
+            </div>
+          ) : availableShowrooms.length === 0 ? (
+            <div className="text-center p-8 space-y-2">
+              <div className="text-4xl">🎉</div>
+              <h4 className="font-semibold text-gray-900 text-sm">All Showrooms Covered</h4>
+              <p className="text-xs text-gray-500">Every showroom has an active photographer assigned today.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {availableShowrooms.map((item) => (
+                <button
+                  key={item.mappingId}
+                  onClick={() => {
+                    if (item.mapLink) {
+                      window.open(item.mapLink, '_blank');
+                    } else {
+                      toast.error('No map link configured for this showroom');
+                    }
+                  }}
+                  className="w-full text-left p-3.5 rounded-xl border border-gray-100 bg-white hover:bg-orange-50/20 active:bg-orange-50/40 transition-all duration-200 shadow-sm flex flex-col gap-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 group relative overflow-hidden"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-bold text-sm text-gray-800 tracking-tight group-hover:text-orange-600 transition-colors">
+                      [{item.clusterName} {item.dealershipName}]
+                    </span>
+                    {item.mapLink && (
+                      <ExternalLink className="h-3.5 w-3.5 text-gray-400 group-hover:text-orange-500 flex-shrink-0 transition-colors" />
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {item.reason === 'unassigned' && (
+                      <span className="border border-gray-200 text-gray-600 text-[10px] py-0.5 px-1.5 font-medium bg-gray-50 rounded-md">
+                        Unassigned
+                      </span>
+                    )}
+                    {item.reason === 'inactive' && (
+                      <span className="border border-yellow-200 text-yellow-700 text-[10px] py-0.5 px-1.5 font-medium bg-yellow-50 rounded-md">
+                        Photographer Inactive ({item.assignedPhotographerName})
+                      </span>
+                    )}
+                    {item.reason === 'leave' && (
+                      <span className="border border-orange-200 text-orange-700 text-[10px] py-0.5 px-1.5 font-medium bg-orange-50 rounded-md">
+                        On Leave ({item.assignedPhotographerName})
+                      </span>
+                    )}
+
+                    {item.distance !== undefined && (
+                      <span className="text-gray-500 text-[11px] font-medium flex items-center gap-1">
+                        📍 {item.distance >= 1 ? `${item.distance.toFixed(1)} km` : `${Math.round(item.distance * 1000)} m`} away
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

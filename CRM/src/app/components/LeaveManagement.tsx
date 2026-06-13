@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Calendar as CalendarIcon, Loader2, Plus, AlertTriangle } from 'lucide-react';
 import * as leavesDb from '../lib/db/leaves';
+import * as usersDb from '../lib/db/users';
 import type { Database } from '../lib/types/database.types';
-import type { Leave } from '../types';
+import type { Leave, CityWeekoff } from '../types';
 import { getOperationalDateString, getLocalDateString, isEmergencyLeave } from '../lib/utils';
 
 // type Leave = Database['public']['Tables']['leaves']['Row']; (Removed raw row usage)
@@ -32,10 +33,37 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
     const [selectedHalf, setSelectedHalf] = useState<'FIRST_HALF' | 'SECOND_HALF' | 'FULL_DAY'>('FULL_DAY');
     const [submitting, setSubmitting] = useState(false);
+    const [photographerCity, setPhotographerCity] = useState<string | undefined>(undefined);
+    const [cityWeekoffs, setCityWeekoffs] = useState<CityWeekoff[]>([]);
 
     useEffect(() => {
         loadLeaves();
+        loadPhotographerAndWeekoffs();
     }, [photographerId]);
+
+    const loadPhotographerAndWeekoffs = async () => {
+        try {
+            const [u, woffs] = await Promise.all([
+                usersDb.getUserById(photographerId),
+                leavesDb.getCityWeekoffs()
+            ]);
+            if (u) {
+                setPhotographerCity(u.city);
+            }
+            setCityWeekoffs(woffs);
+        } catch (error) {
+            console.error('Failed to load photographer details or week-offs:', error);
+        }
+    };
+
+    const getWeekoffDayIndex = () => {
+        if (!photographerCity) return 2; // Default to Tuesday
+        const normalizedCity = photographerCity.trim().toLowerCase();
+        const config = cityWeekoffs.find(c => c.city.toLowerCase() === normalizedCity);
+        return config ? config.weekoff_day_index : 2; // Default to Tuesday
+    };
+
+    const weekoffDayIndex = getWeekoffDayIndex();
 
     const loadLeaves = async () => {
         try {
@@ -74,6 +102,12 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     const handleApplyLeave = async () => {
         if (!selectedDate) {
             toast.error('Please select a date');
+            return;
+        }
+
+        // Validate week-off day
+        if (selectedDate.getDay() === weekoffDayIndex) {
+            toast.error(`Cannot apply leave on your week-off day (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekoffDayIndex]})`);
             return;
         }
 
@@ -421,13 +455,17 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                     <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
                         <div className="space-y-2">
                             <Label>Select Date</Label>
+                            <div className="text-[11px] text-gray-500 mb-1">
+                                Week-off day for {photographerCity || 'your city'} is <strong>{['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekoffDayIndex]}</strong> (disabled below).
+                            </div>
                             <div className="border rounded-md p-2 flex justify-center">
                                 <Calendar
                                     mode="single"
                                     selected={selectedDate}
                                     onSelect={setSelectedDate}
                                     disabled={(date) => {
-                                        return false; // V1 FIX: Allow selecting any date (including past)
+                                        // Disable week-off day
+                                        return date.getDay() === weekoffDayIndex;
                                     }}
                                     initialFocus
                                 />

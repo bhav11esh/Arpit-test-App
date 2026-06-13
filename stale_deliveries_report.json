@@ -1,0 +1,344 @@
+{
+  "Sahil Tamang": {
+    "NAARA_KIA": [
+      {
+        "id": "b34dd5b4-e785-4706-a798-b993eb98baf6",
+        "date": "2026-05-14",
+        "name": "14-05-2026_NAARA_SAHIL_2271",
+        "footage": "No footage link",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "kavi": {
+    "PAVAN_HYUNDAI": [
+      {
+        "id": "ea2f7ed6-aca1-4245-a923-b576420e460d",
+        "date": "2025-12-22",
+        "name": "Delivery_2025-12-22_104",
+        "footage": "https://drive.google.com/drive/u/2/folders/1zCRUYqhcLn4MTtVs3hk5XTnkC4PUl7Ly",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "1d3f8942-6d56-44bb-b271-28325b38798c",
+        "date": "2025-12-21",
+        "name": "Delivery_2025-12-21_237",
+        "footage": "https://drive.google.com/drive/u/2/folders/1zCRUYqhcLn4MTtVs3hk5XTnkC4PUl7Ly",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Inchara": {
+    "PAVAN_HYUNDAI": [
+      {
+        "id": "472c1c4a-b7ef-485e-ba4e-4b0f3239a996",
+        "date": "2026-01-15",
+        "name": "Delivery_2026-01-15_139",
+        "footage": "https://drive.google.com/drive/folders/1-W-3QP94kXkaKwgZNLwJczkUIWvM5aph",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ],
+    "NAARA_KIA": [
+      {
+        "id": "d174608a-7dc7-4d31-a553-57f2e734df97",
+        "date": "2026-01-09",
+        "name": "Delivery_2026-01-09_30",
+        "footage": "https://drive.google.com/drive/folders/1RYIyIbWfgQ_gZelf1QMC8tvz4oqmR3Ia",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "a3c87ea3-3000-476a-9e3a-6d4524813992",
+        "date": "2026-01-09",
+        "name": "Delivery_2026-01-09_31",
+        "footage": "https://drive.google.com/drive/folders/1OJnzo-BLE_EcyN82o0TCxpityr2dzd27",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "d6b89ed4-6884-434b-85e7-9e579a2b8c84",
+        "date": "2026-01-09",
+        "name": "Delivery_2026-01-09_32",
+        "footage": "https://drive.google.com/drive/folders/1lBs-YKomGTnVpFYATsoHgQ6gIcYbGX7J",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "de4d2438-acac-466b-ac40-c8adc64334de",
+        "date": "2026-02-19",
+        "name": "Delivery_2026-02-19_55",
+        "footage": "https://drive.google.com/drive/folders/1VrCCEt4T3_0SLixcfnPHkuq0ME18XTZO",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Bhuvanesan": {
+    "PPS_MAHINDRA": [
+      {
+        "id": "91b5e85b-ff61-4894-869a-e4c769f71164",
+        "date": "2026-05-02",
+        "name": "02-05-2026_PPS_MAHINDRA_KA_RO_2",
+        "footage": "https://drive.google.com/drive/folders/1a9Orv8lk2gpBv0bd3586psaimYv0Xyq1",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      },
+      {
+        "id": "38f911da-4e15-4da2-a24c-cf89f4b94abc",
+        "date": "2026-04-22",
+        "name": "22-04-2026_PPS_MAHINDRA_KA_RO_17_01",
+        "footage": "https://drive.google.com/drive/folders/1gKKGE6070IcjZj2j7uqBo_IhtSAzoa3A",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      },
+      {
+        "id": "17f2491f-bdec-4dec-89b3-def5d870d0d7",
+        "date": "2026-05-04",
+        "name": "04-05-2026_PPS_MAHINDRA_KA_RO_1",
+        "footage": "https://drive.google.com/drive/folders/1niWsQT0WE0ijVBOYyUDTGbe1WZuWj247",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      },
+      {
+        "id": "fc581ef6-a686-4a4f-8417-d74e7f6f44bc",
+        "date": "2026-05-04",
+        "name": "04-05-2026_PPS_MAHINDRA_KA_RO_2",
+        "footage": "https://drive.google.com/drive/folders/1W4AvBFesQXW0iehVz5dBeTY_GNqWlJRK",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      },
+      {
+        "id": "af2277a4-f7a0-44af-aa45-c6284ad58873",
+        "date": "2026-04-30",
+        "name": "30-04-2026_PPS_MAHINDRA_KA_RO_3",
+        "footage": "https://drive.google.com/drive/folders/1hcbhMPnMqHYz68A38m4i2s6sjZNCPqCe",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      }
+    ],
+    "NAARA_KIA": [
+      {
+        "id": "d534981e-6cf0-4a9f-bd9c-38a04f0f49b8",
+        "date": "2026-05-03",
+        "name": "03-05-2026_NAARA_KIA_KA_RO_1",
+        "footage": "https://drive.google.com/drive/folders/14ZjLb2vhhpHMWSJ7d5pgTICSs-WF6nf2",
+        "hasTask": true,
+        "taskStatus": "PENDING",
+        "isPostIt": true,
+        "taskAssignedTo": "Bhuvanesan"
+      }
+    ],
+    "KATARIA_ARENA": [
+      {
+        "id": "1f901f02-4ede-408f-9b34-98af1d118fd3",
+        "date": "2026-01-13",
+        "name": "Delivery_2026-01-13_16",
+        "footage": "https://drive.google.com/drive/folders/15YdWvXygCrsvT_Wfvzb8od-Mmhqnxqsr",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "b698fb38-f9bf-4d3b-bcb9-57648adc2f6e",
+        "date": "2026-02-20",
+        "name": "Delivery_2026-02-20_17",
+        "footage": "https://drive.google.com/drive/folders/18RcvPgTt6GscuRp-bC_A_h1LpnlsmZE0",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "e43c1654-5170-483b-8233-4fcd22ae0d0e",
+        "date": "2026-02-22",
+        "name": "Delivery_2026-02-22_18",
+        "footage": "https://drive.google.com/drive/folders/1C5LbEM-o_LzIVfKkAa9BGLh6YntoUT59",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "73fb04c9-62e3-495a-b4d0-2d149e38b817",
+        "date": "2026-03-05",
+        "name": "Delivery_2026-03-05_19",
+        "footage": "https://drive.google.com/drive/folders/1qBtnNWTjaKsafhW27nH4tEH81Fmj3tfP",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "76903d26-f35e-4eea-94e0-c90a3aa0e8c6",
+        "date": "2026-03-18",
+        "name": "Delivery_2026-03-18_20",
+        "footage": "https://drive.google.com/drive/folders/1J2nX4NxYZNyMw1B8hf5zglu2JNlr-NU8",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Unassigned": {
+    "PAVAN_HYUNDAI": [
+      {
+        "id": "800f1338-3047-4f44-a560-ce4d329053ae",
+        "date": "2026-02-19",
+        "name": "Delivery_2026-02-19_248",
+        "footage": "https://drive.google.com/drive/folders/1YS4__jYkgJrDIebZzlWAXBvlJq0-DaHC",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "34a7c26c-fe8a-4c5b-8089-641f129d33d1",
+        "date": "2026-02-19",
+        "name": "Delivery_2026-02-19_249",
+        "footage": "https://drive.google.com/drive/folders/12hbhC5nKGn6V0NWRZCUAee3-04RzQc6p",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ],
+    "ROASTEA": [
+      {
+        "id": "994322ca-056a-400c-b0ea-f0be051f71dd",
+        "date": "2026-03-28",
+        "name": "Delivery_2026-03-28_13",
+        "footage": "https://drive.google.com/drive/folders/1GKFe9oV64vn3Elu6i8gFJQx1Ravp7FgR?usp=sharing",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Sathick": {
+    "PORTRAIT_SHOOT": [
+      {
+        "id": "d0bf8bee-7168-4836-83c3-f9fed6903519",
+        "date": "2026-05-11",
+        "name": "11-05-2026_PORTRAIT_SATHICK_1463",
+        "footage": "https://drive.google.com/drive/folders/1huHTHonxvVcBwMTdasIm4WIprE6rVgz0?usp=sharing",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "00a17b23-c2e7-4200-9cb0-d25b16cccc33",
+        "date": "2026-05-11",
+        "name": "11-05-2026_PORTRAIT_SATHICK_7335",
+        "footage": "https://drive.google.com/drive/folders/1PZZEo1qqhjGhsPrwlRUZY3yZVk-RCP-k?usp=sharing",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Rishi": {
+    "BHARAT_TOYOTA": [
+      {
+        "id": "d6f008de-6a83-40a2-bcf3-79da491a9c88",
+        "date": "2026-02-05",
+        "name": "Delivery_2026-02-05_145",
+        "footage": "https://drive.google.com/drive/folders/1TJWL_A24KFZ25DhwDIxAO3NSj00Tikut",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "54085785-617b-4890-8157-4003dde4c5dc",
+        "date": "2026-02-27",
+        "name": "Delivery_2026-02-27_150",
+        "footage": "https://drive.google.com/drive/folders/1TeGbGLlpBSYi568LVlIoh6tr_XfZnOjr",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ],
+    "ROASTEA": [
+      {
+        "id": "bf0c2cab-efad-465b-a050-bca378463dfd",
+        "date": "2026-05-02",
+        "name": "Delivery_2026-05-02_15",
+        "footage": "https://drive.google.com/drive/folders/1LrE4k8upBqhJHQuH1NEsluC4Ar9rCCjM",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "9ff543ef-bd89-495b-adcd-4cc3d8588960",
+        "date": "2026-05-03",
+        "name": "Delivery_2026-05-03_16",
+        "footage": "https://drive.google.com/drive/folders/1K7XXYsqZNX-WXdlRMp2WzV4i7at6HKgh",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  },
+  "Akhil": {
+    "ROASTEA": [
+      {
+        "id": "fd1c85a8-fe42-4191-bfa7-11fe4f070715",
+        "date": "2026-05-17",
+        "name": "Delivery_2026-05-17_19",
+        "footage": "https://drive.google.com/drive/folders/1mEBRp9GzFuHRjzfrvKCXhWzj8zV7l0vh?usp=drive_link",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      },
+      {
+        "id": "2eb4262d-718d-4bdd-a42a-de64a59d7f89",
+        "date": "2026-05-01",
+        "name": "Delivery_2026-05-01_22",
+        "footage": "https://drive.google.com/drive/folders/1oUJbcxKdk6xz9fWkzoW278vyW4b1yUA5?usp=drive_link",
+        "hasTask": false,
+        "taskStatus": "No Task",
+        "isPostIt": false,
+        "taskAssignedTo": "N/A"
+      }
+    ]
+  }
+}

@@ -771,6 +771,48 @@ export function HomeScreen() {
         setLeaves(todayLeaves);
         console.log('Successfully loaded home data with global leaves:', todayLeaves.length);
       }
+
+      // 4. Check if day is closed via DB log event (type = 'SEND_UPDATE_COMPLETED' for today's operational date)
+      if (user?.id) {
+        const past30Hours = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+        const { data: recentLogs, error: logsError } = await client
+          .from('log_events')
+          .select('created_at')
+          .eq('actor_user_id', user.id)
+          .eq('type', 'SEND_UPDATE_COMPLETED')
+          .gte('created_at', past30Hours);
+
+        if (!logsError && recentLogs && recentLogs.length > 0) {
+          const hasCompletedToday = recentLogs.some(l => {
+            const ts = new Date(l.created_at);
+            const formatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Kolkata',
+              hour: 'numeric',
+              hour12: false,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            });
+            const formatted = formatter.formatToParts(ts);
+            const parts: Record<string, string> = {};
+            formatted.forEach(p => { parts[p.type] = p.value; });
+            const hour = parseInt(parts.hour);
+            let dateStr = `${parts.year}-${parts.month}-${parts.day}`;
+            if (hour < 4) {
+              const prevDate = new Date(ts.getTime() - 24 * 60 * 60 * 1000);
+              const prevParts: Record<string, string> = {};
+              formatter.formatToParts(prevDate).forEach(p => { prevParts[p.type] = p.value; });
+              dateStr = `${prevParts.year}-${prevParts.month}-${prevParts.day}`;
+            }
+            return dateStr === currentOperationalDate;
+          });
+
+          if (hasCompletedToday) {
+            setPhotographerDayState('CLOSED');
+            markEndOfDay(user.id, myDeliveries.filter(d => d.status === 'DONE').length);
+          }
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load home data:', err);
       toast.error('Failed to load deliveries');

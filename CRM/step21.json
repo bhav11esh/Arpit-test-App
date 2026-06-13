@@ -1,0 +1,46 @@
+﻿
+{"step_index":21,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-05-30T11:09:53Z","cont
+ent":"<USER_REQUEST>\n/**\r\n * ðŸš€ GOOGLE APPS SCRIPT SYNC BRIDGE - V17.6 (SMART SENSING)\r\n * \r\n * FEATURES:\r\n 
+* - Smart Header Sensing: Dynamically finds the header row (scans first 10 rows).\r\n * - Multi-Layer Date Fix: 
+Overcomes US/India locale mismatch by reading Display Values.\r\n * - Hunter Priority: Matches by Google Drive ID 
+BEFORE checking any dates.\r\n * - Quad-Factor Matching (QFM): Matches by Date, Photographer, and Link Text for 
+text-only rows.\r\n * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.\r\n 
+*/\r\n\r\nconst VERSION = \"17.7\";\r\n\r\nfunction doGet(e) {\r\n  return 
+ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))\r\n    
+.setMimeType(ContentService.MimeType.JSON);\r\n}\r\n\r\nfunction doPost(e) {\r\n  const lock = 
+LockService.getScriptLock();\r\n  try {\r\n    lock.waitLock(30000);\r\n    const request = 
+JSON.parse(e.postData.contents);\r\n    const { action, sheetId, sheetName, delivery, deliveries, id } = request;\r\n  
+  const spreadsheet = SpreadsheetApp.openById(sheetId);\r\n    const tz = spreadsheet.getSpreadsheetTimeZone();\r\n    
+let sheet;\r\n    if (sheetName) sheet = spreadsheet.getSheetByName(sheetName);\r\n    if (!sheet) sheet = 
+spreadsheet.getSheets()[0];\r\n\r\n    const headerRowInfo = findHeaderRow(sheet);\r\n    const headers = 
+headerRowInfo.values;\r\n    repairHeadersIfNeeded(sheet, headerRowInfo.index, headers);\r\n    const finalHeaders = 
+sheet.getRange(headerRowInfo.index, 1, 1, sheet.getLastColumn()).getValues()[0];\r\n    const finalColIdx = 
+buildColIdx(finalHeaders);\r\n\r\n    if (action === 'delete') return deleteRow(sheet, finalColIdx, id);\r\n    if 
+(action === 'read') return readSheet(sheet, tz);\r\n    if (deliveries) return processBulkSync(sheet, deliveries, tz, 
+headerRowInfo.index, finalColIdx, finalHeaders);\r\n    return processSync(sheet, delivery, tz, headerRowInfo.index, 
+finalColIdx, finalHeaders);\r\n\r\n  } catch (err) {\r\n    return ContentService.createTextOutput(JSON.stringify({ 
+status: 'error', message: err.toString() }))\r\n      .setMimeType(ContentSe\n<truncated 8210 bytes>\nd = ['CRM ID', 
+'Signature', 'Updated At'];\r\n  required.forEach(req => {\r\n    const t = norm(req);\r\n    let found = false;\r\n   
+ for (let h of headers) { if (norm(h) === t) { found = true; break; } }\r\n    if (!found) {\r\n      const lastCol = 
+sheet.getLastColumn();\r\n      sheet.getRange(headIdx, lastCol + 
+1).setValue(req).setBackground('#EFEFEF').setFontWeight('bold');\r\n      headers.push(req);\r\n    }\r\n  
+});\r\n}\r\n\r\nfunction deleteRow(sheet, colIdx, id) {\r\n  const displayData = 
+sheet.getDataRange().getDisplayValues();\r\n  if (colIdx.id === -1) return 
+ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'CRM ID column not found' }));\r\n  for 
+(let i = 1; i < displayData.length; i++) {\r\n    if (String(displayData[i][colIdx.id]).trim() === String(id).trim()) 
+{\r\n      sheet.deleteRow(i + 1);\r\n      return ContentService.createTextOutput(JSON.stringify({ status: 'success', 
+action: 'deleted' }));\r\n    }\r\n  }\r\n  return ContentService.createTextOutput(JSON.stringify({ status: 'error', 
+message: 'Row not found' }));\r\n}\r\n\r\nfunction extractId(s) {\r\n  if (!s) return \"\";\r\n  const match = 
+String(s).match(/[-\\w]{25,}/);\r\n  return match ? match[0] : \"\";\r\n}\r\n\r\nfunction normalizeDate(d, tz) {\r\n  
+if (!d) return \"\";\r\n  if (Object.prototype.toString.call(d) === '[object Date]') return Utilities.formatDate(d, tz 
+|| \"GMT+5:30\", \"yyyy-MM-dd\");\r\n  let s = String(d).trim().replace(/[^\\d\\/\\-\\.]/g, '');\r\n  if 
+(/^\\d{4}-\\d{1,2}-\\d{1,2}$/.test(s)) return s;\r\n  const dmyMatch = 
+s.match(/^(\\d{1,2})[\\s\\-\\.\\/](\\d{1,2})[\\s\\-\\.\\/](\\d{2,4})$/);\r\n  if (dmyMatch) {\r\n    let dd = 
+parseInt(dmyMatch[1]);\r\n    let mm = parseInt(dmyMatch[2]);\r\n    let yy = dmyMatch[3].length === 2 ? 
+\"20\"+dmyMatch[3] : dmyMatch[3];\r\n    if (mm > 12 && dd <= 12) return 
+`${yy}-${String(dd).padStart(2,'0')}-${String(mm).padStart(2,'0')}`;\r\n    return 
+`${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;\r\n  }\r\n  return 
+s.split('T')[0];\r\n}\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 
+2026-05-30T16:39:53+05:30.\n</ADDITIONAL_METADATA>"}
+
+

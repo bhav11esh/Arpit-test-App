@@ -18,6 +18,7 @@ import { ClustersConfigScreen } from './components/admin/ClustersConfigScreen';
 import { DealershipsConfigScreen } from './components/admin/DealershipsConfigScreen';
 import { PhotographersConfigScreen } from './components/admin/PhotographersConfigScreen';
 import { MappingsConfigScreen } from './components/admin/MappingsConfigScreen';
+import { CityWeekoffsConfigScreen } from './components/admin/CityWeekoffsConfigScreen';
 
 import { ProfileScreen } from './components/ProfileScreen';
 import { ReelBacklog } from './components/ReelBacklog';
@@ -332,6 +333,7 @@ function AppRoutes() {
             <Route path="/admin/config/dealerships" element={<DealershipsConfigScreen />} />
             <Route path="/admin/config/photographers" element={<PhotographersConfigScreen />} />
             <Route path="/admin/config/mappings" element={<MappingsConfigScreen />} />
+            <Route path="/admin/config/city-weekoffs" element={<CityWeekoffsConfigScreen />} />
             <Route path="/admin/leave" element={<AdminLeaveManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/analytics" element={<AnalyticsDashboard />} />

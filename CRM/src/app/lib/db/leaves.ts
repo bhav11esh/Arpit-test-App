@@ -1,7 +1,7 @@
 
 import { supabase, adminSupabase } from '../supabase';
 import type { Database } from '../types/database.types';
-import type { Leave, LeaveHalf, LeaveAppliedBy } from '../../types';
+import type { Leave, LeaveHalf, LeaveAppliedBy, CityWeekoff } from '../../types';
 
 type LeaveRow = Database['public']['Tables']['leaves']['Row'];
 type LeaveInsert = Database['public']['Tables']['leaves']['Insert'];
@@ -274,4 +274,59 @@ export async function getPhotographerMissingUpdates(
 
   return (data || []).map((row: any) => row.missing_date);
 }
+
+/**
+ * Fetch all city level week-offs configuration
+ */
+export async function getCityWeekoffs(): Promise<CityWeekoff[]> {
+  const { data, error } = await supabase
+    .from('city_weekoffs')
+    .select('*')
+    .order('city', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching city weekoffs:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * Create or update a week-off day configuration for a city
+ */
+export async function upsertCityWeekoff(city: string, weekoffDayIndex: number): Promise<CityWeekoff> {
+  const { data, error } = await supabase
+    .from('city_weekoffs')
+    .upsert({
+      city: city.trim().toLowerCase(),
+      weekoff_day_index: weekoffDayIndex,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error upserting city weekoff:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Delete a city's week-off configuration
+ */
+export async function deleteCityWeekoff(city: string): Promise<void> {
+  const { error } = await supabase
+    .from('city_weekoffs')
+    .delete()
+    .eq('city', city.toLowerCase());
+
+  if (error) {
+    console.error('Error deleting city weekoff:', error);
+    throw error;
+  }
+}
+
 

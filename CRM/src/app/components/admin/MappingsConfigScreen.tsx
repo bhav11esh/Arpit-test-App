@@ -74,6 +74,7 @@ export function MappingsConfigScreen() {
     mappingType: 'PRIMARY' as MappingType,
     latitude: '',
     longitude: '',
+    map_link: '',
   });
 
   // Admin-only access guard (Defensive: AppRoutes handles primary auth redirect)
@@ -115,6 +116,7 @@ export function MappingsConfigScreen() {
         mappingType: mapping.mappingType,
         latitude: mapping.latitude.toString(),
         longitude: mapping.longitude.toString(),
+        map_link: mapping.map_link || '',
       });
     } else {
       setEditingMapping(null);
@@ -125,6 +127,7 @@ export function MappingsConfigScreen() {
         mappingType: 'PRIMARY',
         latitude: '',
         longitude: '',
+        map_link: '',
       });
     }
     setDialogOpen(true);
@@ -140,6 +143,7 @@ export function MappingsConfigScreen() {
       mappingType: 'PRIMARY',
       latitude: '',
       longitude: '',
+      map_link: '',
     });
   };
 
@@ -231,6 +235,7 @@ export function MappingsConfigScreen() {
           mappingType: formData.mappingType,
           latitude: lat,
           longitude: lng,
+          map_link: formData.map_link.trim() || null,
         });
         toast.success('Mapping updated successfully');
       } else {
@@ -241,6 +246,7 @@ export function MappingsConfigScreen() {
           mappingType: formData.mappingType,
           latitude: lat,
           longitude: lng,
+          map_link: formData.map_link.trim() || null,
         });
         toast.success('Mapping added successfully');
       }
@@ -387,6 +393,19 @@ export function MappingsConfigScreen() {
                               </span>
                             </div>
                           )}
+                          {mapping.map_link && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">🔗 Map Link:</span>
+                              <a
+                                href={mapping.map_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline truncate max-w-[200px]"
+                              >
+                                {mapping.map_link}
+                              </a>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -492,6 +511,16 @@ export function MappingsConfigScreen() {
                   placeholder="77.1025"
                 />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="map_link">Showroom Map Link</Label>
+              <Input
+                id="map_link"
+                value={formData.map_link}
+                onChange={e => setFormData({ ...formData, map_link: e.target.value })}
+                placeholder="e.g., https://maps.app.goo.gl/..."
+              />
             </div>
 
             <div>
