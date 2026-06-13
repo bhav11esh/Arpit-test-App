@@ -100,35 +100,68 @@ export function ProfileScreen() {
       // Determine leaves today
       const leavesSet = new Set(leaves.map(l => l.photographerId));
 
-      const primaryMappings = mappings.filter(m => m.mappingType === 'PRIMARY');
-      const list: any[] = [];
+      // 1. Partition photographers into present and absent
+      const photographers = users.filter(u => u.role === 'PHOTOGRAPHER');
+      const absentPhotographerIds = new Set<string>();
+      const presentPhotographerIds = new Set<string>();
 
-      for (const m of primaryMappings) {
+      for (const p of photographers) {
+        if (!p.active || leavesSet.has(p.id)) {
+          absentPhotographerIds.add(p.id);
+        } else {
+          presentPhotographerIds.add(p.id);
+        }
+      }
+
+      // 2. Identify absent clusters: clusters that have at least one PRIMARY mapping with an absent photographer
+      const absentClusterIds = new Set<string>();
+      for (const m of mappings) {
+        if (m.mappingType === 'PRIMARY' && m.photographerId && absentPhotographerIds.has(m.photographerId)) {
+          absentClusterIds.add(m.clusterId);
+        }
+      }
+
+      // 3. Identify covered dealerships: dealerships mapped as PRIMARY to any present photographer
+      const coveredDealershipIds = new Set<string>();
+      for (const m of mappings) {
+        if (m.mappingType === 'PRIMARY' && m.photographerId && presentPhotographerIds.has(m.photographerId)) {
+          coveredDealershipIds.add(m.dealershipId);
+        }
+      }
+
+      // 4. Build map of available showrooms to group by dealershipId and avoid duplicates
+      const availableMap = new Map<string, any>();
+
+      for (const m of mappings) {
+        // Exclude if explicitly covered by a present photographer
+        if (coveredDealershipIds.has(m.dealershipId)) {
+          continue;
+        }
+
         const clusterName = clustersMap.get(m.clusterId) || 'Unknown Cluster';
         const dealership = dealershipsMap.get(m.dealershipId);
         const dealershipName = dealership ? dealership.name : 'Unknown Showroom';
 
         let isAvailable = false;
-        let reason: 'unassigned' | 'inactive' | 'leave' = 'unassigned';
+        let reason: 'unassigned' | 'inactive' | 'leave' | 'short-staffed' = 'unassigned';
         let assignedPhotographerName = '';
 
-        if (!m.photographerId) {
-          isAvailable = true;
-          reason = 'unassigned';
-        } else {
-          const assignedUser = usersMap.get(m.photographerId);
-          if (assignedUser) {
-            assignedPhotographerName = assignedUser.name;
-            if (!assignedUser.active) {
-              isAvailable = true;
-              reason = 'inactive';
-            } else if (leavesSet.has(m.photographerId)) {
-              isAvailable = true;
-              reason = 'leave';
-            }
-          } else {
+        if (m.mappingType === 'PRIMARY') {
+          if (!m.photographerId) {
             isAvailable = true;
             reason = 'unassigned';
+          } else if (absentPhotographerIds.has(m.photographerId)) {
+            isAvailable = true;
+            const assignedUser = usersMap.get(m.photographerId);
+            assignedPhotographerName = assignedUser ? assignedUser.name : '';
+            reason = assignedUser && !assignedUser.active ? 'inactive' : 'leave';
+          }
+        } else if (m.mappingType === 'SECONDARY') {
+          if (absentClusterIds.has(m.clusterId)) {
+            isAvailable = true;
+            reason = 'short-staffed';
+            const assignedUser = m.photographerId ? usersMap.get(m.photographerId) : null;
+            assignedPhotographerName = assignedUser ? assignedUser.name : '';
           }
         }
 
@@ -138,7 +171,7 @@ export function ProfileScreen() {
             distance = calculateDistance(coords.latitude, coords.longitude, m.latitude, m.longitude);
           }
 
-          list.push({
+          const itemData = {
             mappingId: m.id,
             clusterName,
             dealershipName,
@@ -146,9 +179,18 @@ export function ProfileScreen() {
             reason,
             assignedPhotographerName,
             distance,
-          });
+            mappingType: m.mappingType
+          };
+
+          // Group by dealershipId: prefer PRIMARY mapping properties if available
+          const existing = availableMap.get(m.dealershipId);
+          if (!existing || (existing.mappingType === 'SECONDARY' && m.mappingType === 'PRIMARY')) {
+            availableMap.set(m.dealershipId, itemData);
+          }
         }
       }
+
+      const list = Array.from(availableMap.values());
 
       // Sort by distance (closest first)
       list.sort((a, b) => {
@@ -459,6 +501,11 @@ export function ProfileScreen() {
                     {item.reason === 'leave' && (
                       <span className="border border-orange-200 text-orange-700 text-[10px] py-0.5 px-1.5 font-medium bg-orange-50 rounded-md">
                         On Leave ({item.assignedPhotographerName})
+                      </span>
+                    )}
+                    {item.reason === 'short-staffed' && (
+                      <span className="border border-purple-200 text-purple-700 text-[10px] py-0.5 px-1.5 font-medium bg-purple-50 rounded-md">
+                        Secondary (Short-staffed)
                       </span>
                     )}
 
