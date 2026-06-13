@@ -207,3 +207,12 @@ export const claimPostIt = async (taskId: string, userId: string, supabaseClient
   });
   if (error) throw error;
 };
+
+// Relinquish a claimed post-it/bounty reel
+export const relinquishPostIt = async (taskId: string, userId: string, supabaseClient: SupabaseClient<Database> = supabase): Promise<void> => {
+  const { error } = await supabaseClient.rpc('relinquish_post_it', {
+    p_task_id: taskId,
+    p_user_id: userId
+  });
+  if (error) throw error;
+};

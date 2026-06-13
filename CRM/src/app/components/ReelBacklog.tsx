@@ -43,6 +43,7 @@ export function ReelBacklog() {
   const [selectedPhotographer, setSelectedPhotographer] = useState('');
   const [postItReels, setPostItReels] = useState<(ReelTask & { delivery?: Delivery })[]>([]);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [relinquishing, setRelinquishing] = useState<string | null>(null);
   const [bountyFilter, setBountyFilter] = useState<'mine' | 'others'>('others');
 
   useEffect(() => {
@@ -106,6 +107,22 @@ export function ReelBacklog() {
       toast.error(error.message || 'Failed to claim post-it');
     } finally {
       setClaiming(null);
+    }
+  };
+
+  const handleRelinquishPostIt = async (taskId: string) => {
+    if (!user) return;
+    try {
+      setRelinquishing(taskId);
+      await reelsDb.relinquishPostIt(taskId, user.id);
+      toast.success('Bounty unassigned and returned to the pool');
+      // Refresh data
+      loadData();
+    } catch (error: any) {
+      console.error('Failed to unassign bounty:', error);
+      toast.error(error.message || 'Failed to unassign bounty');
+    } finally {
+      setRelinquishing(null);
     }
   };
 
@@ -549,48 +566,62 @@ export function ReelBacklog() {
 
                     {/* V1 ADMIN: Only photographers can add reel links */}
                     {user?.role === 'PHOTOGRAPHER' && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                        <Button className="w-full btn-gradient h-8 text-xs" onClick={() => {
-                            setSelectedTask(task);
-                            setReelLinkInput(task.reel_link || '');
-                          }}>
-                            <Film className="h-3.5 w-3.5 mr-2" />
-                            Add Reel Link
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Resolve Reel Task</DialogTitle>
-                            <DialogDescription>
-                              Add the reel link for {delivery.delivery_name}
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label>Reel Link</Label>
-                              <Input
-                                type="url"
-                                placeholder="https://drive.google.com/..."
-                                value={reelLinkInput}
-                                onChange={(e) => setReelLinkInput(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => {
-                              setSelectedTask(null);
-                              setReelLinkInput('');
+                      <div className="space-y-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                          <Button className="w-full btn-gradient h-8 text-xs" onClick={() => {
+                              setSelectedTask(task);
+                              setReelLinkInput(task.reel_link || '');
                             }}>
-                              Cancel
+                              <Film className="h-3.5 w-3.5 mr-2" />
+                              Add Reel Link
                             </Button>
-                            <Button onClick={() => handleResolve(task.id)}>
-                              <Check className="h-4 w-4 mr-2" />
-                              Resolve
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Resolve Reel Task</DialogTitle>
+                              <DialogDescription>
+                                Add the reel link for {delivery.delivery_name}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Reel Link</Label>
+                                <Input
+                                  type="url"
+                                  placeholder="https://drive.google.com/..."
+                                  value={reelLinkInput}
+                                  onChange={(e) => setReelLinkInput(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => {
+                                setSelectedTask(null);
+                                setReelLinkInput('');
+                              }}>
+                                Cancel
+                              </Button>
+                              <Button onClick={() => handleResolve(task.id)}>
+                                <Check className="h-4 w-4 mr-2" />
+                                Resolve
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+
+                        {task.original_user_id && (
+                          <Button
+                            variant="outline"
+                            className="w-full border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 h-8 text-xs"
+                            disabled={relinquishing === task.id}
+                            onClick={() => handleRelinquishPostIt(task.id)}
+                          >
+                            <X className="h-3.5 w-3.5 mr-2" />
+                            {relinquishing === task.id ? 'Unassigning...' : 'Unassign Bounty'}
+                          </Button>
+                        )}
+                      </div>
                     )}
 
                     {/* V1 ADMIN: Admins can reassign reel tasks */}
