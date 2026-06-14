@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
 import * as reelsDb from '../../lib/db/reels';
 import * as screenshotsDb from '../../lib/db/screenshots';
+import { Switch } from '../ui/switch';
 import { supabase } from '../../lib/supabase';
 import type { Dealership, PaymentType } from '../../types';
 import { formatDateForSheet, getDeliverySignature } from '../../lib/utils';
@@ -118,6 +119,7 @@ export function DealershipsConfigScreen() {
     googleSyncUrl: '',
     ratePerDelivery: '',
     city: '',
+    active: true,
   });
 
   // Filter by city
@@ -135,6 +137,7 @@ export function DealershipsConfigScreen() {
         googleSyncUrl: dealership.googleSyncUrl || '',
         ratePerDelivery: dealership.ratePerDelivery?.toString() || '',
         city: (dealership as any).city || '',
+        active: dealership.active ?? true,
       });
     } else {
       setEditingDealership(null);
@@ -145,6 +148,7 @@ export function DealershipsConfigScreen() {
         googleSyncUrl: '',
         ratePerDelivery: '',
         city: user?.city || '', // Default to admin's city
+        active: true,
       });
     }
     setDialogOpen(true);
@@ -160,6 +164,7 @@ export function DealershipsConfigScreen() {
       googleSyncUrl: '',
       ratePerDelivery: '',
       city: '',
+      active: true,
     });
   };
 
@@ -182,6 +187,7 @@ export function DealershipsConfigScreen() {
         googleSyncUrl: formData.googleSyncUrl.trim() || undefined,
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
+        active: formData.active,
       } as any);
       toast.success('Dealership updated successfully');
     } else {
@@ -192,6 +198,7 @@ export function DealershipsConfigScreen() {
         googleSyncUrl: formData.googleSyncUrl.trim() || undefined,
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
+        active: formData.active,
       } as any);
       toast.success('Dealership added successfully');
     }
@@ -592,10 +599,17 @@ export function DealershipsConfigScreen() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <CardTitle>{dealership.name}</CardTitle>
+                          <CardTitle className={dealership.active === false ? "text-gray-400 line-through" : ""}>
+                            {dealership.name}
+                          </CardTitle>
                           {(dealership as any).city && (
                             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
                               {(dealership as any).city}
+                            </Badge>
+                          )}
+                          {dealership.active === false && (
+                            <Badge className="bg-red-50 text-red-700 border-red-200">
+                              Inactive
                             </Badge>
                           )}
                         </div>
@@ -767,6 +781,18 @@ export function DealershipsConfigScreen() {
                 placeholder="e.g., bengaluru"
               />
               <p className="text-[10px] text-gray-500 mt-1">Use lowercase, e.g., "bengaluru"</p>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100">
+              <div className="space-y-0.5">
+                <Label htmlFor="active" className="text-xs font-bold text-zinc-700">Active Status</Label>
+                <p className="text-[10px] text-zinc-500">Disable if we do not work with this dealership anymore.</p>
+              </div>
+              <Switch
+                id="active"
+                checked={formData.active}
+                onCheckedChange={checked => setFormData({ ...formData, active: checked })}
+              />
             </div>
           </div>
 

@@ -185,6 +185,7 @@ export interface Dealership {
   latitude?: number;
   longitude?: number;
   city?: string; // V6.0: For showroom-level branch identification
+  active?: boolean;
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';

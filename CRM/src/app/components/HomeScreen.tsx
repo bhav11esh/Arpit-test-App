@@ -458,7 +458,7 @@ export function HomeScreen() {
 
       const today = getOperationalDateString();
 
-      const clusterDealerships = dealerships.filter(d => {
+      const clusterDealerships = dealerships.filter(d => d.active !== false).filter(d => {
         // V1 FIX: Support Shared Showrooms. Ensure we find the mapping matching 
         // BOTH the dealership AND the effective cluster.
         const dMapping = mappings.find(m => {
@@ -532,7 +532,7 @@ export function HomeScreen() {
       if (myPrimaryId) {
         const isMapped = clusterDealerships.some(d => d.id === myPrimaryId);
         if (!isMapped) {
-          const primaryDealership = dealerships.find(d => d.id === myPrimaryId);
+          const primaryDealership = dealerships.filter(d => d.active !== false).find(d => d.id === myPrimaryId);
           if (primaryDealership) {
             clusterDealerships.push(primaryDealership);
           }
@@ -2048,7 +2048,7 @@ export function HomeScreen() {
                                   <SelectValue placeholder="Select Dealership" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {dealerships.map(dealership => (
+                                  {dealerships.filter(d => d.active !== false).map(dealership => (
                                     <SelectItem key={dealership.id} value={dealership.id}>
                                       {dealership.name}
                                     </SelectItem>

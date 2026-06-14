@@ -140,7 +140,10 @@ export function ProfileScreen() {
 
         const clusterName = clustersMap.get(m.clusterId) || 'Unknown Cluster';
         const dealership = dealershipsMap.get(m.dealershipId);
-        const dealershipName = dealership ? dealership.name : 'Unknown Showroom';
+        if (!dealership || dealership.active === false) {
+          continue;
+        }
+        const dealershipName = dealership.name;
 
         let isAvailable = false;
         let reason: 'unassigned' | 'inactive' | 'leave' | 'short-staffed' = 'unassigned';

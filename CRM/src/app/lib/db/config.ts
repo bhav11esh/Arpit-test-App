@@ -110,6 +110,7 @@ const rowToDealership = (row: DealershipRow): Dealership => ({
   googleSyncUrl: (row as any).google_sync_url ?? undefined,
   ratePerDelivery: row.rate_per_delivery ?? undefined,
   city: row.city ?? undefined,
+  active: (row as any).active ?? true,
 });
 
 export const getDealerships = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Dealership[]> => {
@@ -146,7 +147,8 @@ export const createDealership = async (dealership: Omit<Dealership, 'id'>): Prom
     latitude: 0,
     longitude: 0,
     city: (dealership as any).city || null,
-  };
+    active: dealership.active ?? true,
+  } as any;
 
   const client = supabase;
   const { data, error } = await (client
@@ -167,7 +169,8 @@ export const updateDealership = async (id: string, updates: Partial<Dealership>)
     google_sync_url: updates.googleSyncUrl,
     rate_per_delivery: updates.ratePerDelivery,
     city: (updates as any).city,
-  };
+    active: updates.active,
+  } as any;
 
   Object.keys(update).forEach(key => {
     if (update[key as keyof DealershipUpdate] === undefined) {
