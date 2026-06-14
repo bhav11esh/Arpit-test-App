@@ -182,7 +182,8 @@ export function ProfileScreen() {
             reason,
             assignedPhotographerName,
             distance,
-            mappingType: m.mappingType
+            mappingType: m.mappingType,
+            hasMetro: m.has_metro ?? false
           };
 
           // Group by dealershipId: prefer PRIMARY mapping properties if available
@@ -509,6 +510,11 @@ export function ProfileScreen() {
                     {item.reason === 'short-staffed' && (
                       <span className="border border-purple-200 text-purple-700 text-[10px] py-0.5 px-1.5 font-medium bg-purple-50 rounded-md">
                         Secondary (Short-staffed)
+                      </span>
+                    )}
+                    {item.hasMetro && (
+                      <span className="border border-emerald-200 text-emerald-700 text-[10px] py-0.5 px-1.5 font-medium bg-emerald-50 rounded-md flex items-center gap-0.5">
+                        🚇 Metro
                       </span>
                     )}
 

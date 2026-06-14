@@ -199,6 +199,7 @@ export interface Mapping {
   latitude: number;
   longitude: number;
   map_link?: string | null;
+  has_metro?: boolean;
 }
 
 // V1 LEAVE MANAGEMENT

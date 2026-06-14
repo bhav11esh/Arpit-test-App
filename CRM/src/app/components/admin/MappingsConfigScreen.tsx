@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useConfig } from '../../context/ConfigContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Switch } from '../ui/switch';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -75,6 +76,7 @@ export function MappingsConfigScreen() {
     latitude: '',
     longitude: '',
     map_link: '',
+    has_metro: false,
   });
 
   // Admin-only access guard (Defensive: AppRoutes handles primary auth redirect)
@@ -117,6 +119,7 @@ export function MappingsConfigScreen() {
         latitude: mapping.latitude.toString(),
         longitude: mapping.longitude.toString(),
         map_link: mapping.map_link || '',
+        has_metro: mapping.has_metro ?? false,
       });
     } else {
       setEditingMapping(null);
@@ -128,6 +131,7 @@ export function MappingsConfigScreen() {
         latitude: '',
         longitude: '',
         map_link: '',
+        has_metro: false,
       });
     }
     setDialogOpen(true);
@@ -144,6 +148,7 @@ export function MappingsConfigScreen() {
       latitude: '',
       longitude: '',
       map_link: '',
+      has_metro: false,
     });
   };
 
@@ -236,6 +241,7 @@ export function MappingsConfigScreen() {
           latitude: lat,
           longitude: lng,
           map_link: formData.map_link.trim() || null,
+          has_metro: formData.has_metro,
         });
         toast.success('Mapping updated successfully');
       } else {
@@ -247,6 +253,7 @@ export function MappingsConfigScreen() {
           latitude: lat,
           longitude: lng,
           map_link: formData.map_link.trim() || null,
+          has_metro: formData.has_metro,
         });
         toast.success('Mapping added successfully');
       }
@@ -358,6 +365,11 @@ export function MappingsConfigScreen() {
                           >
                             {mapping.mappingType}
                           </Badge>
+                          {mapping.has_metro && (
+                            <Badge className="bg-emerald-100 text-emerald-800">
+                              🚇 Metro Accessible
+                            </Badge>
+                          )}
                           {mapping.photographerId && !isPhotographerActive && (
                             <Badge className="bg-red-100 text-red-800">
                               Photographer Inactive
@@ -577,6 +589,22 @@ export function MappingsConfigScreen() {
                 </Select>
               </div>
             )}
+
+            <div className="flex items-center justify-between border-t pt-4 mt-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="has_metro">Metro Accessible</Label>
+                <div className="text-[12px] text-gray-500">
+                  Mark if this showroom location is accessible via metro.
+                </div>
+              </div>
+              <Switch
+                id="has_metro"
+                checked={formData.has_metro}
+                onCheckedChange={checked =>
+                  setFormData({ ...formData, has_metro: checked })
+                }
+              />
+            </div>
           </div>
 
           <DialogFooter>

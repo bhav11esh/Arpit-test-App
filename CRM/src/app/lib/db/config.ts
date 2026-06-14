@@ -210,6 +210,7 @@ const rowToMapping = (row: MappingRow): Mapping => ({
   latitude: row.latitude ?? 0,
   longitude: row.longitude ?? 0,
   map_link: (row as any).map_link ?? null,
+  has_metro: (row as any).has_metro ?? false,
 });
 
 export const getMappings = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Mapping[]> => {
@@ -267,6 +268,7 @@ export const createMapping = async (mapping: Omit<Mapping, 'id'>): Promise<Mappi
     latitude: mapping.latitude,
     longitude: mapping.longitude,
     map_link: mapping.map_link || null,
+    has_metro: mapping.has_metro ?? false,
   } as any;
 
   const client = supabase;
@@ -289,6 +291,7 @@ export const updateMapping = async (id: string, updates: Partial<Mapping>): Prom
     latitude: updates.latitude,
     longitude: updates.longitude,
     map_link: updates.map_link,
+    has_metro: updates.has_metro,
   } as any;
 
   Object.keys(update).forEach(key => {
