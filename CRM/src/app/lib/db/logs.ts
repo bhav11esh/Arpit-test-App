@@ -1,3 +1,4 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import type { LogEvent } from '../../types';
 import type { Database } from '../types/database.types';
@@ -15,7 +16,7 @@ const rowToLogEvent = (row: LogEventRow): LogEvent => ({
   created_at: row.created_at,
 });
 
-// Get all log events (admin only)
+// Get log events with filters
 export const getLogEvents = async (filters?: {
   type?: string;
   actorUserId?: string;
@@ -24,8 +25,8 @@ export const getLogEvents = async (filters?: {
   endDate?: string;
   limit?: number;
   offset?: number;
-}): Promise<LogEvent[]> => {
-  let query = supabase.from('log_events').select('*');
+}, supabaseClient: SupabaseClient<Database> = supabase): Promise<LogEvent[]> => {
+  let query = (supabaseClient.from('log_events') as any).select('*');
 
   if (filters?.type) {
     query = query.eq('type', filters.type);
@@ -57,53 +58,16 @@ export const getLogEvents = async (filters?: {
   return data.map(rowToLogEvent);
 };
 
-// Get log events by type
-export const getLogEventsByType = async (type: string, limit?: number): Promise<LogEvent[]> => {
-  let query = supabase
-    .from('log_events')
-    .select('*')
-    .eq('type', type)
-    .order('created_at', { ascending: false });
-
-  if (limit) {
-    query = query.limit(limit);
-  }
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return data.map(rowToLogEvent);
-};
-
-// Get log events by actor
-export const getLogEventsByActor = async (actorUserId: string, limit?: number): Promise<LogEvent[]> => {
-  let query = supabase
-    .from('log_events')
-    .select('*')
-    .eq('actor_user_id', actorUserId)
-    .order('created_at', { ascending: false });
-
-  if (limit) {
-    query = query.limit(limit);
-  }
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return data.map(rowToLogEvent);
-};
-
 // Create a new log event
-export const createLogEvent = async (logEvent: Omit<LogEvent, 'id' | 'created_at'>): Promise<LogEvent> => {
+export const createLogEvent = async (event: Omit<LogEvent, 'id' | 'created_at'>, supabaseClient: SupabaseClient<Database> = supabase): Promise<LogEvent> => {
   const insert: LogEventInsert = {
-    type: logEvent.type,
-    actor_user_id: logEvent.actor_user_id,
-    target_id: logEvent.target_id,
-    metadata: logEvent.metadata,
+    type: event.type,
+    actor_user_id: event.actor_user_id,
+    target_id: event.target_id,
+    metadata: event.metadata,
   };
 
-  const { data, error } = await supabase
-    .from('log_events')
+  const { data, error } = await (supabaseClient.from('log_events') as any)
     .insert(insert)
     .select()
     .single();
@@ -114,8 +78,7 @@ export const createLogEvent = async (logEvent: Omit<LogEvent, 'id' | 'created_at
 
 // Clear all log events (admin only)
 export const clearAllLogEvents = async (): Promise<void> => {
-  const { error } = await supabase
-    .from('log_events')
+  const { error } = await (supabase.from('log_events') as any)
     .delete()
     .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 

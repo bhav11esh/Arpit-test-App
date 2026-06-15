@@ -1,0 +1,16 @@
+--- 🔍 DEBUGGING AMAN STATUS ---
+✅ Found User: Aman Behera (thatdeepseek@gmail.com)
+   ID: 41b035b1-4391-4347-af95-ae9876328146
+   Cluster: WH_IN
+
+--- 🗺️ MAPPINGS CHECK ---
+
+📌 PRIMARY Mappings for Aman (0):
+
+📌 SECONDARY Mappings for Aman's Cluster "WH_IN" (0):
+
+👉 TOTAL Eligible Showrooms for Timing Prompt: 0
+⚠️  WARNING: Aman has 0 eligible showrooms. Prompt loop will NEVER run.
+
+--- 📜 GLOBAL FINALIZATION LOGS (Today) ---
+Found 0 SHOWROOM_FINALIZED events for 2026-02-06:

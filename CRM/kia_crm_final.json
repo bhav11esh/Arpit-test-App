@@ -1,0 +1,486 @@
+{
+  "kia": [
+    {
+      "delivery_name": "Delivery_2025-10-10_0",
+      "date": "2025-10-10",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "reel",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-10_1",
+      "date": "2025-11-10",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "reel",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-10_2",
+      "date": "2025-12-10",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "REEL",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-13_3",
+      "date": "2025-10-13",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "REEL",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-16_4",
+      "date": "2025-10-16",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "REEL",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-16_5",
+      "date": "2025-10-16",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1E1KB3F3oOl5efFfQX9QRCt-DVXUEqzZ6",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-16_6",
+      "date": "2025-10-16",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1SFr3edIAmE4REkPNXTyr6ZMaRlsN-Mft",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-19_7",
+      "date": "2025-10-19",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1qVJjekIk-wnZNoftqZL0Rgxd81EuHsm8",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-19_8",
+      "date": "2025-10-19",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/19VmaJAKHwj-29Es81306tPgNRCZaV42d",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-19_9",
+      "date": "2025-10-19",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/11LPo37B7401TF_EPR29LmGe4LngxZjm2",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-19_10",
+      "date": "2025-10-19",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1CSroAIE0J4MFXwuMPdoLDcW2CkTzB565",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-24_11",
+      "date": "2025-10-24",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1WE3qGVdlDOerC4r1Y0tkF2OApY1aqMym",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-26_12",
+      "date": "2025-10-26",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/15ozNgH_g0inZbYpFRFPe11MjCvX-usGo",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-27_13",
+      "date": "2025-10-27",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/19M3KkurTaPHAIBUKm6NIRULofy3eXfqX",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-30_14",
+      "date": "2025-10-30",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1NOR4O3ntSsez4Ii2xWcG0-LEM0XwPFz1",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-30_15",
+      "date": "2025-10-30",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1pyCKxIH8p4A9EqzoqBAQUnAI3-9g_Mev",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-31_16",
+      "date": "2025-10-31",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1EfhcgPiPBibfq6LMLNtlJzCWHbNv3w7X",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-06-11_17",
+      "date": "2025-06-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1VNpbOJp0ODviO6e2g7EqrkyVdHCSVGyh?usp=drive_link",
+      "assigned_user_id": null
+    },
+    {
+      "delivery_name": "Delivery_2025-07-11_18",
+      "date": "2025-07-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1evfiexSSjhFb9akcmZh3a5NQdbH_zvma",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-07-11_19",
+      "date": "2025-07-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1T6dreJItXQzdhVueuhk354U6wQYUioua",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-08-11_20",
+      "date": "2025-08-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/16TMvqpD-YXNnYMrM7TYA_aXPXYw3acku",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-08-11_21",
+      "date": "2025-08-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1q5IUrmfOTzB-CDW3Q6QFm0w7o00QOE33",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-10-11_22",
+      "date": "2025-10-11",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1RPAiEUkt3KZNfqHLPMntPqPQECZ4BFTi",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-13_23",
+      "date": "2025-11-13",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/15XesCOOBVTD0uUFIhMzmapHpV1YfcCmi",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-11-13_24",
+      "date": "2026-11-13",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1WMJCFqCpx2nhrbYugD2QfqxQTu7xTTbk",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-14_25",
+      "date": "2025-11-14",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1HTTNMZfd_Hj-NS_sZrF4KVd8FDtqWO0i",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-11-14_26",
+      "date": "2026-11-14",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/15WDguOvU2a-rWK6pqi-9foYE9Y2te2PV",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-17_27",
+      "date": "2025-11-17",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1vQhOVlmvcAUBgQsDoHl1m0tUoof16rZw",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-21_28",
+      "date": "2025-11-21",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/11JlZzxeleYoXgCM8HOGY32SkPqcwmjOr",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-23_29",
+      "date": "2025-11-23",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1DGHGMw2XghwYXNzUYg7t2Pgexr2BKRjD",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-24_30",
+      "date": "2025-11-24",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1ntdEp3SfQ99VgLvaaleGAeSMHLTF7-IV",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-24_31",
+      "date": "2025-11-24",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/17duLNFpGtQpue4XCO6-CQElP2kI0ZfPg",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-24_32",
+      "date": "2025-11-24",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1a77nUJwbxyyOZtqkqDp5OAgYqPw-sNat",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-27_33",
+      "date": "2025-11-27",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1phHygOBra9fV6-R6XCoMIrbr95Ck32TP",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-27_34",
+      "date": "2025-11-27",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1Ar9w8aDS1mmZrhP6B4Z00DFrQKov-1aD",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-29_35",
+      "date": "2025-11-29",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1ZFDQRXRfgtUfihPPTbuEPRP59r6lKhyp",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-11-30_36",
+      "date": "2025-11-30",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1J8mefj0fWm0CVOEx7lOEzEEMOYGK56ln",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-04-12_37",
+      "date": "2025-04-12",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1hXxhWxa_pFfO8ZgjL3WVgq6mQ8U7dQEV",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-04-12_38",
+      "date": "2025-04-12",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1j2AiJcgSE7V-Dz41EKEtLboMIwkHs18D",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-14_39",
+      "date": "2025-12-14",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1UihTtJl_3Tn5xiMthtC-wdL2mV3Whdxy",
+      "assigned_user_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-14_40",
+      "date": "2025-12-14",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1obs_hl5miVRUnHdKd4bJEA_QkGDK60hn",
+      "assigned_user_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-15_41",
+      "date": "2025-12-15",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/file/d/1k3aIWGIN5u_SO9oBArO9YtKyM9J8IBW5/view?usp=drivesdk",
+      "assigned_user_id": "db61d597-a1db-4ef9-890a-8817e534e0bb"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-15_42",
+      "date": "2025-12-15",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/file/d/1_wxMhYapIZBI4nYgBdJ0UWRf-afb0Pjh/view?usp=drivesdk",
+      "assigned_user_id": "db61d597-a1db-4ef9-890a-8817e534e0bb"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-22_43",
+      "date": "2025-12-22",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1wQykG6qv_IhPyzbxJTQSlo8REgWWlGTv",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2025-12-27_44",
+      "date": "2025-12-27",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1yc34GQuPo18cHl4SZ3luZHV7AUCIN-tX",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-14_45",
+      "date": "2026-01-14",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1dSd8Jg7lBG8l4ZdmqgA7AVAKtkze6sKe",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-22_46",
+      "date": "2026-01-22",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1MC9sKnzfwprxW4dgJ_Ui0RkD39nc3m3p",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-23_47",
+      "date": "2026-01-23",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1rZGZV5lVpSq_dTAsJpO18ek7OTu1KV0A",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-01-23_48",
+      "date": "2026-01-23",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": "https://drive.google.com/drive/folders/1csaArXElTAa49dTgnzqGHKWLvSZbG71y",
+      "assigned_user_id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953"
+    },
+    {
+      "delivery_name": "Delivery_2026-06-02_49",
+      "date": "2026-06-02",
+      "showroom_code": "KIA_EPITOME",
+      "footage_link": null,
+      "reel_link": null,
+      "assigned_user_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af"
+    }
+  ],
+  "users": [
+    {
+      "id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+      "name": "Mallikarjun"
+    },
+    {
+      "id": "71704079-655e-43f3-8f52-86f2efe2cdca",
+      "name": "Inchara"
+    },
+    {
+      "id": "6c1d0f86-9cf4-4028-9e96-2919800f5190",
+      "name": "Akhil"
+    },
+    {
+      "id": "41b035b1-4391-4347-af95-ae9876328146",
+      "name": "Aman Behera"
+    },
+    {
+      "id": "3db87fe6-bc75-4caf-8848-974815647657",
+      "name": "Bhuvanesan"
+    },
+    {
+      "id": "5b650a1a-cf1d-4512-a7b2-1cfca3c226e7",
+      "name": "Abishek"
+    },
+    {
+      "id": "0b99359e-4a17-4f12-a886-d8a146ed5abe",
+      "name": "Abhigyan"
+    },
+    {
+      "id": "cdcef715-35f3-41ba-b3e3-4fb76dc15953",
+      "name": "Madan"
+    },
+    {
+      "id": "23fb8d28-08e9-4e87-8a77-6e2b3324b872",
+      "name": "Ajmal"
+    },
+    {
+      "id": "0222038c-4753-4f84-8e7d-5abf93c58fb3",
+      "name": "Bibin"
+    },
+    {
+      "id": "52e518e4-1d70-4a9a-b986-c4bf550aa24e",
+      "name": "Bijoy"
+    },
+    {
+      "id": "d5022f45-8660-400c-8cf1-fdf1f7fc00bc",
+      "name": "kavi"
+    },
+    {
+      "id": "7d1c8767-7f60-44b3-9ba7-1bef9e8dc802",
+      "name": "Moiyadeen"
+    },
+    {
+      "id": "4a7bbaa5-cc6c-4f14-afc7-3be8acb39f69",
+      "name": "Musaib"
+    },
+    {
+      "id": "db61d597-a1db-4ef9-890a-8817e534e0bb",
+      "name": "Rishi"
+    },
+    {
+      "id": "ce7cccb2-72ef-4bab-9eaa-16d7155aafe4",
+      "name": "Samyuktha"
+    },
+    {
+      "id": "4247126e-71f1-4472-98a0-544219a597b9",
+      "name": "Sathick"
+    },
+    {
+      "id": "1667a3a2-fa08-4127-aafd-4c41a5532d0b",
+      "name": "Venkatesh"
+    },
+    {
+      "id": "65edeb44-6506-43d4-8c36-5c33612692d3",
+      "name": "Veshnu"
+    },
+    {
+      "id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+      "name": "Sahith Undru"
+    }
+  ]
+}

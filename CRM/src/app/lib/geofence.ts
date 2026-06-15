@@ -1,14 +1,5 @@
 import type { Delivery, GeofenceBreach } from '../types';
 
-// Mock showroom locations (latitude, longitude)
-const SHOWROOM_LOCATIONS: Record<string, { lat: number; lng: number }> = {
-  'KHTR_WH': { lat: 28.4595, lng: 77.0266 }, // Gurgaon
-  'DLF_PH3': { lat: 28.4989, lng: 77.0909 }, // DLF Phase 3
-  'MGF_MET': { lat: 28.4817, lng: 77.0873 }, // MGF Metropolitan
-  'VAS_MALL': { lat: 28.5494, lng: 77.2500 }, // Vasant Kunj
-  'SAK_CENT': { lat: 28.5355, lng: 77.2467 }, // Saket
-};
-
 const GEOFENCE_RADIUS_METERS = 500; // 500 meters radius
 
 // V1 SPEC: Track which delivery-time pairs have already been checked
@@ -62,30 +53,86 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
 }
 
 /**
+ * Check the current geolocation permission status
+ */
+export async function checkGeolocationPermission(): Promise<PermissionState> {
+  if (!navigator.permissions || !navigator.permissions.query) {
+    return 'prompt'; // Fallback for browsers that don't support permissions API
+  }
+
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    return status.state;
+  } catch (error) {
+    console.error('Permission query failed:', error);
+    return 'prompt';
+  }
+}
+
+/**
  * Check if user is within geofence for a delivery
  */
 export async function checkGeofence(
   delivery: Delivery,
-  userId: string
+  userId: string,
+  targetLat: number,
+  targetLng: number
 ): Promise<{ inGeofence: boolean; breach: GeofenceBreach | null }> {
   try {
     const position = await getCurrentPosition();
     const userLat = position.coords.latitude;
     const userLng = position.coords.longitude;
 
-    const showroomLocation = SHOWROOM_LOCATIONS[delivery.showroom_code];
-    
-    if (!showroomLocation) {
-      console.warn(`No location found for showroom: ${delivery.showroom_code}`);
-      return { inGeofence: true, breach: null }; // Allow if no location configured
-    }
+    console.log(`📍 [Geofence] Checking distance for delivery ${delivery.delivery_name}`, {
+      user: { lat: userLat, lng: userLng },
+      target: { lat: targetLat, lng: targetLng }
+    });
 
     const distance = calculateDistance(
       userLat,
       userLng,
-      showroomLocation.lat,
-      showroomLocation.lng
+      targetLat,
+      targetLng
     );
+
+    // V1 HARDENING: Spoof Detection (Fake GPS)
+    // Most spoofing apps provide a static accuracy of 0 or a perfect 1.0m.
+    // Some browsers also provide a 'mocked' flag.
+    const isMocked = (position as any).mocked === true;
+    const isSuspiciousAccuracy = position.coords.accuracy === 0 || position.coords.accuracy === 1;
+    
+    if (isMocked || isSuspiciousAccuracy) {
+      const { createLogEvent } = await import('./db/logs');
+      await createLogEvent({
+        type: 'GPS_SPOOF_DETECTED',
+        actor_user_id: userId,
+        target_id: delivery.id,
+        metadata: {
+          latitude: userLat,
+          longitude: userLng,
+          accuracy: position.coords.accuracy,
+          is_mocked: isMocked,
+          delivery_name: delivery.delivery_name,
+          showroom_code: delivery.showroom_code
+        }
+      });
+
+      console.warn('🚨 [Geofence] Potential GPS Spoofing detected!', { accuracy: position.coords.accuracy });
+      
+      // Treat spoofing as a breach
+      const breach: GeofenceBreach = {
+        id: `gb_spoof_${Date.now()}`,
+        delivery_id: delivery.id,
+        user_id: userId,
+        latitude: userLat,
+        longitude: userLng,
+        expected_time: `${delivery.date}T${delivery.timing}`,
+        breach_time: new Date().toISOString(),
+        distance_from_target: Math.round(distance),
+      };
+
+      return { inGeofence: false, breach };
+    }
 
     const inGeofence = distance <= GEOFENCE_RADIUS_METERS;
 
@@ -129,21 +176,25 @@ export function getTimeUntilGeofenceCheck(delivery: Delivery): number | null {
 
   const timeUntilCheck = checkTime.getTime() - now.getTime();
 
-  // Return null if check time has passed
+  // V1 FIX: If we are within the 15-minute window before delivery, return 0 for immediate check
+  if (now.getTime() >= checkTime.getTime() && now.getTime() < deliveryDateTime.getTime()) {
+    return 0;
+  }
+
+  // Return null if delivery has already started or it's too early
   return timeUntilCheck > 0 ? timeUntilCheck : null;
 }
 
 /**
  * Schedule geofence check for a delivery
  * V1 SPEC: Geofence alert is scheduler-driven and idempotent per delivery-time pair
- * - Fires ONLY ONCE per (delivery_id + timing) combination
- * - Timing updates reset eligibility (cleanup removes from checked set)
- * - UI reflects scheduler result (not UI-driven)
  * Returns cleanup function to cancel the scheduled check
  */
 export function scheduleGeofenceCheck(
   delivery: Delivery,
   userId: string,
+  targetLat: number,
+  targetLng: number,
   onBreachDetected: (breach: GeofenceBreach) => void
 ): (() => void) | null {
   const timeUntilCheck = getTimeUntilGeofenceCheck(delivery);
@@ -153,27 +204,33 @@ export function scheduleGeofenceCheck(
   }
 
   // V1 SPEC: Only check each delivery-time pair once
-  // Key format: deliveryId_timing (e.g., "d1_14:30")
   const key = getDeliveryTimeKey(delivery.id, delivery.timing!);
   if (checkedDeliveries.has(key)) {
-    return null; // Already checked, don't schedule again
+    return null; // Already checked
   }
 
   // Mark as being checked to prevent duplicates
   checkedDeliveries.add(key);
 
   const timeoutId = setTimeout(async () => {
-    const { inGeofence, breach } = await checkGeofence(delivery, userId);
-    
+    const { inGeofence, breach } = await checkGeofence(delivery, userId, targetLat, targetLng);
+
     if (!inGeofence && breach) {
-      onBreachDetected(breach);
+      // V1 FIX: Respect the 5-notification limit per delivery
+      const countKey = `breach_count_${delivery.id}`;
+      const count = parseInt(localStorage.getItem(countKey) || '0');
+      
+      if (count < 5) {
+        localStorage.setItem(countKey, (count + 1).toString());
+        onBreachDetected(breach);
+      } else {
+        console.log(`📍 [Geofence] Limit reached (5/5) for delivery ${delivery.id}. Silencing further alerts.`);
+      }
     }
   }, timeUntilCheck);
 
   return () => {
     clearTimeout(timeoutId);
-    // If canceled, remove from checked set so it can be rescheduled if needed
-    // This allows timing updates to reset eligibility
     checkedDeliveries.delete(key);
   };
 }

@@ -1,0 +1,36 @@
+--- CRM DEBUG LOG ---
+Loading env from: C:\Users\dell\Desktop\App codes\Arpit-test-App\CRM\.env
+URL: https://amikduuczgnirbnzuvtc.supabase.co
+Key: eyJhbGciOi... (Service Role: true)
+
+=== USERS ===
+Sahith: Sahith Undru (Whitefield-Indiranagar) [8f053ed2-788b-4fa9-99f5-88ac1f4c85af]
+{
+  "id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+  "email": "Sahithundru@gmail.com",
+  "name": "Sahith Undru",
+  "cluster_code": "Whitefield-Indiranagar",
+  "role": "PHOTOGRAPHER",
+  "active": true
+}
+Mallikarjun: Mallikarjun (Whitefield-Indiranagar) [bc268775-f79f-4400-b10b-bea4ba1dc762]
+{"id":"bc268775-f79f-4400-b10b-bea4ba1dc762","email":"pavanmanne735@gmail.com","name":"Mallikarjun","cluster_code":"Whitefield-Indiranagar","role":"PHOTOGRAPHER","active":true}
+
+=== BIMAL NEXA DELIVERY ===
+[3091e7ca-ccde-4381-b58f-1f6f0d118dbf] 07-02-2026_BIMAL_NEXA_21_05 | Status: UNASSIGNED | Showroom: BIMAL_NEXA | Cluster: Whitefield-Indiranagar | Type: PRIMARY | Timing: null | Date: 2026-02-07
+Rejections for 07-02-2026_BIMAL_NEXA_21_05: null
+[ae1f53a6-775a-45b9-8b93-17be082398eb] 07-02-2026_BIMAL_NEXA_2 | Status: UNASSIGNED | Showroom: BIMAL_NEXA | Cluster: Whitefield-Indiranagar | Type: PRIMARY | Timing: null | Date: 2026-02-07
+Rejections for 07-02-2026_BIMAL_NEXA_2: null
+[13b0f028-b70e-4d72-9268-c0e3a55e0f44] 07-02-2026_BIMAL_NEXA_12_35 | Status: ASSIGNED | Showroom: BIMAL_NEXA | Cluster: Whitefield-Indiranagar | Type: PRIMARY | Timing: 12:35 | Date: 2026-02-07
+
+=== KHIVRAJ DELIVERY ===
+[3d2b56c2-d62d-429b-9028-7f9bd12c0ad2] 07-02-2026_KHIVRAJ_TRIUMPH_21_05 | Status: UNASSIGNED | Cluster: Whitefield-Indiranagar | RejectedByAll: false | Date: 2026-02-07 | Timing: 21:05
+Rejections for 07-02-2026_KHIVRAJ_TRIUMPH_21_05: null
+[56cfe7bb-4208-4790-85db-eac337d07500] 07-02-2026_KHIVRAJ_TRIUMPH_20_55 | Status: UNASSIGNED | Cluster: Whitefield-Indiranagar | RejectedByAll: false | Date: 2026-02-07 | Timing: 20:55
+Rejections for 07-02-2026_KHIVRAJ_TRIUMPH_20_55: null
+[30f8b53f-1fef-49af-aef7-9e06ba8574a0] 07-02-2026_KHIVRAJ_TRIUMPH_15_30 | Status: UNASSIGNED | Cluster: Whitefield-Indiranagar | RejectedByAll: false | Date: 2026-02-07 | Timing: 15:30
+Rejections for 07-02-2026_KHIVRAJ_TRIUMPH_15_30: null
+[5532b434-dc0f-49ed-b0fb-b28737b004d2] 07-02-2026_KHIVRAJ_TRIUMPH_12_30 | Status: UNASSIGNED | Cluster: Whitefield-Indiranagar | RejectedByAll: false | Date: 2026-02-07 | Timing: 12:30
+Rejections for 07-02-2026_KHIVRAJ_TRIUMPH_12_30: null
+[e018a8e6-c207-48fa-815f-617a5a803250] 05-02-2026_KHIVRAJ_TRIUMPH_14_30 | Status: REJECTED | Cluster: Whitefield-Indiranagar | RejectedByAll: false | Date: 2026-02-05 | Timing: 14:30
+Rejections for 05-02-2026_KHIVRAJ_TRIUMPH_14_30: null

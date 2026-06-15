@@ -1,0 +1,13 @@
+﻿USER RECORDS:
+[
+  {
+    "id": "6c1d0f86-9cf4-4028-9e96-2919800f5190",
+    "email": "aka246966@gmail.com",
+    "name": "Akhil",
+    "role": "PHOTOGRAPHER",
+    "active": true,
+    "cluster_code": "WH_IN",
+    "created_at": "2026-02-03T14:49:10.665909+00:00",
+    "updated_at": "2026-02-03T19:50:19.804012+00:00"
+  }
+]

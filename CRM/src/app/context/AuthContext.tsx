@@ -17,15 +17,29 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [userState, setUserState] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Safe setter to prevent unnecessary re-renders on tab focus
+  const setUser = React.useCallback((newUser: User | null) => {
+    setUserState(prev => {
+      if (prev === newUser) return prev;
+      if (prev && newUser) {
+        const { last_active: p1, last_gps_status: p2, ...restPrev } = prev as any;
+        const { last_active: n1, last_gps_status: n2, ...restNew } = newUser as any;
+        if (JSON.stringify(restPrev) === JSON.stringify(restNew)) return prev;
+      }
+      return newUser;
+    });
+  }, []);
+  const user = userState;
 
   // V1 OPTIMIZATION: Track the last fetched user ID to prevent redundant parallel calls
   const lastFetchedId = React.useRef<string | null>(null);
 
   // Fetch user data from users table based on auth user
-  const fetchUserData = async (authUserId: string, email: string): Promise<User | null> => {
+  const fetchUserData = async (authUserId: string, email: string): Promise<User | null | undefined> => {
     // V1 OPTIMIZATION: Prevent parallel fetches for the same ID
     if (lastFetchedId.current === authUserId && user) {
       console.log('[AuthContext] Already fetched user data for:', authUserId);
@@ -35,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // V1 OPTIMIZATION: Reduced timeout to 10s. Better to show dashboard with session
     // than to hang indefinitely on a slow user record fetch.
     const timeoutPromise = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 10000)
+      setTimeout(() => reject(new Error('FETCH_USER_TIMEOUT')), 20000)
     );
 
     try {
@@ -56,7 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', authUserId)
           .single();
 
-        if (error) return null;
+        if (error) {
+          // If PGRST116, it means no rows found (truly doesn't exist)
+          if (error.code === 'PGRST116') return null;
+          // For network or abort errors, throw to reach the catch block
+          throw error;
+        }
 
         if (data) {
           return {
@@ -76,10 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[AuthContext] fetchUserData failed:', error);
       lastFetchedId.current = null; // Allow retry on failure
 
-      if (error instanceof Error && error.message === 'FETCH_USER_TIMEOUT') {
-        return undefined as any;
-      }
-      return null;
+      // Trigger fallback for ALL thrown errors (Timeout, AbortError, Network errors)
+      return undefined;
     }
   };
 
@@ -96,44 +113,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         setSession(session);
         if (session?.user) {
-          if (mounted) setLoading(true);
+          // Check for cached user profile to prevent screen blanking on reload
+          let cachedUser: User | null = null;
+          try {
+            const cachedStr = localStorage.getItem('crm_user_profile');
+            if (cachedStr) {
+              const parsed = JSON.parse(cachedStr);
+              if (parsed && parsed.email === session.user.email) {
+                cachedUser = parsed;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse cached profile', e);
+          }
+
+          if (cachedUser) {
+            console.log('[Auth] Using cached user profile on startup:', cachedUser.email);
+            setUser(cachedUser);
+            // Immediately stop loading to allow the app shell and UI to render
+            setLoading(false);
+          } else {
+            if (mounted) setLoading(true);
+          }
+
           console.log('[Auth] Session detected, fetching user data...');
           const userData = await fetchUserData(session.user.id, session.user.email || '');
 
           if (mounted) {
             if (userData === undefined) {
-              console.warn('[Auth] FETCH_TIMEOUT: Using session metadata as fallback');
-              // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
-              const meta = session.user.user_metadata || {};
-              
-              // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
-              const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
-              const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
+              if (cachedUser) {
+                console.log('[Auth] Fetch timed out. Keeping cached user profile:', cachedUser.email);
+              } else {
+                console.warn('[Auth] FETCH_TIMEOUT: Using session metadata as fallback');
+                // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
+                const meta = session.user.user_metadata || {};
+                
+                // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
+                const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
+                const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
 
-              const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
-                ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
+                const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
+                  ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
 
-              const fallbackUser: User = {
-                id: session.user.id,
-                email: session.user.email || '',
-                name: meta.name || session.user.email || 'User',
-                role: fallbackRole,
-                active: true,
-                cluster_code: meta.cluster_code || user?.cluster_code || '',
-                city: meta.city || user?.city || 'bengaluru',
-              };
-              setUser(fallbackUser);
-              console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+                const fallbackUser: User = {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: meta.name || session.user.email || 'User',
+                  role: fallbackRole,
+                  active: true,
+                  cluster_code: meta.cluster_code || user?.cluster_code || '',
+                  city: meta.city || user?.city || 'bengaluru',
+                };
+                setUser(fallbackUser);
+                console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+              }
             } else if (!userData) {
               console.warn('[Auth] USER_DATA_NULL: User record missing');
               setUser(null);
+              localStorage.removeItem('crm_user_profile');
             } else if (!userData.active) {
               console.error('[Auth] USER_INACTIVE: Account deactivated');
               // If account is inactive, we clear the user so App.tsx can handle it
               // We DON'T signOut automatically here to allow App to show a specific "Deactivated" screen
               setUser(userData); 
+              localStorage.removeItem('crm_user_profile');
             } else {
               setUser(userData);
+              localStorage.setItem('crm_user_profile', JSON.stringify(userData));
             }
           }
         } else {
@@ -173,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         setUser(userData);
+        localStorage.setItem('crm_user_profile', JSON.stringify(userData));
       }
     } catch (error) {
       throw error;
@@ -186,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
+      localStorage.removeItem('crm_user_profile');
     } catch (error) {
       throw error;
     }

@@ -1,0 +1,34 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+Total Database Records: 398
+Nisha/Shehjar in DB: 0
+Total Provided Sheet Links: 399
+
+--- Records in DB NOT in provided list (Potential Extras) ---
+EXTRA: Date: 2026-03-23, Name: 23-03-2026_NANDI_TOYOTA_WH_12_30, Reel: null
+EXTRA: Date: 2026-02-12, Name: Delivery_12/02/2026_321, Reel: https://drive.google.com/drive/folders/1MUVUhcMxvBgxftIjweq0H0DE6HEl6PuH
+EXTRA: Date: 2026-03-08, Name: Delivery_08/03/2026_54, Reel: https://drive.google.com/drive/folders/1oZic1CktabYbtvwHe0XgtjVQ4wAgy3bx?usp=drive_link
+Found 3 extra records.
+
+--- Links in provided list NOT in DB (Potential Missing) ---
+MISSING REEL: https://drive.google.com/drive/folders/1s0K5X1aa5sVZsVNW1WF5JMlHC1Dw9pB
+MISSING REEL: https://drive.google.com/drive/folders/1TUrtmwIoFVM5M-GNrB2iXJRnQVcy7IM0
+MISSING REEL: https://drive.google.com/drive/folders/1ll6SpBgSMh7TriRQXC1zbrQOysO9UuCO
+MISSING REEL: https://drive.google.com/drive/folders/1R_BeaD7leYgijV99lbbkA85Czyc7CUff
+MISSING REEL: https://drive.google.com/drive/folders/1MUVUhcMxvBgftIjweq0H0DE6HEl6PuH
+MISSING REEL: https://drive.google.com/drive/folders/1oZic1CktabYbtvwHe0XgtjVQ4wAgy3bx
+Found 6 missing links.
+
+--- Frequency Mismatches ---
+MISMATCH: Reel https://drive.google.com/drive/folders/1rd-E8XwKBFr97mFuw7VaGru7BS6HRaDD has 2 in DB but 1 in Sheet.
+MISMATCH: Reel https://drive.google.com/drive/folders/1-kYqugDPHR1IgqyXZANC_NtCHUumwOSf has 2 in DB but 1 in Sheet.
+MISMATCH: Reel https://drive.google.com/drive/folders/1aROeJ2pUXr-TlkpPiM4A63iBIbgZYvxP has 2 in DB but 1 in Sheet.
+MISMATCH: Reel https://drive.google.com/drive/folders/1Qi8ERgZvXBK3NkEdiDiy2qmeJs3T5f0j has 1 in DB but 2 in Sheet.
+
+--- Checking specific suspected names/dates ---
+ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+Γöé (index) Γöé id                                     Γöé date         Γöé name                      Γöé reel                                                                       Γöé
+Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+Γöé 0       Γöé '0428a07a-d177-4880-9cad-7f41b7a2b6c3' Γöé '2026-03-12' Γöé 'Delivery_12/03/2026_209' Γöé 'https://drive.google.com/drive/folders/17fG8Dh6mBK19nF6p7Z_x84mKwGLCfSiE' Γöé
+Γöé 1       Γöé '287f129a-3851-43e2-9132-80eb50024428' Γöé '2026-03-12' Γöé 'Delivery_12/03/2026_386' Γöé 'https://drive.google.com/drive/folders/1Qi8ERgZvXBK3NkEdiDiy2qmeJs3T5f0j' Γöé
+Γöé 2       Γöé 'b7df4073-bd5b-424a-b20d-2676ce9f1104' Γöé '2026-03-12' Γöé 'Delivery_12/03/2026_387' Γöé 'https://drive.google.com/drive/folders/1s1oD5vuSCRs3uYtCD-yo4qb8nsXtMrFC' Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ

@@ -15,6 +15,7 @@ import {
 import { Link as LinkIcon, Upload, Image as ImageIcon, Send, AlertCircle, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { simulateApiDelay } from '../lib/mockData';
+import { checkDuplicateFootageLink } from '../lib/db/deliveries';
 
 interface SendUpdateSheetProps {
   deliveries: Delivery[];
@@ -47,7 +48,7 @@ export function SendUpdateSheet({
     }
   };
 
-  const handleFootageSave = (deliveryId: string) => {
+  const handleFootageSave = async (deliveryId: string) => {
     const link = footageLinkInputs[deliveryId];
     if (!link) {
       toast.error('Please enter a footage link');
@@ -57,6 +58,20 @@ export function SendUpdateSheet({
     if (!validateGoogleDriveUrl(link)) {
       toast.error('Please enter a valid Google Drive link');
       return;
+    }
+
+    // V11.0: Duplicate Link Validation
+    try {
+      const currentDelivery = deliveries.find(d => d.id === deliveryId);
+      if (currentDelivery) {
+        const duplicate = await checkDuplicateFootageLink(link, currentDelivery.showroom_code, deliveryId);
+        if (duplicate) {
+          toast.error(`Duplicate link detected! This link is already used for ${duplicate.delivery_name}.`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Duplicate check failed:', error);
     }
     
     onUpdateFootageLink(deliveryId, link);

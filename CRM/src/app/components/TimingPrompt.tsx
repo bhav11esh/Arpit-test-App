@@ -10,6 +10,7 @@ import {
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { Badge } from './ui/badge';
 import { Plus, Clock, Trash2, AlertCircle } from 'lucide-react';
 import type { Delivery } from '../types';
 import { toast } from 'sonner';
@@ -59,6 +60,7 @@ export interface TimingPromptProps {
   photographerId: string;
   paymentType: 'CUSTOMER_PAID' | 'DEALER_PAID';
   showroomType: 'PRIMARY' | 'SECONDARY';
+  onMarkAllAdded: () => void;
 }
 
 export function TimingPrompt({
@@ -74,7 +76,9 @@ export function TimingPrompt({
   photographerId,
   paymentType,
   showroomType,
+  onMarkAllAdded,
 }: TimingPromptProps) {
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newDeliveryTiming, setNewDeliveryTiming] = useState<string>('');
 
   // Format date for display (DD-MM-YYYY)
@@ -83,9 +87,10 @@ export function TimingPrompt({
     return `${day}-${month}-${year}`;
   };
 
-  // Validate timing format HH:MM
+  // Validate timing format HH:MM (optionally HH:MM:SS)
   const isValidTiming = (timing: string): boolean => {
-    const pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+    // Relaxed regex to allow HH:MM or HH:MM:SS
+    const pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])(:[0-5][0-9])?$/;
     return pattern.test(timing);
   };
 
@@ -94,23 +99,26 @@ export function TimingPrompt({
       // Add without timing (deferred/"Later")
       onAddDelivery(null);
       setNewDeliveryTiming('');
+      setShowAddForm(false);
       return;
     }
 
     if (!isValidTiming(newDeliveryTiming)) {
-      toast.error('Invalid timing format. Use HH:MM (e.g., 09:30, 14:00)');
+      console.error('Invalid timing value:', newDeliveryTiming);
+      toast.error(`Invalid timing format: "${newDeliveryTiming}". Use HH:MM (e.g., 09:30)`);
       return;
     }
 
     onAddDelivery(newDeliveryTiming);
     setNewDeliveryTiming('');
+    setShowAddForm(false);
   };
 
   const handleMarkLater = () => {
     // V1 SPEC: "Later" explicitly means timing unknown
     // This is recorded as delivery with null timing
     onAddDelivery(null);
-    toast.info('Delivery added without timing. You can update timing later from Home screen.');
+    setShowAddForm(false);
   };
 
   const deliveryCount = existingDeliveries.length;
@@ -118,72 +126,82 @@ export function TimingPrompt({
   const deliveriesWithoutTiming = existingDeliveries.filter(d => !d.timing).length;
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-orange-600" />
-            Delivery Timing Input
-          </DialogTitle>
-          <DialogDescription>
-            {showroomName} • {formatDateDisplay(date)}
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog open={true} onOpenChange={() => { }}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden border-0 shadow-2xl rounded-3xl"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        hideCloseButton={true}
+      >
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-white">
+              <div className="h-10 w-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner">
+                <Clock className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-xl font-bold tracking-tight">Delivery Timing</span>
+                 <span className="text-xs font-medium text-orange-100 opacity-80 uppercase tracking-widest">{showroomName}</span>
+              </div>
+            </DialogTitle>
+            <DialogDescription className="text-orange-100/70 text-xs font-medium mt-1">
+              {formatDateDisplay(date)} • Cluster: {clusterCode}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-4 overflow-y-auto flex-1 pr-2">{/* Scrollable content area */}
+        <div className="space-y-5 overflow-y-auto flex-1 p-6 scrollbar-hide">
           {/* Existing Deliveries Count */}
-          <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-            <div className="text-sm font-medium text-gray-700">
-              Current Status:
+          <div className="bg-white border border-orange-50 p-4 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between">
+               <div className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Active Status</div>
+               <Badge className="bg-orange-50 text-orange-600 border-0 text-[10px] h-5">{deliveryCount} TOTAL</Badge>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">Total Deliveries:</span>
-              <span className="font-semibold">{deliveryCount}</span>
+            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-orange-50">
+               <div className="flex flex-col">
+                  <span className="text-2xl font-bold text-emerald-600 tracking-tighter">{deliveriesWithTiming}</span>
+                  <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">With Timing</span>
+               </div>
+               <div className="flex flex-col">
+                  <span className="text-2xl font-bold text-orange-600 tracking-tighter">{deliveriesWithoutTiming}</span>
+                  <span className="text-[9px] font-bold text-orange-400 uppercase tracking-wider">No Timing</span>
+               </div>
             </div>
-            {deliveryCount > 0 && (
-              <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-green-600">With Timing:</span>
-                  <span className="font-semibold text-green-600">{deliveriesWithTiming}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-orange-600">Without Timing:</span>
-                  <span className="font-semibold text-orange-600">{deliveriesWithoutTiming}</span>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Existing Deliveries List */}
           {existingDeliveries.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Existing Deliveries:</Label>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 ml-1">
+                <div className="h-1 w-1 rounded-full bg-gray-300"></div>
+                <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Added Deliveries</Label>
+              </div>
+              <div className="grid gap-2 max-h-52 overflow-y-auto pr-1">
                 {existingDeliveries.map((delivery) => (
                   <div
                     key={delivery.id}
-                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
+                    className="flex items-center justify-between p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-orange-100 transition-colors"
                   >
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{delivery.delivery_name}</div>
-                      <div className="text-xs text-gray-500">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <div className="font-bold text-sm text-gray-800 truncate tracking-tight">{delivery.delivery_name}</div>
+                      <div className="text-[10px] mt-0.5 flex items-center gap-1.5 font-bold uppercase tracking-wide">
                         {delivery.timing ? (
-                          <span className="text-green-600">Timing: {delivery.timing}</span>
+                          <span className="text-emerald-500">Timing: {delivery.timing}</span>
                         ) : (
-                          <span className="text-orange-600">No timing yet</span>
+                          <span className="text-orange-400">Timing pending</span>
                         )}
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
                       onClick={() => {
                         if (window.confirm(`Delete delivery "${delivery.delivery_name}"?`)) {
                           onDeleteDelivery(delivery.id);
                         }
                       }}
                     >
-                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
@@ -192,71 +210,90 @@ export function TimingPrompt({
           )}
 
           {/* Add New Delivery Section */}
-          <div className="space-y-3 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-            <Label className="text-sm font-medium">Add New Delivery:</Label>
-            
-            <div className="space-y-2">
-              <Label htmlFor="timing" className="text-sm">
-                Delivery Timing (optional)
-              </Label>
-              <Input
-                id="timing"
-                type="time"
-                value={newDeliveryTiming}
-                onChange={(e) => setNewDeliveryTiming(e.target.value)}
-                placeholder="HH:MM (e.g., 09:30)"
-              />
+          {!showAddForm ? (
+            <Button
+              variant="outline"
+              className="w-full border-2 border-dashed border-orange-100 h-14 text-orange-400 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50/50 transition-all rounded-2xl flex flex-col items-center justify-center gap-0.5"
+              onClick={() => setShowAddForm(true)}
+            >
+              <div className="flex items-center gap-2">
+                 <Plus className="h-4 w-4" />
+                 <span className="font-bold text-sm tracking-tight">ADD NEW DELIVERY</span>
+              </div>
+              <span className="text-[10px] font-medium opacity-60 uppercase tracking-widest">Click to log another</span>
+            </Button>
+          ) : (
+            <div className="space-y-4 p-5 border border-orange-100 bg-orange-50/30 rounded-2xl animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-orange-600 uppercase tracking-widest">Add Delivery Details</Label>
+                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-7 px-2 text-orange-400 hover:text-orange-600 hover:bg-transparent text-[11px] font-bold">CANCEL</Button>
+              </div>
+ 
+              <div className="space-y-2">
+                <Label htmlFor="timing" className="text-[10px] font-bold text-orange-400/70 uppercase tracking-wider ml-1">
+                  Delivery Timing (optional)
+                </Label>
+                <Input
+                  id="timing"
+                  type="time"
+                  value={newDeliveryTiming}
+                  onChange={(e) => setNewDeliveryTiming(e.target.value)}
+                  placeholder="HH:MM"
+                  className="h-11 bg-white border-orange-50 rounded-xl focus-visible:ring-indigo-500"
+                />
+              </div>
+ 
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={handleAddWithTiming}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-xl font-bold"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add with Timing
+                </Button>
+ 
+                <Button
+                  onClick={handleMarkLater}
+                  variant="outline"
+                  className="h-10 border-orange-100 text-orange-600 bg-white hover:bg-orange-50 rounded-xl text-xs font-bold"
+                >
+                  <Clock className="h-3.5 w-3.5 mr-2" />
+                  Decide Timing Later
+                </Button>
+              </div>
             </div>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={handleAddWithTiming}
-                className="flex-1"
-                disabled={!newDeliveryTiming.trim()}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add with Timing
-              </Button>
-              
-              <Button
-                onClick={handleMarkLater}
-                variant="outline"
-                className="flex-1"
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Later (No Timing)
-              </Button>
-            </div>
-            
-            <p className="text-xs text-gray-500">
-              Click "Later" to add delivery without timing. You can update timing later from Home screen.
-            </p>
-          </div>
+          )}
 
           {/* Info Banner */}
-          <div className="flex gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-blue-800">
+          <div className="flex gap-2 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-zinc-600 mt-0.5 flex-shrink-0" />
+            <div className="text-[11px] text-zinc-800">
               <p className="font-medium mb-1">Timing Input Rules:</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li>This prompt repeats hourly until all deliveries have timing</li>
-                <li>You can add multiple deliveries for this showroom</li>
-                <li>Use "Later" to create delivery without timing (update later)</li>
-                <li>Use "Done for Now" to dismiss this prompt (comes back in 1 hour)</li>
+                <li>This prompt repeats hourly until finalized.</li>
+                <li>Add multiple deliveries if needed via the "Add Delivery" button.</li>
+                <li><strong>"All Deliveries Logged"</strong>: Finalizes this showroom for the entire cluster today.</li>
+                <li><strong>"Snooze 1h"</strong>: Pauses this prompt for 1 hour.</li>
               </ul>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
+        <div className="p-6 bg-white border-t border-gray-50 flex gap-3">
           <Button
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold"
+            onClick={onMarkAllAdded}
+          >
+            All Deliveries Logged
+          </Button>
+          <Button
+            className="flex-1 h-12 rounded-xl border-gray-100 text-gray-500 hover:bg-gray-50 text-xs font-bold"
             variant="outline"
             onClick={onDismiss}
-            className="flex-1"
           >
-            Done for Now
+            Snooze 1h
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { LogEvent } from '../types';
-import { getAllLogs, downloadLogsAsCSV, clearAllLogs, LogEventType } from '../lib/logging';
+import * as logsDb from '../lib/db/logs';
+import { exportLogsAsCSV } from '../lib/logging'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -41,9 +42,14 @@ export function AdminLogsViewer() {
     applyFilters();
   }, [logs, filterType, searchQuery]);
 
-  const loadLogs = () => {
-    const allLogs = getAllLogs();
-    setLogs(allLogs);
+  const loadLogs = async () => {
+    try {
+      const allLogs = await logsDb.getLogEvents();
+      setLogs(allLogs);
+    } catch (error) {
+      console.error('Failed to load logs:', error);
+      toast.error('Failed to load system logs');
+    }
   };
 
   const applyFilters = () => {
@@ -67,15 +73,54 @@ export function AdminLogsViewer() {
     ));
   };
 
-  const handleDownload = () => {
-    downloadLogsAsCSV();
-    toast.success('Logs exported successfully');
+  const handleDownload = async () => {
+    try {
+      // 1. Fetch ALL logs from DB (unfiltered)
+      const allLogs = await logsDb.getLogEvents({ limit: 5000 });
+      
+      // 2. Use helper to format as CSV
+      const headers = ['ID', 'Type', 'Actor User ID', 'Target ID', 'Metadata', 'Created At'];
+      const rows = allLogs.map(log => [
+        log.id,
+        log.type,
+        log.actor_user_id,
+        log.target_id,
+        JSON.stringify(log.metadata),
+        log.created_at,
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ].join('\n');
+
+      // 3. Trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `system_logs_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Logs exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export logs');
+    }
   };
 
-  const handleClearLogs = () => {
-    clearAllLogs();
-    setLogs([]);
-    toast.success('All logs cleared');
+  const handleClearLogs = async () => {
+    try {
+      await logsDb.clearAllLogEvents();
+      setLogs([]);
+      toast.success('All logs cleared');
+    } catch (error) {
+      console.error('Clear failed:', error);
+      toast.error('Failed to clear logs');
+    }
   };
 
   const getEventTypeColor = (type: string): string => {

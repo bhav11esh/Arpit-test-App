@@ -1,0 +1,7 @@
+﻿MAPPINGS FOUND: 6
+- Showroom: 724e0be7-58cf-445d-a9fe-eba9b34470fd | Photographer: 8f053ed2-788b-4fa9-99f5-88ac1f4c85af
+- Showroom: 4e2d6e16-bb54-4071-9e75-bf55d37d6684 | Photographer: 6c1d0f86-9cf4-4028-9e96-2919800f5190
+- Showroom: a61d3a21-b946-4d0a-986e-9991448e1074 | Photographer: null
+- Showroom: 272cf8fb-ced5-45ce-974d-17fb9db65d38 | Photographer: null
+- Showroom: a93bf6ee-7698-47ea-bd32-1fe441ae3486 | Photographer: 41b035b1-4391-4347-af95-ae9876328146
+- Showroom: 92f642a5-563f-471e-a804-173fbadc71a3 | Photographer: bc268775-f79f-4400-b10b-bea4ba1dc762

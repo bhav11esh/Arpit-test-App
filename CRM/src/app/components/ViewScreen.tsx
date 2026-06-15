@@ -8,7 +8,7 @@ import * as deliveriesDb from '../lib/db/deliveries';
 import * as reelsDb from '../lib/db/reels';
 import { adminSupabase, supabase } from '../lib/supabase';
 import type { Delivery } from '../types';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -56,7 +56,7 @@ export function ViewScreen() {
   // 4. Logs View (admin audit trail)
   // 5. Portrait View (live_bookings)
   // V1 RULE: Photographers must NEVER see screenshot galleries (modes 2 & 3)
-  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'rapido' | 'logs' | 'portrait'>('spreadsheet');
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'rapido' | 'logs' | 'portrait' | 'missed_send_update'>('spreadsheet');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -64,7 +64,6 @@ export function ViewScreen() {
   const [loading, setLoading] = useState(true);
 
   // V1 SPEC: Gallery filters
-  const [selectedDate, setSelectedDate] = useState<string>('all');
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
 
   // V1 SPEC: Spreadsheet showroom filter (log of deliveries covered per showroom)
@@ -119,6 +118,38 @@ export function ViewScreen() {
   // V6.0 CONFLICT RESOLUTION
   const [conflictDelivery, setConflictDelivery] = useState<Delivery | null>(null);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+
+  const [missedSendUpdateData, setMissedSendUpdateData] = useState<{
+    photographerId: string;
+    name: string;
+    completedCount: number;
+    totalCount: number;
+    hasSentUpdate: boolean;
+    leaveText: string | null;
+  }[]>([]);
+  const [missedSendUpdateLoading, setMissedSendUpdateLoading] = useState(false);
+
+  const handleNudgePhotographer = async (photographerId: string, name: string, pendingCount: number) => {
+    try {
+      const title = '⚠️ Action Required: Day End Update';
+      const body = `You have ${pendingCount} deliveries pending today. Please submit "Send Update" immediately.`;
+
+      await notificationsDb.createNotification({
+        user_id: photographerId,
+        title,
+        body,
+        type: 'DAY_CLOSURE'
+      });
+
+      const { sendPushToUser } = await import('../lib/db/push');
+      await sendPushToUser(photographerId, { title, body });
+
+      toast.success(`Nudged ${name} successfully!`);
+    } catch (error) {
+      console.error('Failed to nudge photographer:', error);
+      toast.error('Failed to send nudge');
+    }
+  };
 
   // V1 SPEC: Only ADMIN can access screenshot galleries
   const isAdmin = user?.role === 'ADMIN';
@@ -278,7 +309,7 @@ export function ViewScreen() {
     setLoading(true);
 
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Data loading timed out after 10 seconds')), 10000)
+      setTimeout(() => reject(new Error('Data loading timed out after 25 seconds')), 25000)
     );
 
     try {
@@ -288,6 +319,11 @@ export function ViewScreen() {
 
           // 1. Prepare filters for deliveries
           const filters: any = { status: 'DONE' };
+
+          // Apply date filter at the database level if not showing all time
+          if (!showAllTime && spreadSheetDate) {
+            filters.date = spreadSheetDate;
+          }
           
           // V5.5: Always filter by showroom if one is selected to save memory/bandwidth
           if (showroomId && showroomId !== 'all') {
@@ -306,36 +342,104 @@ export function ViewScreen() {
           // 2. Fetch deliveries matching filter
           const doneDeliveries = await deliveriesDb.getDeliveries(filters, client);
 
-          // 3. Fetch screenshots (Admin View) - V5.5 SCALABILITY FIX
+          // 3. Fetch screenshots (Admin View Only) - V5.5 SCALABILITY FIX
           let realScreenshots: any[] = [];
-          const { getScreenshotsByDeliveries, getAllScreenshots } = await import('../lib/db/screenshots');
           
-          if (showroomId && showroomId !== 'all' && doneDeliveries.length > 0) {
-            const deliveryIds = doneDeliveries.map(d => d.id);
-            realScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
-          } else {
-            realScreenshots = await getAllScreenshots();
+          if (user?.role === 'ADMIN') {
+            const { getScreenshotsByDeliveries, getAllScreenshots } = await import('../lib/db/screenshots');
+            
+            // If showAllTime is false, or if a showroom is selected, only fetch screenshots for the loaded deliveries.
+            // This avoids fetching all historical screenshots.
+            if ((!showAllTime || (showroomId && showroomId !== 'all')) && doneDeliveries.length > 0) {
+              const deliveryIds = doneDeliveries.map(d => d.id);
+              const deliveryScreenshots = await getScreenshotsByDeliveries(deliveryIds).then(map => Array.from(map.values()).flat());
+              realScreenshots = [...deliveryScreenshots];
+            } else if (showAllTime) {
+              realScreenshots = await getAllScreenshots();
+            }
+
+            // Also fetch showroom-level screenshots (like FRAUD_DETECTION where delivery_id is null)
+            let showroomQuery = client.from('screenshots').select('*').is('deleted_at', null).is('delivery_id', null);
+            
+            if (showroomId && showroomId !== 'all') {
+              const dealership = cityIsolatedDealerships.find(d => d.id === showroomId);
+              if (dealership) {
+                showroomQuery = showroomQuery.eq('showroom_code', getShowroomCode(dealership.name));
+              }
+            }
+            
+            if (!showAllTime && spreadSheetDate) {
+              const startOfDay = `${spreadSheetDate}T00:00:00.000Z`;
+              const endOfDay = `${spreadSheetDate}T23:59:59.999Z`;
+              showroomQuery = showroomQuery.gte('uploaded_at', startOfDay).lte('uploaded_at', endOfDay);
+            } else {
+              showroomQuery = showroomQuery.limit(500);
+            }
+
+            const { data: showroomScreenshots, error: showroomError } = await showroomQuery;
+            if (showroomError) {
+              console.error('Error fetching showroom screenshots:', showroomError);
+            } else if (showroomScreenshots) {
+              const mapped = showroomScreenshots.map((row: any) => ({
+                id: row.id,
+                delivery_id: row.delivery_id,
+                showroom_code: row.showroom_code,
+                user_id: row.user_id,
+                type: row.type,
+                file_url: row.file_url,
+                thumbnail_url: row.thumbnail_url,
+                uploaded_at: row.uploaded_at,
+                deleted_at: row.deleted_at || undefined,
+              }));
+              realScreenshots = [...realScreenshots, ...mapped];
+            }
           }
 
           // V6.0 CITY ISOLATION (Gallery): Filter screenshots to only show those from photographers in the admin's city
           if (user?.role === 'ADMIN' && user.city) {
             const cityPhotographerIds = new Set(cityIsolatedPhotographers.map(p => p.id));
             realScreenshots = realScreenshots.filter(s => {
-              const delivery = doneDeliveries.find(d => d.id === s.delivery_id);
-              return delivery && cityPhotographerIds.has(delivery.assigned_user_id || '');
+              if (cityPhotographerIds.has(s.user_id)) {
+                return true;
+              }
+              if (s.delivery_id) {
+                const delivery = doneDeliveries.find(d => d.id === s.delivery_id);
+                return delivery && cityPhotographerIds.has(delivery.assigned_user_id || '');
+              }
+              return false;
             });
             console.log(`🖼️ [City Isolation] Gallery filtered to ${realScreenshots.length} screenshots for city ${user.city}.`);
           }
           setScreenshots(realScreenshots);
 
           // 4. Ensure metadata resolution for screenshots
-          const screenshotDeliveryIds = Array.from(new Set(realScreenshots.map(s => s.delivery_id)));
+          const screenshotDeliveryIds = Array.from(new Set(realScreenshots.map(s => s.delivery_id).filter(Boolean)));
           const knownIds = new Set(doneDeliveries.map(d => d.id));
-          const missingIds = screenshotDeliveryIds.filter(id => !knownIds.has(id));
+          const missingIds = screenshotDeliveryIds.filter(id => id && !knownIds.has(id));
 
           let extraDeliveries: Delivery[] = [];
           if (missingIds.length > 0) {
             extraDeliveries = await deliveriesDb.getDeliveriesByIds(missingIds, client);
+          }
+
+          // V1 FIX: Fetch Customer Paid deliveries for Fraud Detection screenshots so the count is accurate regardless of Date Filter
+          const fraudScreenshots = realScreenshots.filter(s => s.type === 'FRAUD_DETECTION');
+          if (fraudScreenshots.length > 0) {
+            const dates = Array.from(new Set(fraudScreenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
+            const userIds = Array.from(new Set(fraudScreenshots.map(s => s.user_id)));
+            
+            if (dates.length > 0 && userIds.length > 0) {
+              const { data: fraudDeliveries } = await client.from('deliveries')
+                .select('*')
+                .in('date', dates)
+                .in('assigned_user_id', userIds)
+                .eq('status', 'DONE')
+                .eq('payment_type', 'CUSTOMER_PAID');
+                
+              if (fraudDeliveries) {
+                extraDeliveries = [...extraDeliveries, ...fraudDeliveries];
+              }
+            }
           }
 
           const uniqueDeliveries = Array.from(new Map([...doneDeliveries, ...extraDeliveries].map(d => [d.id, d])).values());
@@ -355,13 +459,13 @@ export function ViewScreen() {
     }
   };
 
-  // V5.5 Scalability: Reload data when showroom selection changes
+  // V5.5 Scalability: Reload data when showroom, date, or showAllTime selection changes
   useEffect(() => {
     if (user) {
-      console.log(`🎯 Showroom changed to ${selectedShowroom}, reloading data...`);
+      console.log(`🎯 Filters changed (showroom: ${selectedShowroom}, date: ${spreadSheetDate}, showAllTime: ${showAllTime}), reloading data...`);
       loadData(selectedShowroom);
     }
-  }, [selectedShowroom, user?.id]);
+  }, [selectedShowroom, user?.id, spreadSheetDate, showAllTime]);
 
   // V1 SPEC: Refresh data when switching to spreadsheet view to pick up reel link changes
   // Use a ref to track previous viewMode to only load when actually switching
@@ -374,6 +478,106 @@ export function ViewScreen() {
     }
     prevViewMode.current = viewMode;
   }, [viewMode]);
+
+  // Missed Send Update / Covered 0 Delivery fetcher
+  useEffect(() => {
+    if (viewMode !== 'missed_send_update' || !user) return;
+
+    const fetchAuditData = async () => {
+      setMissedSendUpdateLoading(true);
+      try {
+        const dateStr = spreadSheetDate;
+        
+        // 1. Get active photographers
+        const activePhotographers = cityIsolatedPhotographers.filter(p => p.active === true);
+        
+        // 2. Fetch log events for SEND_UPDATE_COMPLETED around dateStr
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const start = new Date(year, month - 1, day - 1, 0, 0, 0); // Widen range to be timezone safe
+        const end = new Date(year, month - 1, day + 2, 23, 59, 59);
+        
+        const { data: logs, error: logsError } = await supabase
+          .from('log_events')
+          .select('*')
+          .eq('type', 'SEND_UPDATE_COMPLETED')
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString());
+          
+        if (logsError) throw logsError;
+        
+        // Filter logs by operational date in JS
+        const sentUpdateUserIds = new Set(
+          (logs || [])
+            .filter(le => getOperationalDateString(new Date(le.created_at)) === dateStr)
+            .map(le => le.actor_user_id)
+        );
+        
+        // 3. Fetch leaves for dateStr
+        const { data: leaves, error: leavesError } = await supabase
+          .from('leaves')
+          .select('*')
+          .eq('date', dateStr);
+          
+        if (leavesError) throw leavesError;
+
+        // 4. Fetch all deliveries for dateStr directly (so we see ASSIGNED / UNASSIGNED / DONE / etc.)
+        const { data: dayDeliveriesRaw, error: deliveriesError } = await supabase
+          .from('deliveries')
+          .select('*')
+          .eq('date', dateStr)
+          .is('deleted_at', null);
+
+        if (deliveriesError) throw deliveriesError;
+        
+        // 5. Process each photographer
+        const results = activePhotographers.map(p => {
+          // Deliveries assigned to this photographer on this date
+          const dayDeliveries = (dayDeliveriesRaw || []).filter(d => 
+            d.assigned_user_id === p.id
+          );
+          
+          const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
+          const totalCount = dayDeliveries.length;
+          const hasSentUpdate = sentUpdateUserIds.has(p.id);
+          
+          // Determine leave status
+          const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
+          let leaveText = null;
+          if (userLeaves.length >= 2) {
+            leaveText = 'Full Day Leave';
+          } else if (userLeaves.length === 1) {
+            leaveText = userLeaves[0].half === 'FIRST_HALF' ? '1st Half Leave' : '2nd Half Leave';
+          }
+          
+          return {
+            photographerId: p.id,
+            name: p.name,
+            completedCount,
+            totalCount,
+            hasSentUpdate,
+            leaveText
+          };
+        });
+        
+        // 6. Filter results: Keep only those who:
+        // - Completed 0 deliveries (completedCount === 0)
+        // - OR missed send update (hasSentUpdate === false)
+        // (i.e. exclude those who completed > 0 AND sent update)
+        const filteredResults = results.filter(r => 
+          r.completedCount === 0 || !r.hasSentUpdate
+        );
+        
+        setMissedSendUpdateData(filteredResults);
+      } catch (err) {
+        console.error('Failed to fetch missed send update audit data:', err);
+        toast.error('Failed to load audit results');
+      } finally {
+        setMissedSendUpdateLoading(false);
+      }
+    };
+    
+    fetchAuditData();
+  }, [viewMode, spreadSheetDate, cityIsolatedPhotographers, user]);
 
   // V1 CRITICAL: Enforce admin-only access for screenshot galleries
   // If non-admin attempts to access payment/follow views, redirect to spreadsheet
@@ -990,6 +1194,10 @@ export function ViewScreen() {
 
   // Add new row handlers
   const handleStartAddRow = () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can add new delivery rows');
+      return;
+    }
     setNewRowData({
       date: getOperationalDateString(),
       showroom_id: '',
@@ -1006,6 +1214,10 @@ export function ViewScreen() {
   };
 
   const handleSaveNewRow = async () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can add new delivery rows');
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1013,6 +1225,7 @@ export function ViewScreen() {
       // Validate required fields
       if (!newRowData.date || !newRowData.showroom_id) {
         toast.error('Please fill in required fields: Date and Showroom');
+        setIsSubmitting(false);
         return;
       }
 
@@ -1090,7 +1303,9 @@ export function ViewScreen() {
         assigned_user_id: user?.id || null, // V1 FIX: Auto-assign to current user
         footage_link: newRowData.footage_link || null,
         payment_type: selectedDealership.paymentType,
-        received_amount: newRowData.received_amount ? parseFloat(newRowData.received_amount) : undefined,
+        received_amount: newRowData.received_amount 
+          ? parseFloat(newRowData.received_amount) 
+          : (selectedDealership.paymentType === 'DEALER_PAID' ? selectedDealership.ratePerDelivery : undefined),
         customer_phone: newRowData.customer_phone || undefined,
         rapido_charge: newRowData.rapido_charge ? parseFloat(newRowData.rapido_charge) : undefined,
         created_at: new Date().toISOString(),
@@ -1098,7 +1313,7 @@ export function ViewScreen() {
       };
 
       // Add reel_link if provided
-      (newDelivery as any).reel_link = newRowData.reel_link || '';
+      (newDelivery as any).reel_link = newRowData.reel_link && newRowData.reel_link.trim() !== '' ? newRowData.reel_link.trim() : null;
 
       // V1 SPEC: Replace the placeholder row with the actual delivery
       // and update edit history for undo/redo  
@@ -1200,12 +1415,6 @@ export function ViewScreen() {
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
     return screenshotList.filter(s => {
-      // Date filter
-      if (selectedDate !== 'all') {
-        const screenshotDate = getOperationalDateString(new Date(s.uploaded_at));
-        if (screenshotDate !== selectedDate) return false;
-      }
-
       // Photographer filter
       if (selectedPhotographer !== 'all' && s.user_id !== selectedPhotographer) {
         return false;
@@ -1276,6 +1485,7 @@ export function ViewScreen() {
                         <SelectItem value="platform_payment" className="pl-6 text-sm">Yourphotocrew Payments</SelectItem>
                         <SelectItem value="fraud_detection" className="pl-6 text-sm">Fraud Detection</SelectItem>
                         <SelectItem value="logs" className="pl-6 text-sm">Admin Logs</SelectItem>
+                        <SelectItem value="missed_send_update" className="pl-6 text-sm">Missed Send Update/Covered 0 delivery</SelectItem>
                       </>
                     )}
                   </SelectContent>
@@ -1844,7 +2054,8 @@ export function ViewScreen() {
                         })}
 
                       {/* Add New Row Dialog */}
-                      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      {isAdmin && (
+                        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                         <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
                           <DialogHeader className="px-6 py-4 border-b">
                             <DialogTitle>Add New Delivery Record</DialogTitle>
@@ -1898,6 +2109,20 @@ export function ViewScreen() {
                             </div>
 
                             {/* CONDITIONAL PAYMENT FIELDS */}
+                            {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'DEALER_PAID' && (
+                              <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-semibold uppercase text-blue-500">Payment Amount (Optional)</label>
+                                  <Input
+                                    type="number"
+                                    value={newRowData.received_amount}
+                                    onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
+                                    placeholder="Defaults to dealership rate"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
                             {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'CUSTOMER_PAID' && (
                               <div className="grid grid-cols-2 gap-4 border-t pt-4">
                                 <div className="space-y-2">
@@ -2012,17 +2237,94 @@ export function ViewScreen() {
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
 
 
                 {/* Add New Row Button */}
-                <div className="mt-4">
-                  <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
-                    <Plus className="h-4 w-4" />
-                    Add New Delivery Row
-                  </Button>
+                {isAdmin && (
+                  <div className="mt-4">
+                    <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
+                      <Plus className="h-4 w-4" />
+                      Add New Delivery Row
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Shared Screenshot Galleries Filters */}
+          {['payment', 'follow', 'rapido', 'platform_payment', 'fraud_detection'].includes(viewMode) && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Showroom/Dealership Filter */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Dealership</label>
+                    <SearchableSelect
+                      options={[
+                        { label: "All Dealerships", value: "all" },
+                        ...dealerships.slice().sort((a, b) => a.name.localeCompare(b.name)).map(d => ({
+                          label: d.name,
+                          value: d.id
+                        }))
+                      ]}
+                      value={selectedShowroom}
+                      onValueChange={setSelectedShowroom}
+                      placeholder="Select dealership"
+                    />
+                  </div>
+
+                  {/* Date Filter */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-gray-600">Filter by Date</label>
+                      <div className="flex items-center gap-1.5">
+                        <input 
+                          type="checkbox" 
+                          id="galleryShowAllTime" 
+                          checked={showAllTime} 
+                          onChange={(e) => setShowAllTime(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor="galleryShowAllTime" className="text-xs text-gray-500 cursor-pointer">Show All Time</label>
+                      </div>
+                    </div>
+                    <Input
+                      type="date"
+                      value={spreadSheetDate}
+                      onChange={(e) => {
+                        setSpreadSheetDate(e.target.value);
+                        setShowAllTime(false);
+                      }}
+                      disabled={showAllTime}
+                      className={showAllTime ? 'opacity-50 h-9' : 'h-9'}
+                    />
+                  </div>
+
+                  {/* Photographer Filter */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Photographer</label>
+                    <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All photographers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Photographers</SelectItem>
+                        {uniquePhotographers.map(userId => {
+                          const photographer = allUsers.find(p => p.id === userId);
+                          return (
+                            <SelectItem key={userId} value={userId}>
+                              {photographer?.name || 'Unknown'}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -2031,52 +2333,6 @@ export function ViewScreen() {
           {/* Payment Screenshots Gallery */}
           {viewMode === 'payment' && (
             <div className="space-y-4">
-              {/* V1 SPEC: Filters */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Date</label>
-                      <Select value={selectedDate} onValueChange={setSelectedDate}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All dates" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Dates</SelectItem>
-                          {uniqueDates.map(date => (
-                            <SelectItem key={date} value={date}>
-                              {new Date(date).toLocaleDateString('en-IN', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Photographer</label>
-                      <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All photographers" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Photographers</SelectItem>
-                          {uniquePhotographers.map(userId => {
-                            const photographer = allUsers.find(p => p.id === userId);
-                            return (
-                              <SelectItem key={userId} value={userId}>
-                                {photographer?.name || 'Unknown'}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
               <div className="flex items-center justify-between">
                 <div>
@@ -2179,6 +2435,12 @@ export function ViewScreen() {
                           {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Amount Received:</span>
+                        <span className="text-sm font-semibold text-green-600 mt-1">
+                          {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount ? `₹${deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount}` : 'N/A'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2234,6 +2496,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs font-semibold text-green-600 mt-1">
+                                  Amount Received: {delivery?.received_amount ? `₹${delivery.received_amount}` : 'N/A'}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
@@ -2802,6 +3067,218 @@ export function ViewScreen() {
             </div>
           )}
 
+          {/* Fraud Detection Screenshots Gallery */}
+          {viewMode === 'fraud_detection' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Fraud Detection Gallery</h2>
+                  <p className="text-sm text-gray-500">Admin-only view • Binary artifacts storage</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-[#2563EB] text-white">{filteredFraudDetectionScreenshots.length} images</Badge>
+                  <Button
+                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
+                  >
+                    <Grid className="h-4 w-4 mr-2" />
+                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
+              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
+                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
+                </p>
+              </div>
+
+              {/* V1 SPEC: Screenshot gallery is NOT spreadsheet - distinct mental model */}
+              <div className="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded text-sm">
+                <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-700" />
+                <div className="text-purple-800">
+                  <p className="font-medium">Gallery Mode (Not Spreadsheet)</p>
+                  <p className="text-xs text-purple-700 mt-1">
+                    This is a separate binary artifacts view. Screenshot deletion does NOT affect spreadsheet data, delivery status, or reopen tasks.
+                  </p>
+                </div>
+              </div>
+
+              {filteredFraudDetectionScreenshots.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-gray-500">No fraud detection screenshots available</p>
+                  </CardContent>
+                </Card>
+              ) : galleryViewMode === 'single' ? (
+                /* Single view */
+                <Card>
+                  <CardContent className="p-6 space-y-4">
+                    {/* Image */}
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={filteredFraudDetectionScreenshots[currentImageIndex]?.file_url}
+                        alt="Fraud Detection Screenshot"
+                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
+                      />
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === 0}
+                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        {currentImageIndex + 1} / {filteredFraudDetectionScreenshots.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentImageIndex === filteredFraudDetectionScreenshots.length - 1}
+                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredFraudDetectionScreenshots.length - 1, prev + 1))}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+
+                    {/* Metadata */}
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Showroom Name:</span>
+                        <span className="text-sm text-gray-900">
+                          {(() => {
+                            const code = filteredFraudDetectionScreenshots[currentImageIndex]?.showroom_code;
+                            const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
+                            return dealership ? getShowroomDisplayName(dealership.id) : (code === 'GENERAL' ? 'Unassigned (General)' : code || 'Unknown');
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
+                        <span className="text-sm text-gray-600">
+                          {allUsers.find(p => p.id === filteredFraudDetectionScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Uploaded At:</span>
+                        <span className="text-sm text-gray-500">
+                          {new Date(filteredFraudDetectionScreenshots[currentImageIndex]?.uploaded_at).toLocaleString('en-IN', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Customer Deliveries Done:</span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {(() => {
+                            const screenshot = filteredFraudDetectionScreenshots[currentImageIndex];
+                            if (!screenshot) return 0;
+                            const targetDate = getOperationalDateString(new Date(screenshot.uploaded_at));
+                            return deliveries.filter(d => 
+                              d.showroom_code === screenshot.showroom_code &&
+                              d.assigned_user_id === screenshot.user_id &&
+                              d.payment_type === 'CUSTOMER_PAID' &&
+                              d.status === 'DONE' &&
+                              d.date === targetDate
+                            ).length;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
+                          handleDeleteScreenshot(filteredFraudDetectionScreenshots[currentImageIndex]?.id);
+                          if (currentImageIndex >= filteredFraudDetectionScreenshots.length - 1) {
+                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Screenshot
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                /* Grid view */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredFraudDetectionScreenshots.map((screenshot, index) => {
+                    const code = screenshot.showroom_code;
+                    const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
+                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
+                    return (
+                      <Card
+                        key={screenshot.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+                        onClick={() => {
+                          setCurrentImageIndex(index);
+                          setGalleryViewMode('single');
+                        }}
+                      >
+                        <CardContent className="p-0">
+                          <img
+                            src={screenshot.file_url}
+                            alt="Fraud Detection Screenshot"
+                            className="w-full h-64 object-cover"
+                          />
+                          <div className="p-4 space-y-2 bg-white">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate text-gray-900">
+                                  {dealership ? getShowroomDisplayName(dealership.id) : (code === 'GENERAL' ? 'Unassigned (General)' : code || 'Unknown Showroom')}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </div>
+                                <div className="text-xs font-semibold text-blue-600 mt-1">
+                                  Customer Deliveries: {(() => {
+                                    const targetDate = getOperationalDateString(new Date(screenshot.uploaded_at));
+                                    return deliveries.filter(d => 
+                                      d.showroom_code === screenshot.showroom_code &&
+                                      d.assigned_user_id === screenshot.user_id &&
+                                      d.payment_type === 'CUSTOMER_PAID' &&
+                                      d.status === 'DONE' &&
+                                      d.date === targetDate
+                                    ).length;
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Live Portrait Bookings */}
           {viewMode === 'portrait' && (
             <LiveBookingsView />
@@ -2810,6 +3287,135 @@ export function ViewScreen() {
           {/* Admin Logs Viewer */}
           {viewMode === 'logs' && (
             <AdminLogsViewer />
+          )}
+
+          {/* Missed Send Update / Covered 0 Delivery View */}
+          {viewMode === 'missed_send_update' && (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Missed Send Update / 0 Delivery</h2>
+                  <p className="text-sm text-gray-500">Audit daily activity and daily update submissions</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-[#E11D48] text-white">
+                    {missedSendUpdateData.length} photographers
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Date Selector Card */}
+              <Card>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-sm text-gray-700">Select Audit Date</h3>
+                    <p className="text-xs text-gray-500">Auditing activity and updates for this specific date</p>
+                  </div>
+                  <div className="w-full sm:w-64">
+                    <Input
+                      type="date"
+                      value={spreadSheetDate}
+                      onChange={(e) => {
+                        setSpreadSheetDate(e.target.value);
+                        setShowAllTime(false);
+                      }}
+                      className="h-9"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Results */}
+              {missedSendUpdateLoading ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-400">
+                    <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <span>Loading audit data for {spreadSheetDate}...</span>
+                  </CardContent>
+                </Card>
+              ) : missedSendUpdateData.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-500">
+                    <p className="font-medium text-green-600 mb-1">All clear! 🎉</p>
+                    <p className="text-xs text-gray-400">Every photographer either completed deliveries and sent their update, or had no activity to report.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {missedSendUpdateData.map(p => {
+                    const hasZeroDeliveries = p.completedCount === 0;
+                    const hasMissedUpdate = !p.hasSentUpdate;
+
+                    return (
+                      <Card key={p.photographerId} className={`border transition-all hover:shadow-md ${
+                        hasMissedUpdate && !hasZeroDeliveries
+                          ? 'border-red-100 bg-red-50/10'
+                          : hasZeroDeliveries && p.leaveText
+                            ? 'border-blue-100 bg-blue-50/10'
+                            : 'border-amber-100 bg-amber-50/10'
+                      }`}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-base font-bold text-gray-900">{p.name}</CardTitle>
+                              <CardDescription className="text-xs text-gray-500">
+                                ID: {p.photographerId.substring(0, 8)}...
+                              </CardDescription>
+                            </div>
+                            <div className="flex flex-col gap-1 items-end">
+                              {p.leaveText && (
+                                <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                                  {p.leaveText}
+                                </Badge>
+                              )}
+                              {hasZeroDeliveries ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+                                  0 Deliveries
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-semibold">
+                                  {p.completedCount} / {p.totalCount} Done
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2 text-xs text-gray-700">
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Deliveries Completed:</span>
+                              <span className="font-bold">{p.completedCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Total Deliveries:</span>
+                              <span className="font-bold">{p.totalCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-b pb-1.5">
+                              <span className="text-gray-500">End-of-Day Update status:</span>
+                              <span className={`font-bold ${p.hasSentUpdate ? 'text-green-600' : 'text-red-600'}`}>
+                                {p.hasSentUpdate ? 'COMPLETED' : 'MISSED'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Individual Nudge Button */}
+                          {!p.hasSentUpdate && !hasZeroDeliveries && (
+                            <Button
+                              onClick={() => handleNudgePhotographer(p.photographerId, p.name, p.totalCount - p.completedCount)}
+                              className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs py-2 h-8"
+                            >
+                              <BellRing className="h-3 w-3 mr-1.5" />
+                              Nudge Photographer
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Audit & Nudge Dialog */}

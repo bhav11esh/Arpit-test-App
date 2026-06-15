@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 const SCREENSHOT_BUCKET = 'screenshots';
-const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 // Generate thumbnail from image (client-side)

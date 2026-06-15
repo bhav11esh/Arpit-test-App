@@ -1,0 +1,11 @@
+﻿TOTAL TODAY: 10
+- [cc93544c-6592-469b-a78c-f2a7d65297f8] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [bdec842f-3c9e-406e-894f-350668babec9] 05-02-2026_KHIVRAJ_TRIUMPH_16_30 | Showroom: KHIVRAJ_TRIUMPH | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [b074f567-2cff-4e98-9a74-608d0250c364] 05-02-2026_KHIVRAJ_TRIUMPH_14_00 | Showroom: KHIVRAJ_TRIUMPH | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [6d886a46-5dcb-47cd-a34e-a720449fa958] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [bf4a88ed-3917-4745-a9c9-1a1ad6a96971] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [3f83d649-8963-40e5-abc1-6d258b399656] 05-02-2026_KHIVRAJ_TRIUMPH_12_30 | Showroom: KHIVRAJ_TRIUMPH | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [e018a8e6-c207-48fa-815f-617a5a803250] 05-02-2026_KHIVRAJ_TRIUMPH_14_30 | Showroom: KHIVRAJ_TRIUMPH | Status: REJECTED | Assigned: NO (null) | RejectedByAll: true
+- [ed0a3ec2-87b5-42d7-8b58-8b1caf4dc4b6] 05-02-2026_NANDI_TOYOTA_09_00 | Showroom: NANDI_TOYOTA | Status: ASSIGNED | Assigned: NO (bc268775-f79f-4400-b10b-bea4ba1dc762) | RejectedByAll: false
+- [1520acf9-a51a-44f5-bc94-b1d3adb128dc] 05-02-2026_NANDI_TOYOTA_11_00 | Showroom: NANDI_TOYOTA | Status: ASSIGNED | Assigned: NO (bc268775-f79f-4400-b10b-bea4ba1dc762) | RejectedByAll: false
+- [239de8fd-c462-48f2-898f-c6d53d8e0469] 05-02-2026_NANDI_TOYOTA_17_30 | Showroom: NANDI_TOYOTA | Status: ASSIGNED | Assigned: NO (bc268775-f79f-4400-b10b-bea4ba1dc762) | RejectedByAll: false

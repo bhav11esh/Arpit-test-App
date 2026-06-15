@@ -1,0 +1,14 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ≡ƒ¢á∩╕Å  run anywhere with `dotenvx run -- yourcommand`
+Finding unique showroom_code values in deliveries...
+Unique Codes: [
+  'NANDI_TOYOTA',
+  'KATARIA_ARENA',
+  'Nandi toyota',
+  'BHARAT_TOYOTA',
+  'KATARIA_NEXA',
+  'KHIVRAJ_TRIUMPH',
+  'KTM_POPULAR',
+  'BIMAL_NEXA',
+  'APPLE_AUTO_VOLKSWAGEN',
+  'AKSHAYA_MERCEDES'
+]

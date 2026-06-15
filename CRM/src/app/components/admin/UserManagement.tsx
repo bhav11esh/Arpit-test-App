@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as usersDb from '../../lib/db/users';
+import { adminSupabase } from '../../lib/supabase';
 import type { User, UserRole } from '../../types';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -23,22 +24,23 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Users, Plus, Edit, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Badge } from '../ui/badge';
+import { Users, Plus, Edit, Trash2, AlertCircle, CheckCircle2, Key, Clock, MapPin, MapPinOff, Signal, SignalLow } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'PHOTOGRAPHER' as UserRole,
     active: true,
-    cluster_code: '',
+    city: '',
   });
 
   useEffect(() => {
@@ -58,6 +60,11 @@ export function UserManagement() {
     }
   };
 
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
   const handleOpenDialog = (user?: User) => {
     if (user) {
       setEditingUser(user);
@@ -66,7 +73,7 @@ export function UserManagement() {
         email: '', // Email shouldn't be editable
         role: user.role,
         active: user.active,
-        cluster_code: user.cluster_code || '',
+        city: user.city || '',
       });
     } else {
       setEditingUser(null);
@@ -75,7 +82,7 @@ export function UserManagement() {
         email: '',
         role: 'PHOTOGRAPHER',
         active: true,
-        cluster_code: '',
+        city: currentUser?.city || '', // Default to current admin's city
       });
     }
     setIsDialogOpen(true);
@@ -89,7 +96,7 @@ export function UserManagement() {
       email: '',
       role: 'PHOTOGRAPHER',
       active: true,
-      cluster_code: '',
+      city: '',
     });
   };
 
@@ -97,27 +104,75 @@ export function UserManagement() {
     e.preventDefault();
     setError(null);
 
+    setSubmitting(true);
     try {
       if (editingUser) {
+        // 1. Update DB
         await usersDb.updateUser(editingUser.id, {
           name: formData.name,
           role: formData.role,
           active: formData.active,
-          cluster_code: formData.cluster_code || undefined,
+          city: formData.city.toLowerCase().trim() || undefined,
         });
+
+        // 2. V6.0 SYNC: Update Auth Metadata to prevent flickering Fallbacks
+        if (adminSupabase && editingUser.id) {
+          await adminSupabase.auth.admin.updateUserById(editingUser.id, {
+            user_metadata: {
+              role: formData.role,
+              city: formData.city.toLowerCase().trim()
+            }
+          });
+          console.log('✅ Auth metadata synced for', editingUser.email);
+        }
+
         toast.success('User updated successfully');
       } else {
         if (!formData.email) {
           setError('Email is required');
+          setSubmitting(false);
           return;
         }
-        await usersDb.createUser({
+
+        // V1 FIX: Pre-check for existing user to give better error message
+        const existingUser = await usersDb.getUserByEmail(formData.email);
+        if (existingUser) {
+          throw new Error('A user with this email already exists.');
+        }
+
+        if (!adminSupabase) {
+          throw new Error('Admin privileges required to create users. Service role key not configured.');
+        }
+
+        // 1. Create Auth User
+        const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+          email: formData.email,
+          password: 'TemporaryPassword123!', // Ensure admin resets this immediately
+          email_confirm: true,
+          user_metadata: {
+            name: formData.name,
+            role: formData.role,
+            city: formData.city.toLowerCase().trim()
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (!authData.user) {
+            throw new Error('Failed to create auth user');
+        }
+
+        // 2. Create in DB using the correct Auth ID
+        await usersDb.createUserWithId({
+          id: authData.user.id,
           name: formData.name,
           email: formData.email,
           role: formData.role,
           active: formData.active,
-          cluster_code: formData.cluster_code || undefined,
+          city: formData.city.toLowerCase().trim() || undefined,
+          last_gps_status: 'UNKNOWN',
         });
+
         toast.success('User created successfully');
       }
       handleCloseDialog();
@@ -126,6 +181,8 @@ export function UserManagement() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save user';
       setError(errorMessage);
       toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -141,6 +198,23 @@ export function UserManagement() {
       loadUsers();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update user status');
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !newPassword) return;
+
+    setSubmitting(true);
+    try {
+      await usersDb.adminUpdateUserPassword(editingUser.id, newPassword);
+      toast.success(`Password updated for ${editingUser.name}`);
+      setIsPasswordDialogOpen(false);
+      setNewPassword('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -192,13 +266,17 @@ export function UserManagement() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-lg">{user.name}</h3>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        user.role === 'ADMIN' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${user.role === 'ADMIN'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-blue-100 text-blue-800'
+                        }`}>
                         {user.role}
                       </span>
+                      {user.city && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                          {user.city}
+                        </Badge>
+                      )}
                       {user.active ? (
                         <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
@@ -210,11 +288,49 @@ export function UserManagement() {
                         </span>
                       )}
                     </div>
-                    {user.cluster_code && (
-                      <p className="text-sm text-gray-600 mt-1">Cluster: {user.cluster_code}</p>
-                    )}
+                    {/* User info display */}
+                    <div className="flex flex-wrap items-center gap-4 mt-2">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          {user.last_active
+                            ? `Active ${formatDistanceToNow(new Date(user.last_active), { addSuffix: true })}`
+                            : 'Never active'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        {user.last_gps_status === 'ON' ? (
+                          <span className="text-green-600 flex items-center gap-1">
+                            <Signal className="h-4 w-4" />
+                            GPS ON
+                          </span>
+                        ) : user.last_gps_status === 'OFF' ? (
+                          <span className="text-red-600 flex items-center gap-1">
+                            <MapPinOff className="h-4 w-4" />
+                            GPS OFF
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 flex items-center gap-1">
+                            <SignalLow className="h-4 w-4" />
+                            GPS UNKNOWN
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingUser(user);
+                        setIsPasswordDialogOpen(true);
+                      }}
+                      title="Change Password"
+                    >
+                      <Key className="h-4 w-4 text-amber-600" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -296,12 +412,12 @@ export function UserManagement() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cluster_code">Cluster Code (Optional)</Label>
+                <Label htmlFor="city">City</Label>
                 <Input
-                  id="cluster_code"
-                  value={formData.cluster_code}
-                  onChange={(e) => setFormData({ ...formData, cluster_code: e.target.value })}
-                  placeholder="e.g., NORTH"
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="e.g., bengaluru"
                 />
               </div>
               <div className="flex items-center space-x-2">
@@ -316,10 +432,55 @@ export function UserManagement() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit">{editingUser ? 'Update' : 'Create'}</Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Plus className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>{editingUser ? 'Update' : 'Create'}</>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{editingUser?.name}</strong> ({editingUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePasswordReset}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new secure password"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting || !newPassword}>
+                {submitting ? 'Updating...' : 'Update Password'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

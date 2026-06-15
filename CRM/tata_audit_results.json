@@ -1,0 +1,21 @@
+{
+  "totalSheetRows": 92,
+  "totalCrmRecords": 91,
+  "perfectMatches": 90,
+  "discrepancies": [],
+  "missingInCRM": [
+    {
+      "row": 37,
+      "date": "O4/11/2025",
+      "customer": "",
+      "link": "https://drive.google.com/drive/folders/1merzNo9QhmaqEEhObuxY4GUoBOqp9Faf?usp=sharing"
+    }
+  ],
+  "multipleMatches": [],
+  "extraInCRM": [
+    {
+      "id": "faa3d9d0-eea7-4a2c-a48d-2979011f2b74",
+      "name": "Delivery_2026-01-03_58"
+    }
+  ]
+}

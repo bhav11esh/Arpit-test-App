@@ -30,11 +30,13 @@
 export type UserRole = 'ADMIN' | 'PHOTOGRAPHER';
 
 // V1 SPEC: No DONE status exists - SEND UPDATE is the only closure
-export type DeliveryStatus = 
+export type DeliveryStatus =
   | 'ASSIGNED'
   | 'UNASSIGNED' // All deliveries not currently assigned (fresh or previously assigned)
   | 'REJECTED'
+  | 'REJECTED_CUSTOMER' // Terminal: rejected by customer
   | 'POSTPONED_CANCELED' // Combined status for deliveries that are postponed or canceled
+  | 'CANCELED' // Separate status used in some UI logic
   | 'DONE'; // Terminal state after SEND UPDATE
 
 // V1 CRITICAL: Decision state for Accept/Reject workflow
@@ -48,7 +50,7 @@ export type DecisionState = 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL';
 // - CLOSED: Photographer has triggered SEND UPDATE - no further actions allowed
 export type PhotographerDayState = 'ACTIVE' | 'CLOSED';
 
-export type ScreenshotType = 'PAYMENT' | 'FOLLOW';
+export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION';
 
 export type PaymentType = 'CUSTOMER_PAID' | 'DEALER_PAID';
 
@@ -59,9 +61,17 @@ export type ReelStatus = 'PENDING' | 'RESOLVED';
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   active: boolean;
+  phone_number?: string | null;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
+  last_active?: string; // ISO timestamp of last app check-in
+  last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
+  city?: string; // V6.0: For city-level admin isolation
+  payout_model?: 'PERCENTAGE' | 'FIXED';
+  fixed_start_date?: string; // YYYY-MM-DD
+  fixed_end_date?: string; // YYYY-MM-DD
 }
 
 export interface Delivery {
@@ -83,6 +93,7 @@ export interface Delivery {
   assigned_user_id: string | null;
   payment_type: PaymentType;
   footage_link: string | null;
+  reel_link?: string | null; // V1 SPEC: Added for ViewScreen sync
   created_at: string;
   updated_at: string;
   // V1 CRITICAL: Decision state tracks the collective Accept/Reject outcome
@@ -97,11 +108,16 @@ export interface Delivery {
   unassignment_timestamp?: string;
   unassignment_by?: string;
   creation_index?: number; // V1 SPEC: _1/_2/_3 is permanent creation index, never changes, even when timing is added
+  received_amount?: number;
+  customer_phone?: string;
+  rapido_charge?: number;
+  deleted_at?: string; // V6.0: For 'Safe Delete' flow
 }
 
 export interface Screenshot {
   id: string;
-  delivery_id: string;
+  delivery_id: string | null;
+  showroom_code?: string;
   user_id: string;
   type: ScreenshotType;
   file_url: string;
@@ -117,6 +133,12 @@ export interface ReelTask {
   reel_link: string | null;
   status: ReelStatus;
   reassigned_reason: string | null;
+  deadline?: string | null;
+  is_post_it?: boolean;
+  original_user_id?: string | null;
+  claim_deadline?: string | null;
+  failed_claimants?: string[];
+  post_it_reward?: number | null;
 }
 
 export interface LogEvent {
@@ -150,16 +172,19 @@ export interface AcceptRejectPrompt {
 export interface Cluster {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
+  city?: string; // V6.0: For city-level isolation
 }
 
 export interface Dealership {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
   paymentType: PaymentType;
+  googleSheetId?: string;
+  googleSyncUrl?: string;
+  ratePerDelivery?: number;
+  latitude?: number;
+  longitude?: number;
+  city?: string; // V6.0: For showroom-level branch identification
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';
@@ -168,8 +193,10 @@ export interface Mapping {
   id: string;
   clusterId: string;
   dealershipId: string;
-  photographerId: string;
+  photographerId: string | null;
   mappingType: MappingType; // PRIMARY or SECONDARY
+  latitude: number;
+  longitude: number;
 }
 
 // V1 LEAVE MANAGEMENT
@@ -186,6 +213,13 @@ export interface Leave {
   half: LeaveHalf; // FIRST_HALF or SECOND_HALF
   appliedBy: LeaveAppliedBy; // Who created this leave
   appliedAt: string; // ISO timestamp
+}
+
+export interface DeliveryRejection {
+  id: string;
+  delivery_id: string;
+  user_id: string;
+  rejected_at: string;
 }
 
 /**

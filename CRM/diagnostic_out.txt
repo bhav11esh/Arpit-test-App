@@ -1,0 +1,95 @@
+﻿--- USER INFO ---
+[
+  {
+    "id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+    "email": "pavanmanne735@gmail.com",
+    "name": "Mallikarjun",
+    "role": "PHOTOGRAPHER",
+    "active": true,
+    "cluster_code": null,
+    "created_at": "2026-02-03T19:59:41.962641+00:00",
+    "updated_at": "2026-02-03T19:59:41.962641+00:00"
+  }
+]
+
+--- DELIVERIES TODAY ---
+- [ed0a3ec2-87b5-42d7-8b58-8b1caf4dc4b6] 05-02-2026_NANDI_TOYOTA_09_00 | Showroom: NANDI_TOYOTA | Cluster: Whitefield-Indiranagar | Status: ASSIGNED | ShowroomType: PRIMARY
+- [239de8fd-c462-48f2-898f-c6d53d8e0469] 05-02-2026_NANDI_TOYOTA_17_30 | Showroom: NANDI_TOYOTA | Cluster: Whitefield-Indiranagar | Status: ASSIGNED | ShowroomType: PRIMARY
+- [e018a8e6-c207-48fa-815f-617a5a803250] 05-02-2026_KHIVRAJ_TRIUMPH_14_30 | Showroom: KHIVRAJ_TRIUMPH | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [1520acf9-a51a-44f5-bc94-b1d3adb128dc] 05-02-2026_NANDI_TOYOTA_10_30 | Showroom: NANDI_TOYOTA | Cluster: Whitefield-Indiranagar | Status: ASSIGNED | ShowroomType: PRIMARY
+- [cc93544c-6592-469b-a78c-f2a7d65297f8] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [bf4a88ed-3917-4745-a9c9-1a1ad6a96971] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [bdec842f-3c9e-406e-894f-350668babec9] 05-02-2026_KHIVRAJ_TRIUMPH_16_30 | Showroom: KHIVRAJ_TRIUMPH | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [3f83d649-8963-40e5-abc1-6d258b399656] 05-02-2026_KHIVRAJ_TRIUMPH_12_30 | Showroom: KHIVRAJ_TRIUMPH | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [b074f567-2cff-4e98-9a74-608d0250c364] 05-02-2026_KHIVRAJ_TRIUMPH_14_00 | Showroom: KHIVRAJ_TRIUMPH | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+- [6d886a46-5dcb-47cd-a34e-a720449fa958] 05-02-2026_PPS_MAHINDRA_17_30 | Showroom: PPS_MAHINDRA | Cluster: Whitefield-Indiranagar | Status: REJECTED | ShowroomType: SECONDARY
+
+--- MAPPINGS ---
+[
+  {
+    "id": "deaca341-f853-432d-9272-f0693811ade9",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "724e0be7-58cf-445d-a9fe-eba9b34470fd",
+    "photographer_id": "8f053ed2-788b-4fa9-99f5-88ac1f4c85af",
+    "mapping_type": "PRIMARY",
+    "created_at": "2026-02-03T16:53:14.479358+00:00",
+    "updated_at": "2026-02-03T16:53:14.479358+00:00",
+    "latitude": 12.988951775624,
+    "longitude": 77.68865726845
+  },
+  {
+    "id": "00fae552-c7c0-42cc-870f-b277ec92e533",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "4e2d6e16-bb54-4071-9e75-bf55d37d6684",
+    "photographer_id": "6c1d0f86-9cf4-4028-9e96-2919800f5190",
+    "mapping_type": "PRIMARY",
+    "created_at": "2026-02-03T16:54:51.92502+00:00",
+    "updated_at": "2026-02-03T16:54:51.92502+00:00",
+    "latitude": 12.9950912321,
+    "longitude": 77.6849
+  },
+  {
+    "id": "c459d6ee-147b-462a-bbf3-13387b319652",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "a61d3a21-b946-4d0a-986e-9991448e1074",
+    "photographer_id": null,
+    "mapping_type": "SECONDARY",
+    "created_at": "2026-02-03T18:02:57.187976+00:00",
+    "updated_at": "2026-02-03T18:02:57.187976+00:00",
+    "latitude": 12.9822255,
+    "longitude": 77.640828
+  },
+  {
+    "id": "f40beacb-91a9-4959-864f-101c3f6fb022",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "272cf8fb-ced5-45ce-974d-17fb9db65d38",
+    "photographer_id": null,
+    "mapping_type": "SECONDARY",
+    "created_at": "2026-02-03T18:05:06.65427+00:00",
+    "updated_at": "2026-02-03T18:05:06.65427+00:00",
+    "latitude": 12.99998474679,
+    "longitude": 77.6861385349
+  },
+  {
+    "id": "e4627211-947f-4be4-9937-96b2c201c3fd",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "a93bf6ee-7698-47ea-bd32-1fe441ae3486",
+    "photographer_id": "41b035b1-4391-4347-af95-ae9876328146",
+    "mapping_type": "PRIMARY",
+    "created_at": "2026-02-03T18:07:45.998566+00:00",
+    "updated_at": "2026-02-03T18:07:45.998566+00:00",
+    "latitude": 12.969464,
+    "longitude": 77.641139
+  },
+  {
+    "id": "993a24c7-b074-4772-b0c8-838fb296fdf8",
+    "cluster_id": "f04b406f-48ee-489a-88a5-f7fec926ccc4",
+    "dealership_id": "92f642a5-563f-471e-a804-173fbadc71a3",
+    "photographer_id": "bc268775-f79f-4400-b10b-bea4ba1dc762",
+    "mapping_type": "PRIMARY",
+    "created_at": "2026-02-04T10:40:35.426511+00:00",
+    "updated_at": "2026-02-04T10:40:35.426511+00:00",
+    "latitude": 12.977766,
+    "longitude": 77.711145
+  }
+]

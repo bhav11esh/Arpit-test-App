@@ -1,0 +1,15 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+Checking dealership configuration for Skoda Karr...
+Dealership Data: {
+  "id": "b3034732-d979-4c69-861e-84d3a32adfe4",
+  "name": "Skoda Karr",
+  "latitude": 0,
+  "longitude": 0,
+  "payment_type": "DEALER_PAID",
+  "created_at": "2026-02-11T10:30:44.15512+00:00",
+  "updated_at": "2026-03-19T09:28:38.068866+00:00",
+  "google_sheet_id": "1uU-YZhZ0OK_CI3KOJvs1fHD3EBROBUpbRlceBKA17ws",
+  "rate_per_delivery": 500,
+  "city": "bengaluru",
+  "google_sync_url": "https://script.google.com/macros/s/AKfycbxXZnQvkpnNwWwHZL69BzFOTEbxR1t-F5MOZ9c0uXJCg1f9qB3q9RtS0rEWXj1M1ti6/exec"
+}

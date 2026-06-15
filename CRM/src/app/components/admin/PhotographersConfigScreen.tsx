@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { ArrowLeft, Plus, Edit, Trash2, User, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, User, UserCheck, UserX, Film } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
 import type { User as UserType } from '../../types';
@@ -27,21 +27,43 @@ export function PhotographersConfigScreen() {
     photographers,
     addPhotographer,
     updatePhotographer,
+    updatePhotographerPassword,
     deletePhotographer,
     mappings,
   } = useConfig();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [editingPhotographer, setEditingPhotographer] = useState<UserType | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<UserType | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [photographerToDelete, setPhotographerToDelete] = useState<UserType | null>(
     null
   );
+  const [submitting, setSubmitting] = useState(false);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    email: string;
+    phone_number: string;
+    password: '';
+    active: boolean;
+    city: string;
+    payout_model: 'PERCENTAGE' | 'FIXED';
+    fixed_start_date: string;
+    fixed_end_date: string;
+  }>({
     name: '',
+    email: '',
+    phone_number: '',
+    password: '',
     active: true,
+    city: '',
+    payout_model: 'PERCENTAGE',
+    fixed_start_date: '',
+    fixed_end_date: '',
   });
 
   // Admin-only access guard
@@ -51,16 +73,38 @@ export function PhotographersConfigScreen() {
     return null;
   }
 
+  // Filter photographers by city
+  const filteredPhotographers = user?.city 
+    ? photographers.filter(p => (p as any).city === user.city)
+    : photographers;
+
   const handleOpenDialog = (photographer?: UserType) => {
     if (photographer) {
       setEditingPhotographer(photographer);
       setFormData({
         name: photographer.name,
+        email: photographer.email,
+        phone_number: photographer.phone_number || '',
+        password: '', // Password is only for new photographers
         active: photographer.active,
+        city: (photographer as any).city || '',
+        payout_model: photographer.payout_model || 'PERCENTAGE',
+        fixed_start_date: photographer.fixed_start_date || '',
+        fixed_end_date: photographer.fixed_end_date || '',
       });
     } else {
       setEditingPhotographer(null);
-      setFormData({ name: '', active: true });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone_number: '', 
+        password: '', 
+        active: true,
+        city: user?.city || '',
+        payout_model: 'PERCENTAGE',
+        fixed_start_date: '',
+        fixed_end_date: '',
+      });
     }
     setDialogOpen(true);
   };
@@ -68,31 +112,69 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', active: true });
+    setFormData({ name: '', email: '', phone_number: '', password: '', active: true, city: '', payout_model: 'PERCENTAGE', fixed_start_date: '', fixed_end_date: '' });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validation
     if (!formData.name.trim()) {
       toast.error('Photographer name is required');
       return;
     }
-
-    if (editingPhotographer) {
-      updatePhotographer(editingPhotographer.id, {
-        name: formData.name.trim(),
-        active: formData.active,
-      });
-      toast.success('Photographer updated successfully');
-    } else {
-      addPhotographer({
-        name: formData.name.trim(),
-        active: formData.active,
-      });
-      toast.success('Photographer added successfully');
+    if (!editingPhotographer && !formData.password.trim()) {
+      toast.error('Password is required for new photographers');
+      return;
     }
 
-    handleCloseDialog();
+    if (!editingPhotographer && formData.password.trim().length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (!formData.email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (!formData.city.trim()) {
+      toast.error('City is required');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (editingPhotographer) {
+        await updatePhotographer(editingPhotographer.id, {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone_number: formData.phone_number.trim() || null,
+          active: formData.active,
+          city: formData.city.toLowerCase().trim(),
+          payout_model: formData.payout_model,
+          fixed_start_date: formData.fixed_start_date || null,
+          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+        } as any);
+        toast.success('Photographer updated successfully');
+      } else {
+        await addPhotographer({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone_number: formData.phone_number.trim() || null,
+          password: formData.password.trim(),
+          active: formData.active,
+          city: formData.city.toLowerCase().trim(),
+          payout_model: formData.payout_model,
+          fixed_start_date: formData.fixed_start_date || null,
+          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+        } as any);
+        toast.success('Photographer added successfully');
+      }
+      handleCloseDialog();
+    } catch (error: any) {
+      console.error('Failed to save photographer:', error);
+      const errorMessage = error?.message || 'Failed to save photographer. Please check your connection.';
+      toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDeleteClick = (photographer: UserType) => {
@@ -128,6 +210,27 @@ export function PhotographersConfigScreen() {
     );
   };
 
+  const handleUpdatePassword = async () => {
+    if (!passwordTarget) return;
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await updatePhotographerPassword(passwordTarget.id, newPassword);
+      toast.success('Password updated successfully');
+      setPasswordDialogOpen(false);
+      setNewPassword('');
+    } catch (error: any) {
+      console.error('Failed to update password:', error);
+      toast.error(error?.message || 'Failed to update password. Admin Service Key may be required.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
@@ -155,14 +258,14 @@ export function PhotographersConfigScreen() {
 
       {/* Photographers List */}
       <div className="grid gap-4">
-        {photographers.length === 0 ? (
+        {filteredPhotographers.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
               No photographers configured. Click "Add Photographer" to create one.
             </CardContent>
           </Card>
         ) : (
-          photographers.map(photographer => {
+          filteredPhotographers.map(photographer => {
             const photographerMappingCount = mappings.filter(
               m => m.photographerId === photographer.id
             ).length;
@@ -182,11 +285,10 @@ export function PhotographersConfigScreen() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
                       <div
-                        className={`p-2 rounded-lg ${
-                          photographer.active
-                            ? 'bg-purple-100'
-                            : 'bg-gray-100'
-                        }`}
+                        className={`p-2 rounded-lg ${photographer.active
+                          ? 'bg-purple-100'
+                          : 'bg-gray-100'
+                          }`}
                       >
                         {photographer.active ? (
                           <UserCheck className="h-5 w-5 text-purple-600" />
@@ -197,6 +299,11 @@ export function PhotographersConfigScreen() {
                       <div>
                         <div className="flex items-center gap-2">
                           <CardTitle>{photographer.name}</CardTitle>
+                          {(photographer as any).city && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                              {(photographer as any).city}
+                            </Badge>
+                          )}
                           <Badge
                             className={
                               photographer.active
@@ -211,6 +318,11 @@ export function PhotographersConfigScreen() {
                           <div>
                             ID: <span className="font-mono">{photographer.id}</span>
                           </div>
+                          {photographer.phone_number && (
+                            <div>
+                              Phone: <span className="font-mono text-gray-700">{photographer.phone_number}</span>
+                            </div>
+                          )}
                           <div className="text-purple-600">
                             {photographerMappingCount} mapping(s): {primaryMappings}{' '}
                             primary, {secondaryMappings} secondary
@@ -232,6 +344,17 @@ export function PhotographersConfigScreen() {
                         ) : (
                           <UserCheck className="h-4 w-4 text-green-600" />
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setPasswordTarget(photographer);
+                          setPasswordDialogOpen(true);
+                        }}
+                        title="Set Password"
+                      >
+                        <Film className="h-4 w-4 text-blue-600" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -281,6 +404,97 @@ export function PhotographersConfigScreen() {
               />
             </div>
 
+            <div>
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                placeholder="e.g., rahul@example.com"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="phone">Phone Number (Optional)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone_number}
+                onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
+                placeholder="e.g., +91 9876543210"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value })}
+                placeholder="e.g., bengaluru"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="payout_model">Payout Model</Label>
+              <select
+                id="payout_model"
+                value={formData.payout_model}
+                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="PERCENTAGE">Percentage Based (10/30/50)</option>
+                <option value="FIXED">Fixed Salary (per Working Day)</option>
+              </select>
+            </div>
+
+            {formData.payout_model === 'FIXED' && (
+              <div>
+                <Label htmlFor="fixed_start_date">Fixed Payout Start Date</Label>
+                <Input
+                  id="fixed_start_date"
+                  type="date"
+                  value={formData.fixed_start_date}
+                  onChange={e => setFormData({ ...formData, fixed_start_date: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The date this photographer switched to Fixed Payout.
+                </p>
+              </div>
+            )}
+
+            {formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date && (
+              <div>
+                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back to Percentage)</Label>
+                <Input
+                  id="fixed_end_date"
+                  type="date"
+                  value={formData.fixed_end_date}
+                  onChange={e => setFormData({ ...formData, fixed_end_date: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The date they switched back from Fixed to Percentage.
+                </p>
+              </div>
+            )}
+
+            {!editingPhotographer && (
+              <div>
+                <Label htmlFor="password">Initial Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The photographer will use this to sign in for the first time.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <div>
                 <Label htmlFor="active">Active Status</Label>
@@ -299,11 +513,18 @@ export function PhotographersConfigScreen() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+            <Button variant="outline" onClick={handleCloseDialog} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingPhotographer ? 'Update' : 'Add'} Photographer
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Plus className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>{editingPhotographer ? 'Update' : 'Add'} Photographer</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -328,6 +549,44 @@ export function PhotographersConfigScreen() {
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Update Password Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {passwordTarget?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 6 characters"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPasswordDialogOpen(false);
+                setNewPassword('');
+              }}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePassword} disabled={submitting}>
+              {submitting ? 'Updating...' : 'Update Password'}
             </Button>
           </DialogFooter>
         </DialogContent>

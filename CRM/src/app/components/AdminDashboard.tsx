@@ -14,17 +14,22 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
-import { getStatusColor } from '../lib/utils';
-import { Download, Search, Trash2, Eye, FileSpreadsheet } from 'lucide-react';
+import { getStatusColor, getOperationalDateString } from '../lib/utils';
+import { Download, Search, Trash2, Eye, FileSpreadsheet, BellRing, ClipboardCheck } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from './ui/dialog';
 import { UnassignmentDialog } from './UnassignmentDialog';
 import { toast } from 'sonner';
+import * as reelsDb from '../lib/db/reels';
+import * as leavesDb from '../lib/db/leaves';
+import * as notificationsDb from '../lib/db/notifications';
+import { supabase } from '../lib/supabase';
 
 interface AdminDashboardProps {
   adminView?: boolean;
@@ -41,6 +46,12 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
     delivery: Delivery | null;
     photographerName: string;
   }>({ open: false, delivery: null, photographerName: '' });
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditResults, setAuditResults] = useState<{
+    missingUpdates: { userId: string; name: string; deliveryCount: number }[];
+    reelBacklogs: { userId: string; name: string; taskCount: number }[];
+  } | null>(null);
+  const [showAuditDialog, setShowAuditDialog] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -49,9 +60,9 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
   const loadData = async () => {
     setLoading(true);
     await simulateApiDelay();
-    
+
     setDeliveries(mockDeliveries);
-    
+
     // Group screenshots by delivery
     const screenshotMap = new Map<string, any[]>();
     mockScreenshots.forEach(screenshot => {
@@ -59,27 +70,27 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
       screenshotMap.set(screenshot.delivery_id, [...existing, screenshot]);
     });
     setScreenshots(screenshotMap);
-    
+
     setLoading(false);
   };
 
   const handleDeleteScreenshot = async (screenshotId: string, deliveryId: string) => {
     await simulateApiDelay(300);
-    
+
     setScreenshots(prev => {
       const newMap = new Map(prev);
       const deliveryScreenshots = newMap.get(deliveryId) || [];
       newMap.set(
         deliveryId,
-        deliveryScreenshots.map(s => 
-          s.id === screenshotId 
+        deliveryScreenshots.map(s =>
+          s.id === screenshotId
             ? { ...s, deleted_at: new Date().toISOString() }
             : s
         )
       );
       return newMap;
     });
-    
+
     toast.success('Screenshot deleted');
   };
 
@@ -99,42 +110,42 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
         ].join(',');
       })
     ].join('\n');
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `deliveries-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `deliveries-${getOperationalDateString()}.csv`;
     a.click();
-    
+
     toast.success('CSV exported successfully');
   };
 
   const handleReassign = async (deliveryId: string, newUserId: string) => {
     await simulateApiDelay(300);
-    
+
     // V1 CRITICAL: Clear footage_link when reassigning or unassigning
     // - Footage link is the photographer's work product
     // - New photographer should start fresh
     // - Prevents accidental submission of previous photographer's footage
-    setDeliveries(prev => prev.map(d => 
-      d.id === deliveryId 
-        ? { 
-            ...d, 
-            assigned_user_id: newUserId || null,
-            footage_link: null, // Clear footage link on any reassignment
-            updated_at: new Date().toISOString() 
-          }
+    setDeliveries(prev => prev.map(d =>
+      d.id === deliveryId
+        ? {
+          ...d,
+          assigned_user_id: newUserId || null,
+          footage_link: null, // Clear footage link on any reassignment
+          updated_at: new Date().toISOString()
+        }
         : d
     ));
-    
+
     toast.success('Delivery reassigned');
   };
 
   // V1 FIX: Handle primary delivery unassignment with reason requirement
   const handleUnassignmentRequest = (delivery: Delivery) => {
     const user = mockUsers.find(u => u.id === delivery.assigned_user_id);
-    
+
     // V1 SPEC: Primary deliveries require reason for unassignment
     if (delivery.showroom_type === 'PRIMARY' && delivery.assigned_user_id) {
       setUnassignmentDialog({
@@ -161,14 +172,14 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
     setDeliveries(prev => prev.map(d =>
       d.id === delivery.id
         ? {
-            ...d,
-            assigned_user_id: null,
-            footage_link: null, // Clear footage link on unassignment
-            unassignment_reason: reason,
-            unassignment_timestamp: timestamp,
-            unassignment_by: unassignmentDialog.photographerName,
-            updated_at: timestamp,
-          }
+          ...d,
+          assigned_user_id: null,
+          footage_link: null, // Clear footage link on unassignment
+          unassignment_reason: reason,
+          unassignment_timestamp: timestamp,
+          unassignment_by: unassignmentDialog.photographerName,
+          updated_at: timestamp,
+        }
         : d
     ));
 
@@ -188,6 +199,110 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
     }
     return true;
   });
+
+  const handleRunAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const today = getOperationalDateString();
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+
+      // 1. Fetch all data needed for audit
+      const [allDeliveries, allReels, allLeaves] = await Promise.all([
+        supabase.from('deliveries').select('*'),
+        reelsDb.getAllReelTasks(),
+        leavesDb.getLeavesByDateRange(today, today)
+      ]);
+
+      if (allDeliveries.error) throw allDeliveries.error;
+      const deliveriesData = (allDeliveries.data || []) as Delivery[];
+
+      // 2. Audit: Missing Send Update (Today)
+      const usersWithMissingUpdates = new Map<string, { name: string; count: number }>();
+      const todayDeliveries = deliveriesData.filter(d => d.date === today);
+
+      todayDeliveries.forEach(d => {
+        if (d.status !== 'DONE' && d.assigned_user_id) {
+          // Check if photographer is on leave today
+          const isOnLeave = allLeaves.some(l => l.photographerId === d.assigned_user_id);
+          if (!isOnLeave) {
+            const user = mockUsers.find(u => u.id === d.assigned_user_id);
+            const entry = usersWithMissingUpdates.get(d.assigned_user_id) || { name: user?.name || 'Unknown', count: 0 };
+            entry.count++;
+            usersWithMissingUpdates.set(d.assigned_user_id, entry);
+          }
+        }
+      });
+
+      // 3. Audit: Reel Backlogs (D-2 or older)
+      const usersWithReelBacklogs = new Map<string, { name: string; count: number }>();
+      const staleReels = allReels.filter(r => {
+        if (r.status !== 'PENDING') return false;
+        const delivery = deliveriesData.find(d => d.id === r.delivery_id);
+        return delivery && delivery.date <= twoDaysAgoStr;
+      });
+
+      staleReels.forEach(r => {
+        const user = mockUsers.find(u => u.id === r.assigned_user_id);
+        const entry = usersWithReelBacklogs.get(r.assigned_user_id) || { name: user?.name || 'Unknown', count: 0 };
+        entry.count++;
+        usersWithReelBacklogs.set(r.assigned_user_id, entry);
+      });
+
+      setAuditResults({
+        missingUpdates: Array.from(usersWithMissingUpdates.entries()).map(([id, val]) => ({ userId: id, name: val.name, deliveryCount: val.count })),
+        reelBacklogs: Array.from(usersWithReelBacklogs.entries()).map(([id, val]) => ({ userId: id, name: val.name, taskCount: val.count })),
+      });
+      setShowAuditDialog(true);
+    } catch (error) {
+      console.error('Audit failed:', error);
+      toast.error('Failed to run system audit');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const handleNudgeAll = async () => {
+    if (!auditResults) return;
+
+    const nudgeCount = auditResults.missingUpdates.length + auditResults.reelBacklogs.length;
+    if (nudgeCount === 0) {
+      toast.info('No breeders to nudge!');
+      return;
+    }
+
+    try {
+      const promises: Promise<any>[] = [];
+
+      // Nudge for Send Update
+      auditResults.missingUpdates.forEach(user => {
+        promises.push(notificationsDb.createNotification({
+          user_id: user.userId,
+          title: '⚠️ Action Required: Day End Update',
+          body: `You have ${user.deliveryCount} deliveries pending today. Please submit "Send Update" immediately.`,
+          type: 'DAY_CLOSURE'
+        }));
+      });
+
+      // Nudge for Reel Backlog
+      auditResults.reelBacklogs.forEach(user => {
+        promises.push(notificationsDb.createNotification({
+          user_id: user.userId,
+          title: '🎬 Reel Backlog Alert',
+          body: `You have ${user.taskCount} unresolved reels from 2+ days ago. Please resolve them now.`,
+          type: 'REEL_BACKLOG'
+        }));
+      });
+
+      await Promise.all(promises);
+      toast.success(`Successfully nudged ${nudgeCount} photographers!`);
+      setShowAuditDialog(false);
+    } catch (error) {
+      console.error('Nudge failed:', error);
+      toast.error('Failed to send nudges');
+    }
+  };
 
   if (loading) {
     return (
@@ -220,9 +335,9 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Pending</CardDescription>
+            <CardDescription>Unassigned</CardDescription>
             <CardTitle className="text-3xl">
-              {deliveries.filter(d => d.status === 'PENDING').length}
+              {deliveries.filter(d => d.status === 'UNASSIGNED').length}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -260,10 +375,21 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
               <CardTitle>All Deliveries</CardTitle>
               <CardDescription>Manage and view all delivery records</CardDescription>
             </div>
-            <Button onClick={handleExportCSV} className="gap-2">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRunAudit}
+                disabled={auditLoading}
+                className="gap-2 border-blue-200 hover:bg-blue-50 text-blue-700"
+              >
+                <ClipboardCheck className={`h-4 w-4 ${auditLoading ? 'animate-pulse' : ''}`} />
+                {auditLoading ? 'Auditing...' : 'System Audit'}
+              </Button>
+              <Button onClick={handleExportCSV} className="gap-2">
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -343,8 +469,8 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
                               <div className="grid gap-4 md:grid-cols-2">
                                 {activeScreenshots.map(screenshot => (
                                   <div key={screenshot.id} className="space-y-2">
-                                    <img 
-                                      src={screenshot.file_url} 
+                                    <img
+                                      src={screenshot.file_url}
                                       alt={screenshot.type}
                                       className="w-full rounded border"
                                     />
@@ -371,9 +497,9 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
                       </TableCell>
                       <TableCell>
                         {delivery.footage_link ? (
-                          <a 
-                            href={delivery.footage_link} 
-                            target="_blank" 
+                          <a
+                            href={delivery.footage_link}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline text-sm"
                           >
@@ -421,6 +547,75 @@ export function AdminDashboard({ adminView = false }: AdminDashboardProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Audit & Nudge Dialog */}
+      <Dialog open={showAuditDialog} onOpenChange={setShowAuditDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BellRing className="h-5 w-5 text-blue-600" />
+              System Audit Results
+            </DialogTitle>
+            <CardDescription>
+              Identified breaches for {new Date().toLocaleDateString('en-IN')}
+            </CardDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Send Update Section */}
+            <div>
+              <h4 className="font-semibold text-sm mb-3 flex items-center justify-between">
+                <span>Missing "Send Update" (Today)</span>
+                <Badge variant="outline">{auditResults?.missingUpdates.length || 0}</Badge>
+              </h4>
+              {auditResults?.missingUpdates.length === 0 ? (
+                <p className="text-xs text-gray-500 italic">No photographers breaching today.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {auditResults?.missingUpdates.map(u => (
+                    <div key={u.userId} className="p-2 border rounded-md text-xs flex justify-between items-center">
+                      <span className="font-medium">{u.name}</span>
+                      <span className="text-red-600 font-bold">{u.deliveryCount} Pending</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Reel Backlog Section */}
+            <div>
+              <h4 className="font-semibold text-sm mb-3 flex items-center justify-between">
+                <span>Reel Backlogs (2+ Days Old)</span>
+                <Badge variant="outline">{auditResults?.reelBacklogs.length || 0}</Badge>
+              </h4>
+              {auditResults?.reelBacklogs.length === 0 ? (
+                <p className="text-xs text-gray-500 italic">No pending backlogs found.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {auditResults?.reelBacklogs.map(u => (
+                    <div key={u.userId} className="p-2 border rounded-md text-xs flex justify-between items-center">
+                      <span className="font-medium">{u.name}</span>
+                      <span className="text-orange-600 font-bold">{u.taskCount} Reels</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowAuditDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 gap-2"
+              onClick={handleNudgeAll}
+              disabled={!auditResults || (auditResults.missingUpdates.length === 0 && auditResults.reelBacklogs.length === 0)}
+            >
+              <BellRing className="h-4 w-4" />
+              Nudge All Breachers
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

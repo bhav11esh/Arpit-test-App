@@ -1,0 +1,20 @@
+--- 🗺️ CONFIG DUMP ---
+
+📌 CLUSTERS (1):
+   - [f04b406f-48ee-489a-88a5-f7fec926ccc4] Whitefield-Indiranagar
+
+📌 DEALERSHIPS (6):
+   - [92f642a5-563f-471e-a804-173fbadc71a3] Nandi toyota (DEALER_PAID)
+   - [724e0be7-58cf-445d-a9fe-eba9b34470fd] Bimal Nexa (CUSTOMER_PAID)
+   - [4e2d6e16-bb54-4071-9e75-bf55d37d6684] Apple Auto Volkswagen (DEALER_PAID)
+   - [a61d3a21-b946-4d0a-986e-9991448e1074] PPS Mahindra (CUSTOMER_PAID)
+   - [a93bf6ee-7698-47ea-bd32-1fe441ae3486] Royal Enfield Teknik Motors (DEALER_PAID)
+   - [272cf8fb-ced5-45ce-974d-17fb9db65d38] Khivraj Triumph (CUSTOMER_PAID)
+
+📌 ALL MAPPINGS (6):
+   - P: 8f053ed2-788b-4fa9-99f5-88ac1f4c85af -> D: 724e0be7-58cf-445d-a9fe-eba9b34470fd (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [PRIMARY]
+   - P: 6c1d0f86-9cf4-4028-9e96-2919800f5190 -> D: 4e2d6e16-bb54-4071-9e75-bf55d37d6684 (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [PRIMARY]
+   - P: NULL -> D: a61d3a21-b946-4d0a-986e-9991448e1074 (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [SECONDARY]
+   - P: NULL -> D: 272cf8fb-ced5-45ce-974d-17fb9db65d38 (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [SECONDARY]
+   - P: 41b035b1-4391-4347-af95-ae9876328146 -> D: a93bf6ee-7698-47ea-bd32-1fe441ae3486 (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [PRIMARY]
+   - P: bc268775-f79f-4400-b10b-bea4ba1dc762 -> D: 92f642a5-563f-471e-a804-173fbadc71a3 (Cl: f04b406f-48ee-489a-88a5-f7fec926ccc4) [PRIMARY]

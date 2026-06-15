@@ -1,0 +1,14 @@
+--- 🔍 DEBUGGING MALLIKARJUN STATUS ---
+✅ Found User: Mallikarjun (pavanmanne735@gmail.com)
+   ID: bc268775-f79f-4400-b10b-bea4ba1dc762
+   Cluster Code: Whitefield-Indiranagar
+
+📌 PRIMARY Mappings for User (1):
+   - Dealership: 92f642a5-563f-471e-a804-173fbadc71a3, Cluster: f04b406f-48ee-489a-88a5-f7fec926ccc4
+
+📌 Cluster Check:
+   ✅ User's cluster code matches: [f04b406f-48ee-489a-88a5-f7fec926ccc4] Whitefield-Indiranagar
+   👉 Found 2 SECONDARY mappings in this cluster.
+
+--- 📜 GLOBAL FINALIZATION LOGS (Today) ---
+Found 0 SHOWROOM_FINALIZED events for 2026-02-06:

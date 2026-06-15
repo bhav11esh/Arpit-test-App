@@ -1,0 +1,85 @@
+﻿[dotenv@17.2.3] injecting env (6) from .env -- tip: ≡ƒôí add observability to secrets: https://dotenvx.com/ops
+DB Count: null
+Sheet Dates Count: 397
+
+--- Differences ---
+Date 2026-03-15: DB has 2, Sheet has 0
+  -> Extra Record(s) for 2026-03-15
+  -> Names of records on this date: [ 'Sangeeta R', 'Sv Krishna Reddy' ]
+Date 2026-03-16: DB has 2, Sheet has 0
+  -> Extra Record(s) for 2026-03-16
+  -> Names of records on this date: [ 'Venkat Naidu', 'KS Veena' ]
+Date 2026-03-19: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-03-19
+  -> Names of records on this date: [ 'Delivery_2026-03-19_401' ]
+Date 2026-03-20: DB has 3, Sheet has 0
+  -> Extra Record(s) for 2026-03-20
+  -> Names of records on this date: [
+  'Delivery_2026-03-20_403',
+  'Delivery_2026-03-20_404',
+  'Delivery_2026-03-20_402'
+]
+Date 2026-03-23: DB has 4, Sheet has 0
+  -> Extra Record(s) for 2026-03-23
+  -> Names of records on this date: [
+  'Delivery_2026-03-23_413',
+  'BY Reddy K',
+  'Deepak',
+  'Delivery_2026-03-23_414'
+]
+Date 2026-03-25: DB has 6, Sheet has 0
+  -> Extra Record(s) for 2026-03-25
+  -> Names of records on this date: [
+  'G Sarath',
+  'Delivery_2026-03-25_407',
+  'Santhana Lakshmi',
+  'Shan Agro Inc',
+  'Aditya Birla group of Ind',
+  'Delivery_2026-03-25_409'
+]
+Date 2026-03-27: DB has 3, Sheet has 0
+  -> Extra Record(s) for 2026-03-27
+  -> Names of records on this date: [ 'Delivery_2026-03-27_415', 'Rajesh P', 'Munni Reddy' ]
+Date 2026-03-28: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-03-28
+  -> Names of records on this date: [ 'Peddi Srinivasarao' ]
+Date 2026-03-29: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-03-29
+  -> Names of records on this date: [ 'Jerin Shaji Mathew' ]
+Date 2026-03-30: DB has 2, Sheet has 0
+  -> Extra Record(s) for 2026-03-30
+  -> Names of records on this date: [ 'Delivery_2026-03-30_421', 'Delivery_2026-03-30_420' ]
+Date 2026-04-01: DB has 2, Sheet has 0
+  -> Extra Record(s) for 2026-04-01
+  -> Names of records on this date: [ 'Delivery_2026-04-01_422', 'Delivery_2026-04-01_423' ]
+Date 2026-04-03: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-04-03
+  -> Names of records on this date: [ 'Delivery_2026-04-03_424' ]
+Date 2026-04-05: DB has 3, Sheet has 0
+  -> Extra Record(s) for 2026-04-05
+  -> Names of records on this date: [
+  'Delivery_2026-04-05_425',
+  'Delivery_2026-04-05_427',
+  'Delivery_2026-04-05_426'
+]
+Date 2026-04-10: DB has 4, Sheet has 0
+  -> Extra Record(s) for 2026-04-10
+  -> Names of records on this date: [
+  '10-04-2026_NANDI_TOYOTA_WH_16_30',
+  '10-04-2026_NANDI_TOYOTA_WH_12_30',
+  '10-04-2026_NANDI_TOYOTA_WH_15_30',
+  '10-04-2026_NANDI_TOYOTA_WH_10_30'
+]
+Date 2026-04-12: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-04-12
+  -> Names of records on this date: [ '12-04-2026_NANDI_TOYOTA_WH_16_20' ]
+Date 2026-04-13: DB has 1, Sheet has 0
+  -> Extra Record(s) for 2026-04-13
+  -> Names of records on this date: [ '13-04-2026_NANDI_TOYOTA_WH_1' ]
+Date 2026-04-14: DB has 3, Sheet has 0
+  -> Extra Record(s) for 2026-04-14
+  -> Names of records on this date: [
+  '14-04-2026_NANDI_TOYOTA_WH_12_30',
+  '14-04-2026_NANDI_TOYOTA_WH_10_00',
+  '14-04-2026_NANDI_TOYOTA_WH_15_30'
+]

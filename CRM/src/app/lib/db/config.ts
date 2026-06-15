@@ -1,4 +1,5 @@
-import { supabase } from '../supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { supabase, adminSupabase } from '../supabase';
 import type { Cluster, Dealership, Mapping, MappingType } from '../../types';
 import type { Database } from '../types/database.types';
 
@@ -18,13 +19,12 @@ type MappingUpdate = Database['public']['Tables']['mappings']['Update'];
 const rowToCluster = (row: ClusterRow): Cluster => ({
   id: row.id,
   name: row.name,
-  latitude: row.latitude,
-  longitude: row.longitude,
+  city: row.city ?? undefined,
 });
 
-export const getClusters = async (): Promise<Cluster[]> => {
-  const { data, error } = await supabase
-    .from('clusters')
+export const getClusters = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Cluster[]> => {
+  const { data, error } = await (supabaseClient
+    .from('clusters') as any)
     .select('*')
     .order('name', { ascending: true });
 
@@ -33,8 +33,8 @@ export const getClusters = async (): Promise<Cluster[]> => {
 };
 
 export const getClusterById = async (id: string): Promise<Cluster | null> => {
-  const { data, error } = await supabase
-    .from('clusters')
+  const { data, error } = await (supabase
+    .from('clusters') as any)
     .select('*')
     .eq('id', id)
     .single();
@@ -49,13 +49,15 @@ export const getClusterById = async (id: string): Promise<Cluster | null> => {
 export const createCluster = async (cluster: Omit<Cluster, 'id'>): Promise<Cluster> => {
   const insert: ClusterInsert = {
     name: cluster.name,
-    latitude: cluster.latitude,
-    longitude: cluster.longitude,
+    latitude: 0,
+    longitude: 0,
+    city: (cluster as any).city || null,
   };
 
-  const { data, error } = await supabase
-    .from('clusters')
-    .insert(insert)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('clusters') as any)
+    .insert(insert as any)
     .select()
     .single();
 
@@ -66,8 +68,9 @@ export const createCluster = async (cluster: Omit<Cluster, 'id'>): Promise<Clust
 export const updateCluster = async (id: string, updates: Partial<Cluster>): Promise<Cluster> => {
   const update: ClusterUpdate = {
     name: updates.name,
-    latitude: updates.latitude,
-    longitude: updates.longitude,
+    latitude: 0,
+    longitude: 0,
+    city: (updates as any).city,
   };
 
   Object.keys(update).forEach(key => {
@@ -76,9 +79,10 @@ export const updateCluster = async (id: string, updates: Partial<Cluster>): Prom
     }
   });
 
-  const { data, error } = await supabase
-    .from('clusters')
-    .update(update)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('clusters') as any)
+    .update(update as any)
     .eq('id', id)
     .select()
     .single();
@@ -88,7 +92,8 @@ export const updateCluster = async (id: string, updates: Partial<Cluster>): Prom
 };
 
 export const deleteCluster = async (id: string): Promise<void> => {
-  const { error } = await supabase
+  const client = supabase;
+  const { error } = await client
     .from('clusters')
     .delete()
     .eq('id', id);
@@ -100,14 +105,16 @@ export const deleteCluster = async (id: string): Promise<void> => {
 const rowToDealership = (row: DealershipRow): Dealership => ({
   id: row.id,
   name: row.name,
-  latitude: row.latitude,
-  longitude: row.longitude,
   paymentType: row.payment_type,
+  googleSheetId: row.google_sheet_id ?? undefined,
+  googleSyncUrl: (row as any).google_sync_url ?? undefined,
+  ratePerDelivery: row.rate_per_delivery ?? undefined,
+  city: row.city ?? undefined,
 });
 
-export const getDealerships = async (): Promise<Dealership[]> => {
-  const { data, error } = await supabase
-    .from('dealerships')
+export const getDealerships = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Dealership[]> => {
+  const { data, error } = await (supabaseClient
+    .from('dealerships') as any)
     .select('*')
     .order('name', { ascending: true });
 
@@ -116,8 +123,8 @@ export const getDealerships = async (): Promise<Dealership[]> => {
 };
 
 export const getDealershipById = async (id: string): Promise<Dealership | null> => {
-  const { data, error } = await supabase
-    .from('dealerships')
+  const { data, error } = await (supabase
+    .from('dealerships') as any)
     .select('*')
     .eq('id', id)
     .single();
@@ -132,14 +139,19 @@ export const getDealershipById = async (id: string): Promise<Dealership | null> 
 export const createDealership = async (dealership: Omit<Dealership, 'id'>): Promise<Dealership> => {
   const insert: DealershipInsert = {
     name: dealership.name,
-    latitude: dealership.latitude,
-    longitude: dealership.longitude,
     payment_type: dealership.paymentType,
+    google_sheet_id: dealership.googleSheetId,
+    google_sync_url: dealership.googleSyncUrl,
+    rate_per_delivery: dealership.ratePerDelivery,
+    latitude: 0,
+    longitude: 0,
+    city: (dealership as any).city || null,
   };
 
-  const { data, error } = await supabase
-    .from('dealerships')
-    .insert(insert)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('dealerships') as any)
+    .insert(insert as any)
     .select()
     .single();
 
@@ -150,9 +162,11 @@ export const createDealership = async (dealership: Omit<Dealership, 'id'>): Prom
 export const updateDealership = async (id: string, updates: Partial<Dealership>): Promise<Dealership> => {
   const update: DealershipUpdate = {
     name: updates.name,
-    latitude: updates.latitude,
-    longitude: updates.longitude,
     payment_type: updates.paymentType,
+    google_sheet_id: updates.googleSheetId,
+    google_sync_url: updates.googleSyncUrl,
+    rate_per_delivery: updates.ratePerDelivery,
+    city: (updates as any).city,
   };
 
   Object.keys(update).forEach(key => {
@@ -161,9 +175,10 @@ export const updateDealership = async (id: string, updates: Partial<Dealership>)
     }
   });
 
-  const { data, error } = await supabase
-    .from('dealerships')
-    .update(update)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('dealerships') as any)
+    .update(update as any)
     .eq('id', id)
     .select()
     .single();
@@ -173,7 +188,8 @@ export const updateDealership = async (id: string, updates: Partial<Dealership>)
 };
 
 export const deleteDealership = async (id: string): Promise<void> => {
-  const { error } = await supabase
+  const client = supabase;
+  const { error } = await client
     .from('dealerships')
     .delete()
     .eq('id', id);
@@ -188,11 +204,13 @@ const rowToMapping = (row: MappingRow): Mapping => ({
   dealershipId: row.dealership_id,
   photographerId: row.photographer_id,
   mappingType: row.mapping_type as MappingType,
+  latitude: row.latitude ?? 0,
+  longitude: row.longitude ?? 0,
 });
 
-export const getMappings = async (): Promise<Mapping[]> => {
-  const { data, error } = await supabase
-    .from('mappings')
+export const getMappings = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Mapping[]> => {
+  const { data, error } = await (supabaseClient
+    .from('mappings') as any)
     .select('*')
     .order('created_at', { ascending: true });
 
@@ -201,8 +219,8 @@ export const getMappings = async (): Promise<Mapping[]> => {
 };
 
 export const getMappingsByCluster = async (clusterId: string): Promise<Mapping[]> => {
-  const { data, error } = await supabase
-    .from('mappings')
+  const { data, error } = await (supabase
+    .from('mappings') as any)
     .select('*')
     .eq('cluster_id', clusterId)
     .order('created_at', { ascending: true });
@@ -212,8 +230,8 @@ export const getMappingsByCluster = async (clusterId: string): Promise<Mapping[]
 };
 
 export const getMappingsByPhotographer = async (photographerId: string): Promise<Mapping[]> => {
-  const { data, error } = await supabase
-    .from('mappings')
+  const { data, error } = await (supabase
+    .from('mappings') as any)
     .select('*')
     .eq('photographer_id', photographerId)
     .order('created_at', { ascending: true });
@@ -223,8 +241,8 @@ export const getMappingsByPhotographer = async (photographerId: string): Promise
 };
 
 export const getMappingById = async (id: string): Promise<Mapping | null> => {
-  const { data, error } = await supabase
-    .from('mappings')
+  const { data, error } = await (supabase
+    .from('mappings') as any)
     .select('*')
     .eq('id', id)
     .single();
@@ -242,11 +260,14 @@ export const createMapping = async (mapping: Omit<Mapping, 'id'>): Promise<Mappi
     dealership_id: mapping.dealershipId,
     photographer_id: mapping.photographerId,
     mapping_type: mapping.mappingType,
+    latitude: mapping.latitude,
+    longitude: mapping.longitude,
   };
 
-  const { data, error } = await supabase
-    .from('mappings')
-    .insert(insert)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('mappings') as any)
+    .insert(insert as any)
     .select()
     .single();
 
@@ -260,6 +281,8 @@ export const updateMapping = async (id: string, updates: Partial<Mapping>): Prom
     dealership_id: updates.dealershipId,
     photographer_id: updates.photographerId,
     mapping_type: updates.mappingType,
+    latitude: updates.latitude,
+    longitude: updates.longitude,
   };
 
   Object.keys(update).forEach(key => {
@@ -268,9 +291,10 @@ export const updateMapping = async (id: string, updates: Partial<Mapping>): Prom
     }
   });
 
-  const { data, error } = await supabase
-    .from('mappings')
-    .update(update)
+  const client = supabase;
+  const { data, error } = await (client
+    .from('mappings') as any)
+    .update(update as any)
     .eq('id', id)
     .select()
     .single();
@@ -280,7 +304,8 @@ export const updateMapping = async (id: string, updates: Partial<Mapping>): Prom
 };
 
 export const deleteMapping = async (id: string): Promise<void> => {
-  const { error } = await supabase
+  const client = supabase;
+  const { error } = await client
     .from('mappings')
     .delete()
     .eq('id', id);

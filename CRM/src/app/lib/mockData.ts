@@ -21,38 +21,38 @@ export const mockClusters: Cluster[] = [
 ];
 
 export const mockDealerships: Dealership[] = [
-  { 
-    id: 'ds1', 
-    name: 'Khatri Wheels (KHTR_WH)', 
-    latitude: 28.7041, 
+  {
+    id: 'ds1',
+    name: 'Khatri Wheels (KHTR_WH)',
+    latitude: 28.7041,
     longitude: 77.1025,
     paymentType: 'CUSTOMER_PAID'
   },
-  { 
-    id: 'ds2', 
-    name: 'DLF Phase 3 Showroom (DLF_PH3)', 
-    latitude: 28.5355, 
+  {
+    id: 'ds2',
+    name: 'DLF Phase 3 Showroom (DLF_PH3)',
+    latitude: 28.5355,
     longitude: 77.3910,
     paymentType: 'DEALER_PAID'
   },
-  { 
-    id: 'ds3', 
-    name: 'MGF Metropolitan (MGF_MET)', 
-    latitude: 28.4955, 
+  {
+    id: 'ds3',
+    name: 'MGF Metropolitan (MGF_MET)',
+    latitude: 28.4955,
     longitude: 77.0910,
     paymentType: 'CUSTOMER_PAID'
   },
-  { 
-    id: 'ds4', 
-    name: 'Vasant Mall Showroom (VAS_MALL)', 
-    latitude: 28.6692, 
+  {
+    id: 'ds4',
+    name: 'Vasant Mall Showroom (VAS_MALL)',
+    latitude: 28.6692,
     longitude: 77.4538,
     paymentType: 'CUSTOMER_PAID'
   },
-  { 
-    id: 'ds5', 
-    name: 'Saket Central (SAK_CENT)', 
-    latitude: 28.5244, 
+  {
+    id: 'ds5',
+    name: 'Saket Central (SAK_CENT)',
+    latitude: 28.5244,
     longitude: 77.2066,
     paymentType: 'CUSTOMER_PAID'
   },
@@ -60,44 +60,54 @@ export const mockDealerships: Dealership[] = [
 
 export const mockMappings: Mapping[] = [
   // Primary mapping: North cluster -> Khatri Wheels -> Rahul Sharma
-  { 
-    id: 'm1', 
-    clusterId: 'c1', 
-    dealershipId: 'ds1', 
-    photographerId: 'u1', 
-    mappingType: 'PRIMARY' 
+  {
+    id: 'm1',
+    clusterId: 'c1',
+    dealershipId: 'ds1',
+    photographerId: 'u1',
+    mappingType: 'PRIMARY',
+    latitude: 28.4595,
+    longitude: 77.0266
   },
   // Secondary mapping: South cluster -> DLF Phase 3 -> available for any photographer
-  { 
-    id: 'm2', 
-    clusterId: 'c2', 
-    dealershipId: 'ds2', 
-    photographerId: 'u2', 
-    mappingType: 'SECONDARY' 
+  {
+    id: 'm2',
+    clusterId: 'c2',
+    dealershipId: 'ds2',
+    photographerId: 'u2',
+    mappingType: 'SECONDARY',
+    latitude: 28.4989,
+    longitude: 77.0909
   },
   // Primary mapping: North cluster -> MGF Metropolitan -> Rahul Sharma
-  { 
-    id: 'm3', 
-    clusterId: 'c1', 
-    dealershipId: 'ds3', 
-    photographerId: 'u1', 
-    mappingType: 'PRIMARY' 
+  {
+    id: 'm3',
+    clusterId: 'c1',
+    dealershipId: 'ds3',
+    photographerId: 'u1',
+    mappingType: 'PRIMARY',
+    latitude: 28.4817,
+    longitude: 77.0873
   },
   // Secondary mapping: East cluster -> Vasant Mall -> Priya Patel
-  { 
-    id: 'm4', 
-    clusterId: 'c3', 
-    dealershipId: 'ds4', 
-    photographerId: 'u2', 
-    mappingType: 'SECONDARY' 
+  {
+    id: 'm4',
+    clusterId: 'c3',
+    dealershipId: 'ds4',
+    photographerId: 'u2',
+    mappingType: 'SECONDARY',
+    latitude: 28.5494,
+    longitude: 77.2500
   },
   // Primary mapping: South cluster -> Saket Central -> Priya Patel
-  { 
-    id: 'm5', 
-    clusterId: 'c2', 
-    dealershipId: 'ds5', 
-    photographerId: 'u2', 
-    mappingType: 'PRIMARY' 
+  {
+    id: 'm5',
+    clusterId: 'c2',
+    dealershipId: 'ds5',
+    photographerId: 'u2',
+    mappingType: 'PRIMARY',
+    latitude: 28.5355,
+    longitude: 77.2467
   },
 ];
 
@@ -260,5 +270,5 @@ export const mockReelTasks: ReelTask[] = [
 ];
 
 // API simulation helper
-export const simulateApiDelay = (ms: number = 500) => 
+export const simulateApiDelay = (ms: number = 500) =>
   new Promise(resolve => setTimeout(resolve, ms));

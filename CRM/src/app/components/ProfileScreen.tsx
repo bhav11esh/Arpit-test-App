@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { mockDeliveries, simulateApiDelay } from '../lib/mockData';
+import * as deliveriesDb from '../lib/db/deliveries';
+import { simulateApiDelay } from '../lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LogOut, User, Award, TrendingUp, Calendar } from 'lucide-react';
+import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw } from 'lucide-react';
+import { LeaveManagement } from './LeaveManagement';
+import { updateUserMonitoring } from '../lib/db/users';
+import { checkGeolocationPermission } from '../lib/geofence';
+import { createLogEvent } from '../lib/db/logs';
+import { toast } from 'sonner';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -16,84 +22,88 @@ export function ProfileScreen() {
     thisMonth: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     loadStats();
   }, [user]);
 
   const loadStats = async () => {
+    if (!user) return;
     setLoading(true);
-    await simulateApiDelay();
 
-    const userDeliveries = mockDeliveries.filter(
-      d => d.assigned_user_id === user?.id && d.status === 'DONE'
-    );
+    try {
+      const userDeliveries = await deliveriesDb.getDeliveries({ assignedUserId: user.id });
+      const completedDeliveries = userDeliveries.filter(d => d.status === 'DONE');
 
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getFullYear(), now.getMonth(), 1);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const thisWeek = userDeliveries.filter(
-      d => new Date(d.updated_at) >= weekAgo
-    ).length;
+      const thisWeek = completedDeliveries.filter(
+        d => new Date(d.updated_at) >= weekAgo
+      ).length;
 
-    const thisMonth = userDeliveries.filter(
-      d => new Date(d.updated_at) >= monthAgo
-    ).length;
+      const thisMonth = completedDeliveries.filter(
+        d => new Date(d.updated_at) >= monthAgo
+      ).length;
 
-    setStats({
-      totalDeliveries: userDeliveries.length,
-      thisWeek,
-      thisMonth,
-    });
-
-    setLoading(false);
+      setStats({
+        totalDeliveries: completedDeliveries.length,
+        thisWeek,
+        thisMonth,
+      });
+    } catch (error) {
+      console.error('Failed to load profile stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!user) return null;
 
+
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-5 pb-20">
       {/* User Info Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-[#2563EB] flex items-center justify-center">
-              <User className="h-8 w-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold">{user.name}</h2>
-              <Badge className="mt-1 bg-blue-100 text-blue-800">
+      <Card className="border-orange-100/50 shadow-sm bg-gradient-to-br from-white to-orange-50/20">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-1.5">
+            <h2 className="text-2xl font-black text-gray-900 truncate tracking-tight">{user.name}</h2>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-orange-100 text-orange-800 border-0 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
                 {user.role}
               </Badge>
+              <span className="text-[10px] text-gray-400 font-medium">YourPhotoCrew</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Stats Cards */}
-      <div className="space-y-4">
-        <h3 className="font-semibold text-gray-700">Delivery Statistics</h3>
-        
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Deliveries Completed</CardDescription>
-            <CardTitle className="text-4xl">{stats.totalDeliveries}</CardTitle>
+      <div className="space-y-3">
+        <h3 className="font-semibold text-gray-700 text-sm ml-1">Delivery Statistics</h3>
+
+        <Card className="stat-card-primary">
+          <CardHeader className="pb-2 pt-4">
+            <CardDescription className="text-orange-500 text-xs">Total Deliveries Completed</CardDescription>
+            <CardTitle className="text-4xl font-bold text-orange-700">{stats.totalDeliveries}</CardTitle>
           </CardHeader>
         </Card>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>This Week</CardDescription>
-              <CardTitle className="text-3xl">{stats.thisWeek}</CardTitle>
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="stat-card-green">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-emerald-500 text-xs">This Week</CardDescription>
+              <CardTitle className="text-3xl font-bold text-emerald-700">{stats.thisWeek}</CardTitle>
             </CardHeader>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>This Month</CardDescription>
-              <CardTitle className="text-3xl">{stats.thisMonth}</CardTitle>
+          <Card className="stat-card-purple">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-amber-500 text-xs">This Month</CardDescription>
+              <CardTitle className="text-3xl font-bold text-amber-700">{stats.thisMonth}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -101,48 +111,119 @@ export function ProfileScreen() {
 
       {/* Performance Highlights */}
       {user.role === 'PHOTOGRAPHER' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance Highlights</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-              <Award className="h-5 w-5 text-green-600" />
-              <div className="text-sm">
-                <div className="font-medium text-green-900">Incentive Tracker</div>
-                <div className="text-green-700">Check your eligibility in Incentives tab</div>
+        <div className="space-y-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                   <Radio className="h-4 w-4 text-orange-500 animate-pulse" />
+                   System Connectivity
+                </CardTitle>
+                {lastSync && (
+                  <span className="text-xs text-gray-400">
+                    Last sync: {lastSync.toLocaleTimeString()}
+                  </span>
+                )}
               </div>
-            </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                <div className="p-3 bg-orange-50/60 rounded-lg flex items-center justify-between gap-3">
+                  <div className="text-xs text-gray-500 min-w-0">
+                    Your phone sends a "Heartbeat" every minute to track deliveries.
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8 gap-1.5 flex-shrink-0 border-orange-200 text-orange-600 hover:bg-orange-50"
+                    disabled={isSyncing}
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      try {
+                        const perm = await checkGeolocationPermission();
+                        const status = perm === 'granted' ? 'ON' : (perm === 'denied' ? 'OFF' : 'UNKNOWN');
+                        
+                        // 1. Update Database through logs (Bypass RLS)
+                        await createLogEvent({
+                            type: 'MONITORING_HEARTBEAT',
+                            actor_user_id: user.id,
+                            target_id: user.id,
+                            metadata: { gpsStatus: status, photographer_name: user.name, source: 'manual_sync' }
+                        });
 
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              <div className="text-sm">
-                <div className="font-medium text-blue-900">Active Status</div>
-                <div className="text-blue-700">
-                  {user.active ? 'Currently active' : 'Inactive'}
+                        // 2. Legacy update (might still fail due to RLS, but we ignore it)
+                        await updateUserMonitoring(user.id, status as any);
+                        setLastSync(new Date());
+                        toast.success('Heartbeat Synced', { description: 'Your signal reached the server successfully.' });
+                      } catch (err) {
+                        toast.error('Sync Failed', { description: 'Please check your internet connection.' });
+                      } finally {
+                        setIsSyncing(false);
+                      }
+                    }}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    Signal Test
+                  </Button>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">Performance Highlights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              <div className="flex items-center gap-3 p-3 bg-emerald-50/60 rounded-lg">
+                <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Award className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="text-sm min-w-0">
+                  <div className="font-medium text-emerald-800">Earnings Tracker</div>
+                  <div className="text-emerald-600 text-xs">Check your period earnings in Earnings tab</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-orange-50/60 rounded-lg">
+                <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="h-4 w-4 text-orange-600" />
+                </div>
+                <div className="text-sm min-w-0">
+                  <div className="font-medium text-orange-800">Active Status</div>
+                  <div className="text-orange-600 text-xs">
+                    {user.active ? 'Currently active' : 'Inactive'}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Leave Management for Photographers */}
       {user.role === 'PHOTOGRAPHER' && (
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={() => navigate('/photographer/leave')}
-        >
-          <Calendar className="h-4 w-4" />
-          My Leaves
-        </Button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-700 text-sm ml-1">Leave Management</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-orange-600 gap-1.5 h-8 text-xs"
+              onClick={() => navigate('/leave')}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Manage Detailed
+            </Button>
+          </div>
+          <LeaveManagement photographerId={user.id} />
+        </div>
       )}
 
       {/* Logout Button */}
       <Button
         variant="outline"
-        className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
+        className="w-full gap-2 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 h-11"
         onClick={logout}
       >
         <LogOut className="h-4 w-4" />

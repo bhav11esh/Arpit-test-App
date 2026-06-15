@@ -1,0 +1,54 @@
+{
+  "totalSheetRows": 122,
+  "totalCrmRecords": 122,
+  "perfectMatches": 117,
+  "discrepancies": [
+    {
+      "row": 36,
+      "crmId": "bc02ca1b-d3d6-43fc-9ab0-522af7e0633b",
+      "errors": [
+        "Date: 13.1.2026-1 vs 2026-01-13"
+      ],
+      "sheetLink": "https://drive.google.com/drive/folders/17q4mlbbhngrkkghrx8h4qddgdt2eagau?usp=drive_link",
+      "sheetDate": "13.1.2026-1"
+    },
+    {
+      "row": 37,
+      "crmId": "f7ad3343-0049-4ffa-a35c-b9668e7d4678",
+      "errors": [
+        "Date: 13.1.2026-2 vs 2026-01-13"
+      ],
+      "sheetLink": "https://drive.google.com/drive/folders/1eqlh6eavfq56hztu3zpksugv4vu2zxns?usp=drive_link",
+      "sheetDate": "13.1.2026-2"
+    },
+    {
+      "row": 80,
+      "crmId": "8ff4de81-b1ab-4b4e-ae3f-167d1cc33487",
+      "errors": [
+        "Date: 20206-02-12 vs 2020-02-12"
+      ],
+      "sheetLink": "https://drive.google.com/drive/folders/1kxx6qxfzlxw7wdhs4fj3006jigxdk8yz",
+      "sheetDate": "20206-02-12"
+    },
+    {
+      "row": 91,
+      "crmId": "529ff4e0-e159-4064-b811-430bc07beaa9",
+      "errors": [
+        "Date: 2026-02-16 vs 2026-02-15"
+      ],
+      "sheetLink": "https://drive.google.com/drive/folders/1mnfjuz3kqjqwdbseqre7atu9dvgvt7oz",
+      "sheetDate": "2026-02-16"
+    },
+    {
+      "row": 112,
+      "crmId": "3687c29a-cf08-40aa-98de-e546b3bab243",
+      "errors": [
+        "Date: 2026-02-24 vs 2026-02-23"
+      ],
+      "sheetLink": "https://drive.google.com/drive/folders/1hhqldvizxciw3q3jcfcqyvb3eitfgujq",
+      "sheetDate": "2026-02-24"
+    }
+  ],
+  "missingInCRM": [],
+  "ignoredRows": []
+}
