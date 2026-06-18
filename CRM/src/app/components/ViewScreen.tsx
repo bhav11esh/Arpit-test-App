@@ -43,6 +43,24 @@ export function ViewScreen() {
   const { isPhotographerOnLeave } = useLeave();
   const navigate = useNavigate();
 
+  // Helper to determine payout model for a photographer on a given date
+  const getPhotographerPayoutModel = (photographerId: string | undefined, dateStr: string | undefined): string => {
+    if (!photographerId || !dateStr) return 'Percentage Based (10/30/50)';
+    const photographer = allUsers.find(p => p.id === photographerId);
+    if (!photographer) return 'Percentage Based (10/30/50)';
+    
+    if (photographer.payout_model === 'FIXED') {
+      if (!photographer.fixed_start_date) return 'Percentage Based (10/30/50)';
+      if (dateStr >= photographer.fixed_start_date) {
+        if (photographer.fixed_end_date && dateStr > photographer.fixed_end_date) {
+          return 'Percentage Based (10/30/50)';
+        }
+        return 'Fixed Payout';
+      }
+    }
+    return 'Percentage Based (10/30/50)';
+  };
+
   // DEBUG: Track render count
   const renderCount = React.useRef(0);
   renderCount.current++;
@@ -2275,6 +2293,15 @@ export function ViewScreen() {
                           {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount ? `₹${deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount}` : 'N/A'}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
+                        <span className="text-sm font-semibold text-blue-600 mt-1">
+                          {getPhotographerPayoutModel(
+                            filteredPaymentScreenshots[currentImageIndex]?.user_id,
+                            deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.date
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2333,6 +2360,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs font-semibold text-green-600 mt-1">
                                   Amount Received: {delivery?.received_amount ? `₹${delivery.received_amount}` : 'N/A'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
@@ -2447,6 +2477,15 @@ export function ViewScreen() {
                           {deliveries.find(d => d.id === filteredFollowScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
+                        <span className="text-sm font-semibold text-blue-600 mt-1">
+                          {getPhotographerPayoutModel(
+                            filteredFollowScreenshots[currentImageIndex]?.user_id,
+                            deliveries.find(d => d.id === filteredFollowScreenshots[currentImageIndex]?.delivery_id)?.date
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2502,6 +2541,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
@@ -2622,6 +2664,15 @@ export function ViewScreen() {
                           ₹{deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.rapido_charge || 0}
                         </Badge>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
+                        <span className="text-sm font-semibold text-blue-600 mt-1">
+                          {getPhotographerPayoutModel(
+                            filteredRapidoScreenshots[currentImageIndex]?.user_id,
+                            deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.date
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2677,6 +2728,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center justify-between">
                                   <span>
@@ -2814,6 +2868,15 @@ export function ViewScreen() {
                           ₹{(deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount || 0) * 0.3}
                         </Badge>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
+                        <span className="text-sm font-semibold text-blue-600 mt-1">
+                          {getPhotographerPayoutModel(
+                            filteredPlatformPaymentScreenshots[currentImageIndex]?.user_id,
+                            deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.date
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {/* V1 SPEC: Deletion helper text */}
@@ -2869,6 +2932,9 @@ export function ViewScreen() {
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
                                 </div>
                                 <div className="text-xs text-gray-500 mt-1 flex items-center justify-between">
                                   <span>
