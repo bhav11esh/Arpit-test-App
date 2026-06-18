@@ -19,6 +19,9 @@ const rowToUser = (row: UserRow): User => ({
   last_active: row.last_active ?? undefined,
   last_gps_status: row.last_gps_status as any ?? 'UNKNOWN',
   city: row.city ?? undefined,
+  payout_model: row.payout_model ?? undefined,
+  fixed_start_date: row.fixed_start_date ?? undefined,
+  fixed_end_date: row.fixed_end_date ?? undefined,
 });
 
 // Get all users
@@ -96,6 +99,9 @@ export const createUser = async (user: Omit<User, 'id'> & { email: string }): Pr
     phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
     city: (user as any).city ?? null,
+    payout_model: user.payout_model ?? null,
+    fixed_start_date: user.fixed_start_date ?? null,
+    fixed_end_date: user.fixed_end_date ?? null,
   };
 
   const { data, error } = await (supabase
@@ -119,6 +125,9 @@ export const createUserWithId = async (user: User): Promise<User> => {
     phone_number: user.phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
     city: (user as any).city ?? null,
+    payout_model: user.payout_model ?? null,
+    fixed_start_date: user.fixed_start_date ?? null,
+    fixed_end_date: user.fixed_end_date ?? null,
   };
 
   const { data, error } = await (supabase
@@ -143,6 +152,9 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     last_active: updates.last_active,
     last_gps_status: updates.last_gps_status,
     city: (updates as any).city,
+    payout_model: updates.payout_model,
+    fixed_start_date: updates.fixed_start_date,
+    fixed_end_date: updates.fixed_end_date,
   };
 
   // Remove undefined values
