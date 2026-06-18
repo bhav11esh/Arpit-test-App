@@ -44,13 +44,26 @@ export function PhotographersConfigScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    email: string;
+    phone_number: string;
+    password: string;
+    active: boolean;
+    city: string;
+    payout_model: 'PERCENTAGE' | 'FIXED';
+    fixed_start_date: string;
+    fixed_end_date: string;
+  }>({
     name: '',
     email: '',
     phone_number: '',
     password: '',
     active: true,
     city: '',
+    payout_model: 'PERCENTAGE',
+    fixed_start_date: '',
+    fixed_end_date: '',
   });
 
   // Admin-only access guard
@@ -75,6 +88,9 @@ export function PhotographersConfigScreen() {
         password: '', // Password is only for new photographers
         active: photographer.active,
         city: (photographer as any).city || '',
+        payout_model: (photographer as any).payout_model || 'PERCENTAGE',
+        fixed_start_date: (photographer as any).fixed_start_date || '',
+        fixed_end_date: (photographer as any).fixed_end_date || '',
       });
     } else {
       setEditingPhotographer(null);
@@ -85,6 +101,9 @@ export function PhotographersConfigScreen() {
         password: '', 
         active: true,
         city: user?.city || '',
+        payout_model: 'PERCENTAGE',
+        fixed_start_date: '',
+        fixed_end_date: '',
       });
     }
     setDialogOpen(true);
@@ -93,7 +112,17 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', email: '', phone_number: '', password: '', active: true, city: '' });
+    setFormData({ 
+      name: '', 
+      email: '', 
+      phone_number: '', 
+      password: '', 
+      active: true, 
+      city: '',
+      payout_model: 'PERCENTAGE',
+      fixed_start_date: '',
+      fixed_end_date: '',
+    });
   };
 
   const handleSubmit = async () => {
@@ -129,6 +158,9 @@ export function PhotographersConfigScreen() {
           phone_number: formData.phone_number.trim() || null,
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
+          payout_model: formData.payout_model,
+          fixed_start_date: formData.fixed_start_date || null,
+          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
         } as any);
         toast.success('Photographer updated successfully');
       } else {
@@ -139,6 +171,9 @@ export function PhotographersConfigScreen() {
           password: formData.password.trim(),
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
+          payout_model: formData.payout_model,
+          fixed_start_date: formData.fixed_start_date || null,
+          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
         } as any);
         toast.success('Photographer added successfully');
       }
@@ -410,6 +445,49 @@ export function PhotographersConfigScreen() {
                 placeholder="e.g., bengaluru"
               />
             </div>
+
+            <div>
+              <Label htmlFor="payout_model">Payout Model</Label>
+              <select
+                id="payout_model"
+                value={formData.payout_model}
+                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="PERCENTAGE">Percentage Based (10/30/50)</option>
+                <option value="FIXED">Fixed Salary (per Working Day)</option>
+              </select>
+            </div>
+
+            {formData.payout_model === 'FIXED' && (
+              <div>
+                <Label htmlFor="fixed_start_date">Fixed Payout Start Date</Label>
+                <Input
+                  id="fixed_start_date"
+                  type="date"
+                  value={formData.fixed_start_date}
+                  onChange={e => setFormData({ ...formData, fixed_start_date: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The date this photographer switched to Fixed Payout.
+                </p>
+              </div>
+            )}
+
+            {formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date && (
+              <div>
+                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back to Percentage)</Label>
+                <Input
+                  id="fixed_end_date"
+                  type="date"
+                  value={formData.fixed_end_date}
+                  onChange={e => setFormData({ ...formData, fixed_end_date: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The date they switched back from Fixed to Percentage.
+                </p>
+              </div>
+            )}
 
             {!editingPhotographer && (
               <div>
