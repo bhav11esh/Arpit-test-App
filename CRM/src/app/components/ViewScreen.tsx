@@ -49,16 +49,10 @@ export function ViewScreen() {
     const photographer = allUsers.find(p => p.id === photographerId);
     if (!photographer) return 'Percentage Based (10/30/50)';
     
-    if (photographer.payout_model === 'FIXED') {
-      if (!photographer.fixed_start_date) return 'Percentage Based (10/30/50)';
-      if (dateStr >= photographer.fixed_start_date) {
-        if (photographer.fixed_end_date && dateStr > photographer.fixed_end_date) {
-          return 'Percentage Based (10/30/50)';
-        }
-        return 'Fixed Payout';
-      }
-    }
-    return 'Percentage Based (10/30/50)';
+    if (!photographer.fixed_start_date) return 'Percentage Based (10/30/50)';
+    if (dateStr < photographer.fixed_start_date) return 'Percentage Based (10/30/50)';
+    if (photographer.fixed_end_date && dateStr >= photographer.fixed_end_date) return 'Percentage Based (10/30/50)';
+    return 'Fixed Payout';
   };
 
   // DEBUG: Track render count
