@@ -23,7 +23,7 @@ export interface Database {
           last_active: string | null
           last_gps_status: 'ON' | 'OFF' | 'UNKNOWN' | null
           city: string | null
-          payout_model: 'PERCENTAGE' | 'FIXED' | null
+          payout_model: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date: string | null
           fixed_end_date: string | null
         }
@@ -40,7 +40,7 @@ export interface Database {
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
-          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date?: string | null
           fixed_end_date?: string | null
         }
@@ -57,7 +57,7 @@ export interface Database {
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
-          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date?: string | null
           fixed_end_date?: string | null
         }

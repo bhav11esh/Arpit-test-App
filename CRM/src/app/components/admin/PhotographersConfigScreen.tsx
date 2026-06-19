@@ -51,7 +51,7 @@ export function PhotographersConfigScreen() {
     password: string;
     active: boolean;
     city: string;
-    payout_model: 'PERCENTAGE' | 'FIXED';
+    payout_model: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
     fixed_start_date: string;
     fixed_end_date: string;
   }>({
@@ -160,7 +160,7 @@ export function PhotographersConfigScreen() {
           city: formData.city.toLowerCase().trim(),
           payout_model: formData.payout_model,
           fixed_start_date: formData.fixed_start_date || null,
-          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          fixed_end_date: formData.payout_model !== 'FIXED' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
         } as any);
         toast.success('Photographer updated successfully');
       } else {
@@ -173,7 +173,7 @@ export function PhotographersConfigScreen() {
           city: formData.city.toLowerCase().trim(),
           payout_model: formData.payout_model,
           fixed_start_date: formData.fixed_start_date || null,
-          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          fixed_end_date: formData.payout_model !== 'FIXED' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
         } as any);
         toast.success('Photographer added successfully');
       }
@@ -333,9 +333,24 @@ export function PhotographersConfigScreen() {
                               Phone: <span className="font-mono text-gray-700">{photographer.phone_number}</span>
                             </div>
                           )}
-                          <div className="text-purple-600">
+                          <div className="text-purple-600 font-medium">
                             {photographerMappingCount} mapping(s): {primaryMappings}{' '}
                             primary, {secondaryMappings} secondary
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Payout Model: <span className="font-semibold text-blue-600">
+                              {photographer.payout_model === 'PERCENTAGE_15_DAILY'
+                                ? 'Flat 15% Daily Settlement'
+                                : photographer.payout_model === 'FIXED'
+                                  ? 'Fixed Salary'
+                                  : 'Percentage Based (10/30/50)'}
+                            </span>
+                            {photographer.fixed_start_date && (
+                              <span className="text-gray-500 ml-1.5 font-mono">
+                                (Fixed: {photographer.fixed_start_date}
+                                {photographer.fixed_end_date ? ` to ${photographer.fixed_end_date}` : ''})
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -451,11 +466,12 @@ export function PhotographersConfigScreen() {
               <select
                 id="payout_model"
                 value={formData.payout_model}
-                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="PERCENTAGE">Percentage Based (10/30/50)</option>
                 <option value="FIXED">Fixed Salary (per Working Day)</option>
+                <option value="PERCENTAGE_15_DAILY">Flat 15% Daily Settlement</option>
               </select>
             </div>
 
@@ -474,9 +490,9 @@ export function PhotographersConfigScreen() {
               </div>
             )}
 
-            {formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date && (
+            {formData.payout_model !== 'FIXED' && formData.fixed_start_date && (
               <div>
-                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back to Percentage)</Label>
+                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back from Fixed)</Label>
                 <Input
                   id="fixed_end_date"
                   type="date"
@@ -484,7 +500,7 @@ export function PhotographersConfigScreen() {
                   onChange={e => setFormData({ ...formData, fixed_end_date: e.target.value })}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  The date they switched back from Fixed to Percentage.
+                  The date they switched back from Fixed to their current model.
                 </p>
               </div>
             )}

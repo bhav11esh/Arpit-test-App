@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Delivery, Screenshot, ScreenshotType } from '../types';
 import { canSendUpdate, getShowroomCode } from '../lib/utils';
 import { useConfig } from '../context/ConfigContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -43,6 +44,7 @@ export function SendUpdateScreen({
   userClusterCode
 }: SendUpdateScreenProps) {
   const { dealerships } = useConfig();
+  const { user } = useAuth();
   const [editingFootage, setEditingFootage] = useState<string | null>(null);
   const [tempFootageLink, setTempFootageLink] = useState('');
 
@@ -98,7 +100,7 @@ export function SendUpdateScreen({
     if (delivery.payment_type === 'CUSTOMER_PAID') {
       const deliveryScreenshots = screenshots.get(delivery.id) || [];
       const hasPayment = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
-      const hasPlatformPayment = deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
+      const hasPlatformPayment = user?.payout_model === 'FIXED' || deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
       const hasAmount = (delivery.received_amount || 0) > 0;
       const hasPhone = (delivery.customer_phone || '').length >= 10;
 
@@ -352,7 +354,12 @@ export function SendUpdateScreen({
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1">
                               <Upload className="h-4 w-4" />
-                              Customer Payment
+                              {user?.payout_model === 'FIXED'
+                                ? 'Payment screenshot from customer directly to company account'
+                                : user?.payout_model === 'PERCENTAGE_15_DAILY'
+                                  ? 'Customer Payment (Full amount paid to you)'
+                                  : 'Customer Payment'
+                              }
                               <span className="text-red-500">*</span>
                             </Label>
                             {hasPaymentScreenshot ? (
@@ -380,12 +387,13 @@ export function SendUpdateScreen({
                           )}
                         </div>
 
-                        {/* 2. Platform Settlement Screenshot (30%) */}
-                        <div className="space-y-2">
+                        {/* 2. Platform Settlement Screenshot - Hidden for FIXED payout */}
+                        {user?.payout_model !== 'FIXED' && (
+                          <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1 text-orange-700">
                               <Wallet className="h-4 w-4" />
-                              Settlement (30%)
+                              {user?.payout_model === 'PERCENTAGE_15_DAILY' ? 'Settlement (15%)' : 'Settlement (30%)'}
                               <span className="text-red-500">*</span>
                             </Label>
                             {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
@@ -398,7 +406,12 @@ export function SendUpdateScreen({
                           <div className="flex flex-col gap-2">
                             <div className="bg-orange-50 border border-orange-100 p-2 rounded text-[10px] text-orange-800 font-bold flex justify-between items-center">
                               <span>AMOUNT TO PAY:</span>
-                              <span className="text-sm">₹{Math.round((delivery.received_amount || 0) * 0.3)}</span>
+                              <span className="text-sm">
+                                ₹{user?.payout_model === 'PERCENTAGE_15_DAILY'
+                                  ? Math.max(0, Math.round((Number(delivery.received_amount || 0) - Number(delivery.rapido_charge || 0)) * 0.15))
+                                  : Math.round((delivery.received_amount || 0) * 0.3)
+                                }
+                              </span>
                             </div>
 
                             {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
@@ -430,8 +443,9 @@ export function SendUpdateScreen({
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  )}
 
                     {/* Amount Received - Only for Customer Paid */}
                     {isCustomerPaid && (
