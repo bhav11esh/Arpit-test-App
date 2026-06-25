@@ -20,6 +20,7 @@ export interface Database {
           created_at: string
           updated_at: string
           phone_number: string | null
+          secondary_phone_number: string | null
           last_active: string | null
           last_gps_status: 'ON' | 'OFF' | 'UNKNOWN' | null
           city: string | null
@@ -37,6 +38,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          secondary_phone_number?: string | null
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
@@ -54,6 +56,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          secondary_phone_number?: string | null
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null

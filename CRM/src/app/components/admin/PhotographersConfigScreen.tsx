@@ -48,6 +48,7 @@ export function PhotographersConfigScreen() {
     name: string;
     email: string;
     phone_number: string;
+    secondary_phone_number: string;
     password: string;
     active: boolean;
     city: string;
@@ -58,6 +59,7 @@ export function PhotographersConfigScreen() {
     name: '',
     email: '',
     phone_number: '',
+    secondary_phone_number: '',
     password: '',
     active: true,
     city: '',
@@ -85,6 +87,7 @@ export function PhotographersConfigScreen() {
         name: photographer.name,
         email: photographer.email,
         phone_number: photographer.phone_number || '',
+        secondary_phone_number: photographer.secondary_phone_number || '',
         password: '', // Password is only for new photographers
         active: photographer.active,
         city: (photographer as any).city || '',
@@ -98,6 +101,7 @@ export function PhotographersConfigScreen() {
         name: '', 
         email: '', 
         phone_number: '', 
+        secondary_phone_number: '', 
         password: '', 
         active: true,
         city: user?.city || '',
@@ -116,6 +120,7 @@ export function PhotographersConfigScreen() {
       name: '', 
       email: '', 
       phone_number: '', 
+      secondary_phone_number: '', 
       password: '', 
       active: true, 
       city: '',
@@ -156,6 +161,7 @@ export function PhotographersConfigScreen() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
           payout_model: formData.payout_model,
@@ -168,6 +174,7 @@ export function PhotographersConfigScreen() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
           password: formData.password.trim(),
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
@@ -333,6 +340,11 @@ export function PhotographersConfigScreen() {
                               Phone: <span className="font-mono text-gray-700">{photographer.phone_number}</span>
                             </div>
                           )}
+                          {photographer.secondary_phone_number && (
+                            <div>
+                              Sec. Phone: <span className="font-mono text-gray-700">{photographer.secondary_phone_number}</span>
+                            </div>
+                          )}
                           <div className="text-purple-600 font-medium">
                             {photographerMappingCount} mapping(s): {primaryMappings}{' '}
                             primary, {secondaryMappings} secondary
@@ -448,6 +460,17 @@ export function PhotographersConfigScreen() {
                 value={formData.phone_number}
                 onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                 placeholder="e.g., +91 9876543210"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="secondary_phone">Secondary Phone Number (Optional)</Label>
+              <Input
+                id="secondary_phone"
+                type="tel"
+                value={formData.secondary_phone_number}
+                onChange={e => setFormData({ ...formData, secondary_phone_number: e.target.value })}
+                placeholder="e.g., +91 9876543211"
               />
             </div>
 

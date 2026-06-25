@@ -65,6 +65,7 @@ export interface User {
   role: UserRole;
   active: boolean;
   phone_number?: string | null;
+  secondary_phone_number?: string | null;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
   last_active?: string; // ISO timestamp of last app check-in
   last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
