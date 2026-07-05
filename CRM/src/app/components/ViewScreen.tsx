@@ -120,6 +120,7 @@ export function ViewScreen() {
     rapido_charge: string;
     payment_screenshot: File | null;
     rapido_screenshot: File | null;
+    assigned_user_id: string;
   }>({
     date: '',
     showroom_id: '',
@@ -130,7 +131,8 @@ export function ViewScreen() {
     customer_phone: '',
     rapido_charge: '',
     payment_screenshot: null,
-    rapido_screenshot: null
+    rapido_screenshot: null,
+    assigned_user_id: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1210,7 +1212,8 @@ export function ViewScreen() {
       customer_phone: '',
       rapido_charge: '',
       payment_screenshot: null,
-      rapido_screenshot: null
+      rapido_screenshot: null,
+      assigned_user_id: ''
     });
     setIsAddDialogOpen(true);
   };
@@ -1223,6 +1226,12 @@ export function ViewScreen() {
       // Validate required fields
       if (!newRowData.date || !newRowData.showroom_id) {
         toast.error('Please fill in required fields: Date and Showroom');
+        return;
+      }
+
+      // V14.0: Validate photographer select for admin logging
+      if (!newRowData.assigned_user_id) {
+        toast.error('Please select the photographer who covered this delivery');
         return;
       }
 
@@ -1272,7 +1281,9 @@ export function ViewScreen() {
       let finalDeliveryName = newRowData.delivery_name;
       if (!finalDeliveryName) {
         const dateStr = newRowData.date.split('-').reverse().join('-'); // DD-MM-YYYY
-        finalDeliveryName = `${dateStr}_${selectedDealership.name.split(' ')[0]}_${user?.name?.split(' ')[0] || 'USER'}_${Date.now().toString().slice(-4)}`.toUpperCase();
+        const photographerUser = allUsers.find(p => p.id === newRowData.assigned_user_id);
+        const photographerName = photographerUser?.name?.split(' ')[0] || 'USER';
+        finalDeliveryName = `${dateStr}_${selectedDealership.name.split(' ')[0]}_${photographerName}_${Date.now().toString().slice(-4)}`.toUpperCase();
       }
 
       await simulateApiDelay(200);
@@ -1297,7 +1308,7 @@ export function ViewScreen() {
         timing: null,
         delivery_name: finalDeliveryName,
         status: 'DONE', // V1 SPEC: Spreadsheet only shows DONE deliveries
-        assigned_user_id: user?.id || null, // V1 FIX: Auto-assign to current user
+        assigned_user_id: newRowData.assigned_user_id || null, // V14.0 FIX: Assign to selected photographer, not admin
         footage_link: newRowData.footage_link || null,
         payment_type: selectedDealership.paymentType,
         received_amount: newRowData.received_amount 
@@ -1330,7 +1341,7 @@ export function ViewScreen() {
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.payment_screenshot, path, client);
         await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
-          user_id: user?.id || '',
+          user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
           type: 'PAYMENT',
           file_url: url,
           thumbnail_url: url,
@@ -1343,7 +1354,7 @@ export function ViewScreen() {
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.rapido_screenshot, path, client);
         await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
-          user_id: user?.id || '',
+          user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
           type: 'RAPIDO',
           file_url: url,
           thumbnail_url: url,
@@ -1387,7 +1398,8 @@ export function ViewScreen() {
         customer_phone: '',
         rapido_charge: '',
         payment_screenshot: null,
-        rapido_screenshot: null
+        rapido_screenshot: null,
+        assigned_user_id: ''
       });
 
       toast.success('Delivery row saved and synced successfully');
@@ -2078,6 +2090,24 @@ export function ViewScreen() {
                                   placeholder="Select showroom"
                                 />
                               </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold uppercase text-gray-500">Photographer</label>
+                              <Select
+                                value={newRowData.assigned_user_id}
+                                onValueChange={(value) => setNewRowData({ ...newRowData, assigned_user_id: value })}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select photographer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {cityIsolatedPhotographers.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                             <div className="space-y-2">
                               <label className="text-xs font-semibold uppercase text-gray-500">Reference ID (Internal)</label>
