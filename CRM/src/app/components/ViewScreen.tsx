@@ -1440,7 +1440,7 @@ export function ViewScreen() {
   }
 
   return (
-    <div className="space-y-4 pb-20 p-2 sm:p-4">
+    <div className="space-y-4 pb-36 p-2 sm:p-4">
       {/* Top Selectors - Side-by-Side on Desktop, Stacked on Mobile */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Card>

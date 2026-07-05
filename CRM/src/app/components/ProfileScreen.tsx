@@ -251,7 +251,7 @@ export function ProfileScreen() {
 
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-5 pb-36">
       {/* User Info Card */}
       <Card className="border-orange-100/50 shadow-sm bg-gradient-to-br from-white to-orange-50/20">
         <CardContent className="p-5">

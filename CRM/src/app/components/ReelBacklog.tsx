@@ -238,7 +238,7 @@ export function ReelBacklog() {
   }
 
   return (
-    <div className="space-y-4 p-1 sm:p-4 pb-20">
+    <div className="space-y-4 p-1 sm:p-4 pb-36">
       {/* NEW: Bounty Board / Post-its Marketplace */}
       {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || user?.role === 'ADMIN') && (
         <div className="space-y-4">
