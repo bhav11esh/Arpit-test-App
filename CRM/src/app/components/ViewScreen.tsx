@@ -69,6 +69,46 @@ export function ViewScreen() {
     return 'Percentage Based (10/30/50)';
   };
 
+  const getPhotographerRawPayoutModel = (photographerId: string | undefined, dateStr: string | undefined): 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' => {
+    if (!photographerId || !dateStr) return 'PERCENTAGE';
+    const photographer = allUsers.find(p => p.id === photographerId);
+    if (!photographer) return 'PERCENTAGE';
+    
+    const model = photographer.payout_model || 'PERCENTAGE';
+    if (!photographer.fixed_start_date) {
+      return model;
+    }
+    
+    // Check if within fixed window
+    const inFixedWindow = dateStr >= photographer.fixed_start_date && 
+      (!photographer.fixed_end_date || dateStr < photographer.fixed_end_date);
+      
+    if (inFixedWindow) {
+      return 'FIXED';
+    }
+    
+    return model;
+  };
+
+  const getPayableAmountAndLabel = (photographerId: string | undefined, dateStr: string | undefined, receivedAmount: number, rapidoCharge: number) => {
+    const rawModel = getPhotographerRawPayoutModel(photographerId, dateStr);
+    if (rawModel === 'PERCENTAGE_15_DAILY') {
+      const amount = Math.max(0, Math.round((Number(receivedAmount || 0) - Number(rapidoCharge || 0)) * 0.15));
+      return {
+        label: 'Payable Amount (15%):',
+        amount: amount,
+        shortLabel: `Payable: ₹${amount}`,
+      };
+    } else {
+      const amount = Math.round(Number(receivedAmount || 0) * 0.3);
+      return {
+        label: 'Payable Amount (30%):',
+        amount: amount,
+        shortLabel: `Payable: ₹${amount}`,
+      };
+    }
+  };
+
   // DEBUG: Track render count
   const renderCount = React.useRef(0);
   renderCount.current++;
@@ -3033,12 +3073,24 @@ export function ViewScreen() {
                           PLATFORM_PAYMENT
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Payable Amount (30%):</span>
-                        <Badge variant="outline" className="bg-green-600 text-white border-green-700">
-                          ₹{(deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount || 0) * 0.3}
-                        </Badge>
-                      </div>
+                      {(() => {
+                        const screenshot = filteredPlatformPaymentScreenshots[currentImageIndex];
+                        const delivery = deliveries.find(d => d.id === screenshot?.delivery_id);
+                        const calc = getPayableAmountAndLabel(
+                          screenshot?.user_id,
+                          delivery?.date,
+                          delivery?.received_amount || 0,
+                          delivery?.rapido_charge || 0
+                        );
+                        return (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">{calc.label}</span>
+                            <Badge variant="outline" className="bg-green-600 text-white border-green-700">
+                              ₹{calc.amount}
+                            </Badge>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">Payout Model:</span>
                         <span className="text-sm font-semibold text-blue-600 mt-1">
@@ -3115,16 +3167,24 @@ export function ViewScreen() {
                                       day: 'numeric'
                                     })}
                                   </span>
-                                  {delivery?.received_amount && (
-                                    <div className="flex flex-col items-end gap-1">
-                                      <Badge variant="outline" className="h-5 text-[10px] bg-green-600 text-white border-green-700">
-                                        Payable: ₹{delivery.received_amount * 0.3}
-                                      </Badge>
-                                      <div className="text-[10px] text-gray-400">
-                                        from ₹{delivery.received_amount}
+                                  {delivery?.received_amount && (() => {
+                                    const calc = getPayableAmountAndLabel(
+                                      screenshot.user_id,
+                                      delivery.date,
+                                      delivery.received_amount || 0,
+                                      delivery.rapido_charge || 0
+                                    );
+                                    return (
+                                      <div className="flex flex-col items-end gap-1">
+                                        <Badge variant="outline" className="h-5 text-[10px] bg-green-600 text-white border-green-700">
+                                          {calc.shortLabel}
+                                        </Badge>
+                                        <div className="text-[10px] text-gray-400">
+                                          from ₹{delivery.received_amount}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             </div>
