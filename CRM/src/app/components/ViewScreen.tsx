@@ -1701,7 +1701,6 @@ export function ViewScreen() {
                         <SelectSeparator />
                         <SelectLabel className="text-xs font-bold text-gray-400 uppercase mt-1">🔒 Audit Views</SelectLabel>
                         <SelectItem value="payment" className="text-sm">Payment Screenshots</SelectItem>
-                        <SelectItem value="follow" className="text-sm">Follow Screenshots</SelectItem>
                         <SelectItem value="rapido" className="text-sm">Rapido Screenshots</SelectItem>
                         <SelectItem value="platform_payment" className="text-sm">Yourphotocrew Payments</SelectItem>
                         <SelectItem value="fraud_detection" className="text-sm">Fraud Detection</SelectItem>

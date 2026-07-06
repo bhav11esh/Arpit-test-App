@@ -256,7 +256,6 @@ export function SendUpdateScreen({
             const deliveryScreenshots = screenshots.get(delivery.id) || [];
             const hasFootage = delivery.footage_link;
             const hasPaymentScreenshot = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
-            const hasFollowScreenshot = deliveryScreenshots.some(s => s.type === 'FOLLOW' && !s.deleted_at);
             const isComplete = isDeliveryComplete(delivery);
             const isCustomerPaid = delivery.payment_type === 'CUSTOMER_PAID';
 
@@ -537,49 +536,6 @@ export function SendUpdateScreen({
                         />
                         {!(delivery.customer_phone || '').length && (
                           <p className="text-xs text-red-600">Phone number required</p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Follow Screenshot - Only for Customer Paid, Optional */}
-                    {isCustomerPaid && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium flex items-center gap-1">
-                            <Upload className="h-4 w-4" />
-                            Follow Screenshot
-                            <span className="text-gray-400 text-xs ml-1">(Optional)</span>
-                          </Label>
-                          {hasFollowScreenshot && (
-                            <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                          )}
-                        </div>
-                        {hasFollowScreenshot ? (
-                          <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-[#16A34A]" />
-                              <span className="text-sm text-green-700">Screenshot uploaded</span>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => onDeleteScreenshot(delivery.id, 'FOLLOW')}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white hover:bg-gray-50 border-2 border-dashed border-gray-300 rounded cursor-pointer transition-colors">
-                            <Upload className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">Upload Follow Screenshot</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(delivery.id, 'FOLLOW', e)}
-                            />
-                          </label>
                         )}
                       </div>
                     )}
