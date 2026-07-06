@@ -11,7 +11,7 @@ import type { Delivery } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import {
@@ -1691,20 +1691,23 @@ export function ViewScreen() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="spreadsheet" className="text-sm font-semibold">📊 Data Views</SelectItem>
-                    <SelectItem value="spreadsheet" className="pl-6 text-sm">Spreadsheet View</SelectItem>
-                    <SelectItem value="portrait" className="pl-6 text-sm">Live Portrait Bookings</SelectItem>
+                    <SelectGroup>
+                      <SelectLabel className="text-xs font-bold text-gray-400 uppercase">📊 Data Views</SelectLabel>
+                      <SelectItem value="spreadsheet" className="text-sm">Spreadsheet View</SelectItem>
+                      <SelectItem value="portrait" className="text-sm">Live Portrait Bookings</SelectItem>
+                    </SelectGroup>
                     {isAdmin && (
-                      <>
-                        <SelectItem value="payment" disabled className="text-sm font-semibold mt-2">🔒 Audit Views</SelectItem>
-                        <SelectItem value="payment" className="pl-6 text-sm">Payment Screenshots</SelectItem>
-                        <SelectItem value="follow" className="pl-6 text-sm">Follow Screenshots</SelectItem>
-                        <SelectItem value="rapido" className="pl-6 text-sm">Rapido Screenshots</SelectItem>
-                        <SelectItem value="platform_payment" className="pl-6 text-sm">Yourphotocrew Payments</SelectItem>
-                        <SelectItem value="fraud_detection" className="pl-6 text-sm">Fraud Detection</SelectItem>
-                        <SelectItem value="logs" className="pl-6 text-sm">Admin Logs</SelectItem>
-                        <SelectItem value="missed_send_update" className="pl-6 text-sm">Missed Send Update/Covered 0 delivery</SelectItem>
-                      </>
+                      <SelectGroup className="mt-2">
+                        <SelectSeparator />
+                        <SelectLabel className="text-xs font-bold text-gray-400 uppercase mt-1">🔒 Audit Views</SelectLabel>
+                        <SelectItem value="payment" className="text-sm">Payment Screenshots</SelectItem>
+                        <SelectItem value="follow" className="text-sm">Follow Screenshots</SelectItem>
+                        <SelectItem value="rapido" className="text-sm">Rapido Screenshots</SelectItem>
+                        <SelectItem value="platform_payment" className="text-sm">Yourphotocrew Payments</SelectItem>
+                        <SelectItem value="fraud_detection" className="text-sm">Fraud Detection</SelectItem>
+                        <SelectItem value="logs" className="text-sm">Admin Logs</SelectItem>
+                        <SelectItem value="missed_send_update" className="text-sm">Missed Send Update/Covered 0 delivery</SelectItem>
+                      </SelectGroup>
                     )}
                   </SelectContent>
                 </Select>
