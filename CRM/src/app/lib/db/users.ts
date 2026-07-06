@@ -23,6 +23,7 @@ const rowToUser = (row: UserRow): User => ({
   payout_model: row.payout_model ?? undefined,
   fixed_start_date: row.fixed_start_date ?? undefined,
   fixed_end_date: row.fixed_end_date ?? undefined,
+  profile_image_url: (row as any).profile_image_url ?? undefined,
 });
 
 // Get all users
@@ -104,6 +105,7 @@ export const createUser = async (user: Omit<User, 'id'> & { email: string }): Pr
     payout_model: user.payout_model ?? null,
     fixed_start_date: user.fixed_start_date ?? null,
     fixed_end_date: user.fixed_end_date ?? null,
+    profile_image_url: (user as any).profile_image_url ?? null,
   };
 
   const { data, error } = await (supabase
@@ -131,6 +133,7 @@ export const createUserWithId = async (user: User): Promise<User> => {
     payout_model: user.payout_model ?? null,
     fixed_start_date: user.fixed_start_date ?? null,
     fixed_end_date: user.fixed_end_date ?? null,
+    profile_image_url: (user as any).profile_image_url ?? null,
   };
 
   const { data, error } = await (supabase
@@ -159,6 +162,7 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     payout_model: updates.payout_model,
     fixed_start_date: updates.fixed_start_date,
     fixed_end_date: updates.fixed_end_date,
+    profile_image_url: (updates as any).profile_image_url,
   };
 
   // Remove undefined values

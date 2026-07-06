@@ -73,6 +73,7 @@ export interface User {
   payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
   fixed_start_date?: string; // YYYY-MM-DD
   fixed_end_date?: string; // YYYY-MM-DD
+  profile_image_url?: string | null;
 }
 
 export interface Delivery {
