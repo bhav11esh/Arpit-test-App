@@ -161,6 +161,17 @@ export function ViewScreen() {
     payment_screenshot: File | null;
     rapido_screenshot: File | null;
     assigned_user_id: string;
+    payment_screenshot_date: string;
+    payment_screenshot_time: string;
+    payment_screenshot_amount: string;
+    platform_payment_screenshot: File | null;
+    platform_payment_amount: string;
+    platform_payment_screenshot_date: string;
+    platform_payment_screenshot_time: string;
+    platform_payment_screenshot_amount: string;
+    witness_phone: string;
+    fraud_screenshot: File | null;
+    fraud_call_log_screenshot: File | null;
   }>({
     date: '',
     showroom_id: '',
@@ -172,7 +183,18 @@ export function ViewScreen() {
     rapido_charge: '',
     payment_screenshot: null,
     rapido_screenshot: null,
-    assigned_user_id: ''
+    assigned_user_id: '',
+    payment_screenshot_date: '',
+    payment_screenshot_time: '',
+    payment_screenshot_amount: '',
+    platform_payment_screenshot: null,
+    platform_payment_amount: '',
+    platform_payment_screenshot_date: '',
+    platform_payment_screenshot_time: '',
+    platform_payment_screenshot_amount: '',
+    witness_phone: '',
+    fraud_screenshot: null,
+    fraud_call_log_screenshot: null,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1253,7 +1275,18 @@ export function ViewScreen() {
       rapido_charge: '',
       payment_screenshot: null,
       rapido_screenshot: null,
-      assigned_user_id: ''
+      assigned_user_id: '',
+      payment_screenshot_date: '',
+      payment_screenshot_time: '',
+      payment_screenshot_amount: '',
+      platform_payment_screenshot: null,
+      platform_payment_amount: '',
+      platform_payment_screenshot_date: '',
+      platform_payment_screenshot_time: '',
+      platform_payment_screenshot_amount: '',
+      witness_phone: '',
+      fraud_screenshot: null,
+      fraud_call_log_screenshot: null,
     });
     setIsAddDialogOpen(true);
   };
@@ -1299,22 +1332,109 @@ export function ViewScreen() {
       if (selectedDealership.paymentType === 'CUSTOMER_PAID') {
         if (!newRowData.received_amount || parseFloat(newRowData.received_amount) <= 0) {
           toast.error('Payment amount is mandatory for Customer Paid showrooms');
+          setIsSubmitting(false);
           return;
         }
         if (!newRowData.customer_phone || newRowData.customer_phone.trim().length < 10) {
           toast.error('Valid customer phone number is mandatory for Customer Paid showrooms');
+          setIsSubmitting(false);
           return;
         }
         if (!newRowData.payment_screenshot) {
           toast.error('Payment screenshot is mandatory for Customer Paid showrooms');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.payment_screenshot_date || !newRowData.payment_screenshot_time || !newRowData.payment_screenshot_amount) {
+          toast.error('Customer payment screenshot metadata (Date, Time, Amount) is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
+        if (parseFloat(newRowData.payment_screenshot_amount) !== parseFloat(newRowData.received_amount)) {
+          toast.error('Customer payment screenshot amount must match the collection amount');
+          setIsSubmitting(false);
           return;
         }
       }
 
-      // V1 SPEC: Rapido Screenshot is MANDATORY if Rapido Charge is entered
-      if (newRowData.rapido_charge && parseFloat(newRowData.rapido_charge) > 0 && !newRowData.rapido_screenshot) {
-        toast.error('Rapido screenshot is mandatory when a charge is entered');
+      // Photographer Payout model verification
+      const selectedPhotographer = allUsers.find(p => p.id === newRowData.assigned_user_id);
+      const payoutModel = selectedPhotographer ? getPhotographerRawPayoutModel(selectedPhotographer.id, newRowData.date) : 'PERCENTAGE';
+      const showPlatformPaymentFields = selectedDealership.paymentType === 'CUSTOMER_PAID' && payoutModel === 'PERCENTAGE_15_DAILY';
+
+      if (showPlatformPaymentFields) {
+        const expectedCut = Math.max(0, Math.round((parseFloat(newRowData.received_amount || '0') - parseFloat(newRowData.rapido_charge || '0')) * 0.15));
+        if (!newRowData.platform_payment_amount) {
+          toast.error('Platform payment amount is mandatory for 15% payout model');
+          setIsSubmitting(false);
+          return;
+        }
+        if (parseInt(newRowData.platform_payment_amount) !== expectedCut) {
+          toast.error(`Platform payment amount is incorrect! Expected: ₹${expectedCut} (15% of collection - rapido)`);
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.platform_payment_screenshot) {
+          toast.error('Platform payment screenshot is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.platform_payment_screenshot_date || !newRowData.platform_payment_screenshot_time || !newRowData.platform_payment_screenshot_amount) {
+          toast.error('Platform payment screenshot metadata (Date, Time, Amount) is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
+        if (parseFloat(newRowData.platform_payment_screenshot_amount) !== parseFloat(newRowData.platform_payment_amount)) {
+          toast.error('Platform payment screenshot amount must match the platform payment amount');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Rapido Charge is mandatory - it cannot be blank
+      if (newRowData.rapido_charge === '') {
+        toast.error('Rapido charge is mandatory (put 0 if there are no charges)');
+        setIsSubmitting(false);
         return;
+      }
+      
+      // If Rapido Charge is non-zero, screenshot is mandatory
+      if (parseFloat(newRowData.rapido_charge) > 0 && !newRowData.rapido_screenshot) {
+        toast.error('Rapido screenshot is mandatory when charge is greater than 0');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Fraud Detection check for this combo
+      const showroomCodeForFraud = getShowroomCode(selectedDealership.name);
+      const fraudAlreadyVerified = !!(
+        newRowData.date &&
+        newRowData.assigned_user_id &&
+        showroomCodeForFraud &&
+        deliveries.some(d => 
+          d.date === newRowData.date && 
+          d.assigned_user_id === newRowData.assigned_user_id && 
+          getShowroomCode(d.showroom_code) === showroomCodeForFraud && 
+          (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at))
+        )
+      );
+
+      if (!fraudAlreadyVerified) {
+        if (!newRowData.witness_phone || newRowData.witness_phone.trim().length < 10) {
+          toast.error('Witness Phone Number is mandatory and must be a valid 10-digit number');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.fraud_screenshot) {
+          toast.error('Fraud screenshot upload is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.fraud_call_log_screenshot) {
+          toast.error('Fraud call log screenshot upload is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Generate delivery_name if blank
@@ -1356,6 +1476,16 @@ export function ViewScreen() {
           : (selectedDealership.paymentType === 'DEALER_PAID' ? selectedDealership.ratePerDelivery : undefined),
         customer_phone: newRowData.customer_phone || undefined,
         rapido_charge: newRowData.rapido_charge ? parseFloat(newRowData.rapido_charge) : undefined,
+        
+        witness_phone: !fraudAlreadyVerified ? newRowData.witness_phone.trim() : null,
+        payment_screenshot_date: selectedDealership.paymentType === 'CUSTOMER_PAID' ? newRowData.payment_screenshot_date : null,
+        payment_screenshot_time: selectedDealership.paymentType === 'CUSTOMER_PAID' ? newRowData.payment_screenshot_time : null,
+        payment_screenshot_amount: selectedDealership.paymentType === 'CUSTOMER_PAID' ? parseFloat(newRowData.payment_screenshot_amount) : null,
+        
+        platform_payment_screenshot_date: showPlatformPaymentFields ? newRowData.platform_payment_screenshot_date : null,
+        platform_payment_screenshot_time: showPlatformPaymentFields ? newRowData.platform_payment_screenshot_time : null,
+        platform_payment_screenshot_amount: showPlatformPaymentFields ? parseFloat(newRowData.platform_payment_screenshot_amount) : null,
+
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -1396,6 +1526,45 @@ export function ViewScreen() {
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
           type: 'RAPIDO',
+          file_url: url,
+          thumbnail_url: url,
+          deleted_at: null
+        }, client);
+      }
+
+      if (newRowData.platform_payment_screenshot) {
+        const path = `platform_payments/${savedDelivery.id}_${Date.now()}.jpg`;
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.platform_payment_screenshot, path, client);
+        await screenshotsDb.createScreenshot({
+          delivery_id: savedDelivery.id,
+          user_id: newRowData.assigned_user_id || user?.id || '',
+          type: 'PLATFORM_PAYMENT',
+          file_url: url,
+          thumbnail_url: url,
+          deleted_at: null
+        }, client);
+      }
+
+      if (!fraudAlreadyVerified && newRowData.fraud_screenshot) {
+        const path = `fraud/${savedDelivery.id}_${Date.now()}.jpg`;
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_screenshot, path, client);
+        await screenshotsDb.createScreenshot({
+          delivery_id: savedDelivery.id,
+          user_id: newRowData.assigned_user_id || user?.id || '',
+          type: 'FRAUD_DETECTION',
+          file_url: url,
+          thumbnail_url: url,
+          deleted_at: null
+        }, client);
+      }
+
+      if (!fraudAlreadyVerified && newRowData.fraud_call_log_screenshot) {
+        const path = `call_logs/${savedDelivery.id}_${Date.now()}.jpg`;
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_call_log_screenshot, path, client);
+        await screenshotsDb.createScreenshot({
+          delivery_id: savedDelivery.id,
+          user_id: newRowData.assigned_user_id || user?.id || '',
+          type: 'FRAUD_CALL_LOG',
           file_url: url,
           thumbnail_url: url,
           deleted_at: null
@@ -1459,7 +1628,7 @@ export function ViewScreen() {
   const followScreenshots = screenshots.filter(s => s.type === 'FOLLOW' && !s.deleted_at);
   const rapidoScreenshots = screenshots.filter(s => s.type === 'RAPIDO' && !s.deleted_at);
   const platformPaymentScreenshots = screenshots.filter(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
-  const fraudDetectionScreenshots = screenshots.filter(s => s.type === 'FRAUD_DETECTION' && !s.deleted_at);
+  const fraudDetectionScreenshots = screenshots.filter(s => ['FRAUD_DETECTION', 'FRAUD_CALL_LOG'].includes(s.type) && !s.deleted_at);
 
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
@@ -2174,98 +2343,218 @@ export function ViewScreen() {
                               />
                             </div>
 
-                            {/* CONDITIONAL PAYMENT FIELDS */}
-                            {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'DEALER_PAID' && (
-                              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                                <div className="space-y-2">
-                                  <label className="text-xs font-semibold uppercase text-blue-500">Payment Amount (Optional)</label>
-                                  <Input
-                                    type="number"
-                                    value={newRowData.received_amount}
-                                    onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
-                                    placeholder="Defaults to dealership rate"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            {dealerships.find(d => d.id === newRowData.showroom_id)?.paymentType === 'CUSTOMER_PAID' && (
-                              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                                <div className="space-y-2">
-                                  <label className="text-xs font-semibold uppercase text-red-500">Payment Amount (MANDATORY)</label>
-                                  <Input
-                                    type="number"
-                                    value={newRowData.received_amount}
-                                    onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
-                                    placeholder="Enter amount"
-                                    className={!newRowData.received_amount ? 'border-red-300 bg-red-50' : ''}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-xs font-semibold uppercase text-red-500">Customer Phone (MANDATORY)</label>
-                                  <Input
-                                    value={newRowData.customer_phone}
-                                    onChange={(e) => setNewRowData({ ...newRowData, customer_phone: e.target.value })}
-                                    placeholder="Enter phone number"
-                                    className={!newRowData.customer_phone ? 'border-red-300 bg-red-50' : ''}
-                                  />
-                                </div>
-                                <div className="col-span-2 space-y-2 text-red-600">
-                                  <label className="text-xs font-semibold uppercase text-red-500">Payment Screenshot (MANDATORY)</label>
-                                  <div className="flex gap-2 items-center">
-                                    <Input
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot: e.target.files?.[0] || null })}
-                                      className="hidden"
-                                      id="payment-upload"
-                                    />
-                                    <label
-                                      htmlFor="payment-upload"
-                                      className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                        !newRowData.payment_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      <Upload className="h-4 w-4 text-red-400" />
-                                      <span className="text-sm font-medium">
-                                        {newRowData.payment_screenshot ? newRowData.payment_screenshot.name : 'Upload Payment Proof'}
-                                      </span>
-                                    </label>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* CONDITIONAL RAPIDO FIELDS (Cross-Cluster Check) */}
+                            {/* CONDITIONAL PAYMENT & PLATFORM PAYMENT FIELDS */}
                             {(() => {
                               const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
                               if (!selectedShowroom) return null;
+
+                              const selectedPhotographer = allUsers.find(p => p.id === newRowData.assigned_user_id);
+                              const payoutModel = selectedPhotographer ? getPhotographerRawPayoutModel(selectedPhotographer.id, newRowData.date) : 'PERCENTAGE';
                               
-                              const showroomMapping = mappings.find(m => m.dealershipId === selectedShowroom.id);
-                              const showroomClusterId = showroomMapping?.clusterId;
-                              
-                              const myClusterIds = mappings
-                                .filter(m => m.photographerId === user?.id)
-                                .map(m => m.clusterId);
-                              
-                              const isCrossCluster = showroomClusterId && !myClusterIds.includes(showroomClusterId);
-                              
-                              if (!isCrossCluster) return null;
+                              if (selectedShowroom.paymentType === 'DEALER_PAID') {
+                                return (
+                                  <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-semibold uppercase text-blue-500">Payment Amount (Optional)</label>
+                                      <Input
+                                        type="number"
+                                        value={newRowData.received_amount}
+                                        onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
+                                        placeholder="Defaults to dealership rate"
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              const showPlatformPaymentFields = payoutModel === 'PERCENTAGE_15_DAILY';
+                              const expectedPlatformAmount = Math.max(0, Math.round((Number(newRowData.received_amount || 0) - Number(newRowData.rapido_charge || 0)) * 0.15));
 
                               return (
                                 <div className="space-y-4 border-t pt-4">
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-semibold uppercase text-gray-500 text-blue-600">Rapido Charge (Cross-Cluster)</label>
-                                    <Input
-                                      type="number"
-                                      value={newRowData.rapido_charge}
-                                      onChange={(e) => setNewRowData({ ...newRowData, rapido_charge: e.target.value })}
-                                      placeholder="Optional"
-                                    />
+                                  {/* CUSTOMER PAYMENT SECTION */}
+                                  <div className="space-y-3">
+                                    <h4 className="text-xs font-bold uppercase text-red-600">Customer Payment Proof</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <label className="text-xs font-semibold uppercase text-red-500">Payment Amount <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="number"
+                                          value={newRowData.received_amount}
+                                          onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
+                                          placeholder="Enter amount"
+                                          className={!newRowData.received_amount ? 'border-red-300 bg-red-50' : ''}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label className="text-xs font-semibold uppercase text-red-500">Customer Phone <span className="text-red-500">*</span></label>
+                                        <Input
+                                          value={newRowData.customer_phone}
+                                          onChange={(e) => setNewRowData({ ...newRowData, customer_phone: e.target.value })}
+                                          placeholder="Enter phone number"
+                                          className={!newRowData.customer_phone ? 'border-red-300 bg-red-50' : ''}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-semibold uppercase text-red-500">Payment Screenshot <span className="text-red-500">*</span></label>
+                                      <div className="flex gap-2 items-center">
+                                        <Input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot: e.target.files?.[0] || null })}
+                                          className="hidden"
+                                          id="payment-upload"
+                                        />
+                                        <label
+                                          htmlFor="payment-upload"
+                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
+                                            !newRowData.payment_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <Upload className="h-4 w-4 text-red-400" />
+                                          <span className="text-sm font-medium">
+                                            {newRowData.payment_screenshot ? newRowData.payment_screenshot.name : 'Upload Payment Proof'}
+                                          </span>
+                                        </label>
+                                      </div>
+                                    </div>
+
+                                    {/* Screenshot metadata */}
+                                    <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="date"
+                                          value={newRowData.payment_screenshot_date}
+                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_date: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="time"
+                                          value={newRowData.payment_screenshot_time}
+                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_time: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="number"
+                                          value={newRowData.payment_screenshot_amount}
+                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_amount: e.target.value })}
+                                          className="h-8 text-xs"
+                                          placeholder="On photo"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
+
+                                  {/* PLATFORM PAYMENT SECTION (15% Payout Model Only) */}
+                                  {showPlatformPaymentFields && (
+                                    <div className="space-y-3 border-t pt-3">
+                                      <div className="flex justify-between items-center">
+                                        <h4 className="text-xs font-bold uppercase text-green-700">Platform Payment (Yourphotocrew Cut)</h4>
+                                        <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                                          Expected Cut: ₹{expectedPlatformAmount} (15%)
+                                        </span>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <label className="text-xs font-semibold uppercase text-green-600">Platform Payment Amount <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="number"
+                                          value={newRowData.platform_payment_amount}
+                                          onChange={(e) => setNewRowData({ ...newRowData, platform_payment_amount: e.target.value })}
+                                          placeholder={`Expected: ₹${expectedPlatformAmount}`}
+                                          className={!newRowData.platform_payment_amount || parseInt(newRowData.platform_payment_amount) !== expectedPlatformAmount ? 'border-red-300 bg-red-50 text-red-700 font-medium' : 'border-green-300 bg-green-50 text-green-700'}
+                                        />
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <label className="text-xs font-semibold uppercase text-green-600">Platform Payment Screenshot <span className="text-red-500">*</span></label>
+                                        <div className="flex gap-2 items-center">
+                                          <Input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot: e.target.files?.[0] || null })}
+                                            className="hidden"
+                                            id="platform-payment-upload"
+                                          />
+                                          <label
+                                            htmlFor="platform-payment-upload"
+                                            className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
+                                              !newRowData.platform_payment_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
+                                            }`}
+                                          >
+                                            <Upload className="h-4 w-4 text-green-500" />
+                                            <span className="text-sm font-medium">
+                                              {newRowData.platform_payment_screenshot ? newRowData.platform_payment_screenshot.name : 'Upload Platform Proof'}
+                                            </span>
+                                          </label>
+                                        </div>
+                                      </div>
+
+                                      {/* Platform Screenshot metadata */}
+                                      <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
+                                          <Input
+                                            type="date"
+                                            value={newRowData.platform_payment_screenshot_date}
+                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_date: e.target.value })}
+                                            className="h-8 text-xs"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
+                                          <Input
+                                            type="time"
+                                            value={newRowData.platform_payment_screenshot_time}
+                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_time: e.target.value })}
+                                            className="h-8 text-xs"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
+                                          <Input
+                                            type="number"
+                                            value={newRowData.platform_payment_screenshot_amount}
+                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_amount: e.target.value })}
+                                            className="h-8 text-xs"
+                                            placeholder="On photo"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            {/* RAPIDO FIELDS */}
+                            {newRowData.assigned_user_id && (
+                              <div className="space-y-4 border-t pt-4">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-semibold uppercase text-blue-600">
+                                    Rapido Charge (Cross-Cluster / Same-Cluster) <span className="text-red-500">*</span>
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    value={newRowData.rapido_charge}
+                                    onChange={(e) => setNewRowData({ ...newRowData, rapido_charge: e.target.value })}
+                                    placeholder="Enter rapido charge (put 0 if none)"
+                                    className={newRowData.rapido_charge === '' ? 'border-red-300 bg-red-50' : ''}
+                                  />
+                                </div>
+                                {newRowData.rapido_charge !== '' && parseFloat(newRowData.rapido_charge) > 0 && (
                                   <div className="space-y-2">
-                                    <label className="text-xs font-semibold uppercase text-gray-500 text-blue-600">
-                                      Rapido Screenshot {newRowData.rapido_charge ? '(MANDATORY)' : '(Optional)'}
+                                    <label className="text-xs font-semibold uppercase text-red-500">
+                                      Rapido Screenshot (MANDATORY)
                                     </label>
                                     <div className="flex gap-2 items-center">
                                       <Input
@@ -2278,16 +2567,105 @@ export function ViewScreen() {
                                       <label
                                         htmlFor="rapido-upload"
                                         className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                          newRowData.rapido_charge && !newRowData.rapido_screenshot 
-                                            ? 'border-red-300 bg-red-50' 
-                                            : 'hover:bg-gray-50'
+                                          !newRowData.rapido_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
                                         }`}
                                       >
-                                        <Upload className={`h-4 w-4 ${newRowData.rapido_charge ? 'text-blue-500' : 'text-gray-400'}`} />
-                                        <span className={`text-sm ${newRowData.rapido_charge ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
+                                        <Upload className="h-4 w-4 text-red-400" />
+                                        <span className="text-sm font-medium">
                                           {newRowData.rapido_screenshot ? newRowData.rapido_screenshot.name : 'Upload Rapido Bill'}
                                         </span>
                                       </label>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* FRAUD DETECTION SECTION */}
+                            {(() => {
+                              const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
+                              const showroomCodeForFraud = selectedShowroom ? getShowroomCode(selectedShowroom.name) : '';
+                              const fraudAlreadyVerified = !!(
+                                newRowData.date &&
+                                newRowData.assigned_user_id &&
+                                showroomCodeForFraud &&
+                                deliveries.some(d => 
+                                  d.date === newRowData.date && 
+                                  d.assigned_user_id === newRowData.assigned_user_id && 
+                                  getShowroomCode(d.showroom_code) === showroomCodeForFraud && 
+                                  (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at))
+                                )
+                              );
+
+                              if (!newRowData.assigned_user_id || !newRowData.showroom_id || fraudAlreadyVerified) return null;
+
+                              return (
+                                <div className="space-y-4 border-t pt-4">
+                                  <h4 className="text-xs font-bold uppercase text-amber-600">Fraud Detection Verification</h4>
+                                  
+                                  <div className="space-y-2">
+                                    <label className="text-xs font-semibold uppercase text-gray-500">
+                                      Witness Phone Number (Dealership Team member) <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                      value={newRowData.witness_phone}
+                                      onChange={(e) => setNewRowData({ ...newRowData, witness_phone: e.target.value })}
+                                      placeholder="Enter witness phone number"
+                                      className={!newRowData.witness_phone ? 'border-red-300 bg-red-50' : ''}
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-semibold uppercase text-gray-500">
+                                        Fraud Screenshot <span className="text-red-500">*</span>
+                                      </label>
+                                      <div className="flex gap-2 items-center">
+                                        <Input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => setNewRowData({ ...newRowData, fraud_screenshot: e.target.files?.[0] || null })}
+                                          className="hidden"
+                                          id="fraud-upload"
+                                        />
+                                        <label
+                                          htmlFor="fraud-upload"
+                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
+                                            !newRowData.fraud_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <Upload className="h-4 w-4 text-amber-500" />
+                                          <span className="text-xs font-medium truncate max-w-[120px]">
+                                            {newRowData.fraud_screenshot ? newRowData.fraud_screenshot.name : 'Upload Screenshot'}
+                                          </span>
+                                        </label>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-semibold uppercase text-gray-500">
+                                        Call Log Screenshot <span className="text-red-500">*</span>
+                                      </label>
+                                      <div className="flex gap-2 items-center">
+                                        <Input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => setNewRowData({ ...newRowData, fraud_call_log_screenshot: e.target.files?.[0] || null })}
+                                          className="hidden"
+                                          id="fraud-call-log-upload"
+                                        />
+                                        <label
+                                          htmlFor="fraud-call-log-upload"
+                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
+                                            !newRowData.fraud_call_log_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <Upload className="h-4 w-4 text-amber-500" />
+                                          <span className="text-xs font-medium truncate max-w-[120px]">
+                                            {newRowData.fraud_call_log_screenshot ? newRowData.fraud_call_log_screenshot.name : 'Upload Call Log'}
+                                          </span>
+                                        </label>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -3285,6 +3663,12 @@ export function ViewScreen() {
                     {/* Metadata */}
                     <div className="border-t pt-4 space-y-2">
                       <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Proof Type:</span>
+                        <Badge variant="outline" className={filteredFraudDetectionScreenshots[currentImageIndex]?.type === 'FRAUD_CALL_LOG' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-blue-100 text-blue-800 border-blue-200'}>
+                          {filteredFraudDetectionScreenshots[currentImageIndex]?.type === 'FRAUD_CALL_LOG' ? '📞 Call Log Proof' : '🛡️ Fraud Screenshot'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">Showroom Name:</span>
                         <span className="text-sm text-gray-900">
                           {(() => {
@@ -3300,6 +3684,17 @@ export function ViewScreen() {
                           {allUsers.find(p => p.id === filteredFraudDetectionScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
                         </span>
                       </div>
+                      {(() => {
+                        const screenshot = filteredFraudDetectionScreenshots[currentImageIndex];
+                        const d = deliveries.find(del => del.id === screenshot?.delivery_id);
+                        if (!d || !d.witness_phone) return null;
+                        return (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Witness Phone:</span>
+                            <span className="text-sm text-gray-900 font-semibold">{d.witness_phone}</span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">Uploaded At:</span>
                         <span className="text-sm text-gray-500">
@@ -3338,6 +3733,7 @@ export function ViewScreen() {
                     const code = screenshot.showroom_code;
                     const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
                     const photographer = allUsers.find(p => p.id === screenshot.user_id);
+                    const del = deliveries.find(d => d.id === screenshot.delivery_id);
                     return (
                       <Card
                         key={screenshot.id}
@@ -3356,12 +3752,22 @@ export function ViewScreen() {
                           <div className="p-4 space-y-2 bg-white">
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate text-gray-900">
-                                  {dealership ? dealership.name : code || 'Unknown Showroom'}
+                                <div className="flex justify-between items-start gap-1">
+                                  <div className="text-sm font-semibold truncate text-gray-900 max-w-[200px]">
+                                    {dealership ? dealership.name : code || 'Unknown Showroom'}
+                                  </div>
+                                  <Badge variant="outline" className={screenshot.type === 'FRAUD_CALL_LOG' ? 'text-[10px] bg-amber-50 text-amber-700 border-amber-200' : 'text-[10px] bg-blue-50 text-blue-700 border-blue-200'}>
+                                    {screenshot.type === 'FRAUD_CALL_LOG' ? 'Call Log' : 'Fraud Scr'}
+                                  </Badge>
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
                                   Photographer: {photographer?.name || 'Unknown'}
                                 </div>
+                                {del?.witness_phone && (
+                                  <div className="text-xs text-gray-600 mt-1 font-medium">
+                                    Witness: {del.witness_phone}
+                                  </div>
+                                )}
                                 <div className="text-xs text-gray-500 mt-1">
                                   {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
                                     year: 'numeric',

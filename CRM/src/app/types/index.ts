@@ -50,7 +50,7 @@ export type DecisionState = 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL';
 // - CLOSED: Photographer has triggered SEND UPDATE - no further actions allowed
 export type PhotographerDayState = 'ACTIVE' | 'CLOSED';
 
-export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION';
+export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION' | 'FRAUD_CALL_LOG';
 
 export type PaymentType = 'CUSTOMER_PAID' | 'DEALER_PAID';
 
@@ -114,6 +114,13 @@ export interface Delivery {
   customer_phone?: string;
   rapido_charge?: number;
   deleted_at?: string; // V6.0: For 'Safe Delete' flow
+  witness_phone?: string | null;
+  payment_screenshot_date?: string | null;
+  payment_screenshot_time?: string | null;
+  payment_screenshot_amount?: number | null;
+  platform_payment_screenshot_date?: string | null;
+  platform_payment_screenshot_time?: string | null;
+  platform_payment_screenshot_amount?: number | null;
 }
 
 export interface Screenshot {
