@@ -121,6 +121,20 @@ export interface Delivery {
   platform_payment_screenshot_date?: string | null;
   platform_payment_screenshot_time?: string | null;
   platform_payment_screenshot_amount?: number | null;
+  rapido_screenshot_date?: string | null;
+  rapido_screenshot_time?: string | null;
+  rapido_screenshot_amount?: number | null;
+}
+
+export interface StandupCall {
+  id: string;
+  photographer_id: string;
+  date: string;
+  status: 'CONFIRMED' | 'LEAVE';
+  confirmed_count?: number | null;
+  call_log_screenshot_url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Screenshot {

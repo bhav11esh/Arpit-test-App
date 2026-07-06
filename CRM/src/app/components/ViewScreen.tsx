@@ -33,6 +33,7 @@ import * as configDb from '../lib/db/config';
 import * as notificationsDb from '../lib/db/notifications';
 import * as leavesDb from '../lib/db/leaves';
 import * as screenshotsDb from '../lib/db/screenshots';
+import * as standupDb from '../lib/db/standup';
 import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw } from 'lucide-react';
 import { SearchableSelect } from './ui/searchable-select';
 import { AlertTriangle } from 'lucide-react';
@@ -122,7 +123,7 @@ export function ViewScreen() {
   // 4. Logs View (admin audit trail)
   // 5. Portrait View (live_bookings)
   // V1 RULE: Photographers must NEVER see screenshot galleries (modes 2 & 3)
-  const [viewMode, setViewMode] = useState<'spreadsheet' | 'payment' | 'follow' | 'rapido' | 'logs' | 'portrait' | 'missed_send_update'>('spreadsheet');
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'audit' | 'logs' | 'portrait' | 'missed_send_update'>('spreadsheet');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -218,6 +219,53 @@ export function ViewScreen() {
     leaveText: string | null;
   }[]>([]);
   const [missedSendUpdateLoading, setMissedSendUpdateLoading] = useState(false);
+  const [enteredCounts, setEnteredCounts] = useState<Record<string, string>>({});
+
+  const [currentStandupCall, setCurrentStandupCall] = useState<any>(null);
+  const [standupLoading, setStandupLoading] = useState(false);
+  const [standupForm, setStandupForm] = useState<{
+    status: 'CONFIRMED' | 'LEAVE';
+    confirmed_count: string;
+    screenshotFile: File | null;
+    previewUrl: string;
+    submitting: boolean;
+  }>({
+    status: 'CONFIRMED',
+    confirmed_count: '',
+    screenshotFile: null,
+    previewUrl: '',
+    submitting: false
+  });
+  
+  const handleStandupFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setStandupForm(prev => ({
+        ...prev,
+        screenshotFile: file,
+        previewUrl: URL.createObjectURL(file)
+      }));
+    }
+  };
+  
+  useEffect(() => {
+    if (viewMode === 'audit' && selectedPhotographer && selectedPhotographer !== 'all' && spreadSheetDate) {
+      const loadStandup = async () => {
+        setStandupLoading(true);
+        try {
+          const call = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
+          setCurrentStandupCall(call);
+        } catch (err) {
+          console.error('Failed to load standup call:', err);
+        } finally {
+          setStandupLoading(false);
+        }
+      };
+      loadStandup();
+    } else {
+      setCurrentStandupCall(null);
+    }
+  }, [selectedPhotographer, spreadSheetDate, viewMode]);
 
   const handleNudgePhotographer = async (photographerId: string, name: string, pendingCount: number) => {
     try {
@@ -238,6 +286,31 @@ export function ViewScreen() {
     } catch (error) {
       console.error('Failed to nudge photographer:', error);
       toast.error('Failed to send nudge');
+    }
+  };
+
+  const handleCloseMissedSendUpdateTask = async (p: any) => {
+    try {
+      const count = parseInt(enteredCounts[p.photographerId]);
+      const { error } = await supabase.from('log_events').insert({
+        type: 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED',
+        actor_user_id: user?.id,
+        metadata: {
+          photographer_id: p.photographerId,
+          date: spreadSheetDate,
+          reported_count: count,
+          saved_count: p.totalCount
+        }
+      });
+      if (error) throw error;
+      
+      toast.success(`Audit task for ${p.name} completed successfully`);
+      
+      // Remove from list locally
+      setMissedSendUpdateData(prev => prev.filter(item => item.photographerId !== p.photographerId));
+    } catch (err) {
+      console.error('Failed to close audit task:', err);
+      toast.error('Failed to close audit task');
     }
   };
 
@@ -296,7 +369,7 @@ export function ViewScreen() {
         // 1. Get active photographers
         const activePhotographers = cityIsolatedPhotographers.filter(p => p.active === true);
         
-        // 2. Fetch log events for SEND_UPDATE_COMPLETED around dateStr
+        // 2. Fetch log events for SEND_UPDATE_COMPLETED and ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED around dateStr
         const [year, month, day] = dateStr.split('-').map(Number);
         const start = new Date(year, month - 1, day - 1, 0, 0, 0); // Widen range to be timezone safe
         const end = new Date(year, month - 1, day + 2, 23, 59, 59);
@@ -304,7 +377,7 @@ export function ViewScreen() {
         const { data: logs, error: logsError } = await supabase
           .from('log_events')
           .select('*')
-          .eq('type', 'SEND_UPDATE_COMPLETED')
+          .in('type', ['SEND_UPDATE_COMPLETED', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
           .gte('created_at', start.toISOString())
           .lte('created_at', end.toISOString());
           
@@ -313,8 +386,14 @@ export function ViewScreen() {
         // Filter logs by operational date in JS
         const sentUpdateUserIds = new Set(
           (logs || [])
-            .filter(le => getOperationalDateString(new Date(le.created_at)) === dateStr)
+            .filter(le => le.type === 'SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
             .map(le => le.actor_user_id)
+        );
+
+        const auditedUserIds = new Set(
+          (logs || [])
+            .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+            .map(le => le.metadata?.photographer_id)
         );
         
         // 3. Fetch leaves for dateStr
@@ -344,6 +423,7 @@ export function ViewScreen() {
           const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
           const totalCount = dayDeliveries.length;
           const hasSentUpdate = sentUpdateUserIds.has(p.id);
+          const isAuditClosed = auditedUserIds.has(p.id);
           
           // Determine leave status
           const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
@@ -360,16 +440,16 @@ export function ViewScreen() {
             completedCount,
             totalCount,
             hasSentUpdate,
+            isAuditClosed,
             leaveText
           };
         });
         
         // 6. Filter results: Keep only those who:
-        // - Completed 0 deliveries (completedCount === 0)
-        // - OR missed send update (hasSentUpdate === false)
-        // (i.e. exclude those who completed > 0 AND sent update)
+        // - (Completed 0 deliveries OR missed send update)
+        // - AND have NOT been audited/closed yet
         const filteredResults = results.filter(r => 
-          r.completedCount === 0 || !r.hasSentUpdate
+          !r.isAuditClosed && (r.completedCount === 0 || !r.hasSentUpdate)
         );
         
         setMissedSendUpdateData(filteredResults);
@@ -1624,6 +1704,49 @@ export function ViewScreen() {
     setIsAddDialogOpen(false);
   };
 
+  const photographerDeliveries = React.useMemo(() => {
+    if (!selectedPhotographer || selectedPhotographer === 'all') return [];
+    return deliveries.filter(d => d.assigned_user_id === selectedPhotographer && d.date === spreadSheetDate && d.status === 'DONE');
+  }, [deliveries, selectedPhotographer, spreadSheetDate]);
+
+  const uniqueShowroomCodesForPhotographer = React.useMemo(() => {
+    return Array.from(new Set(photographerDeliveries.map(d => getShowroomCode(d.showroom_code))));
+  }, [photographerDeliveries]);
+
+  const [verificationInputs, setVerificationInputs] = useState<Record<string, {
+    payment_date: string;
+    payment_time: string;
+    payment_amount: string;
+    platform_date: string;
+    platform_time: string;
+    platform_amount: string;
+    rapido_date: string;
+    rapido_time: string;
+    rapido_amount: string;
+    witness_phone: string;
+  }>>({});
+
+  useEffect(() => {
+    if (viewMode === 'audit' && selectedPhotographer && selectedPhotographer !== 'all' && spreadSheetDate) {
+      const inputs: any = {};
+      photographerDeliveries.forEach(d => {
+        inputs[d.id] = {
+          payment_date: d.payment_screenshot_date || '',
+          payment_time: d.payment_screenshot_time || '',
+          payment_amount: d.payment_screenshot_amount != null ? String(d.payment_screenshot_amount) : '',
+          platform_date: d.platform_payment_screenshot_date || '',
+          platform_time: d.platform_payment_screenshot_time || '',
+          platform_amount: d.platform_payment_screenshot_amount != null ? String(d.platform_payment_screenshot_amount) : '',
+          rapido_date: d.rapido_screenshot_date || '',
+          rapido_time: d.rapido_screenshot_time || '',
+          rapido_amount: d.rapido_screenshot_amount != null ? String(d.rapido_screenshot_amount) : '',
+          witness_phone: d.witness_phone || '',
+        };
+      });
+      setVerificationInputs(inputs);
+    }
+  }, [selectedPhotographer, spreadSheetDate, viewMode, photographerDeliveries]);
+
   const paymentScreenshots = screenshots.filter(s => s.type === 'PAYMENT' && !s.deleted_at);
   const followScreenshots = screenshots.filter(s => s.type === 'FOLLOW' && !s.deleted_at);
   const rapidoScreenshots = screenshots.filter(s => s.type === 'RAPIDO' && !s.deleted_at);
@@ -1700,12 +1823,9 @@ export function ViewScreen() {
                       <SelectGroup className="mt-2">
                         <SelectSeparator />
                         <SelectLabel className="text-xs font-bold text-gray-400 uppercase mt-1">🔒 Audit Views</SelectLabel>
-                        <SelectItem value="payment" className="text-sm">Payment Screenshots</SelectItem>
-                        <SelectItem value="rapido" className="text-sm">Rapido Screenshots</SelectItem>
-                        <SelectItem value="platform_payment" className="text-sm">Yourphotocrew Payments</SelectItem>
-                        <SelectItem value="fraud_detection" className="text-sm">Fraud Detection</SelectItem>
-                        <SelectItem value="logs" className="text-sm">Admin Logs</SelectItem>
+                        <SelectItem value="audit" className="text-sm">Photographer Audit</SelectItem>
                         <SelectItem value="missed_send_update" className="text-sm">Missed Send Update/Covered 0 delivery</SelectItem>
+                        <SelectItem value="logs" className="text-sm">Admin Logs</SelectItem>
                       </SelectGroup>
                     )}
                   </SelectContent>
@@ -2699,1092 +2819,876 @@ export function ViewScreen() {
             </Card>
           )}
 
-          {/* Shared Screenshot Galleries Filters */}
-          {['payment', 'follow', 'rapido', 'platform_payment', 'fraud_detection'].includes(viewMode) && (
-            <Card>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Showroom/Dealership Filter */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Dealership</label>
-                    <SearchableSelect
-                      options={[
-                        { label: "All Dealerships", value: "all" },
-                        ...dealerships.slice().sort((a, b) => a.name.localeCompare(b.name)).map(d => ({
-                          label: d.name,
-                          value: d.id
-                        }))
-                      ]}
-                      value={selectedShowroom}
-                      onValueChange={setSelectedShowroom}
-                      placeholder="Select dealership"
-                    />
-                  </div>
+          {/* Photographer Audit view */}
+          {viewMode === 'audit' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Photographer Daily Audit</h2>
+                  <p className="text-sm text-gray-500">Unified verification workspace for morning standups, deliveries, and fraud checks</p>
+                </div>
+              </div>
 
-                  {/* Date Filter */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-gray-600">Filter by Date</label>
-                      <div className="flex items-center gap-1.5">
-                        <input 
-                          type="checkbox" 
-                          id="galleryShowAllTime" 
-                          checked={showAllTime} 
-                          onChange={(e) => setShowAllTime(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label htmlFor="galleryShowAllTime" className="text-xs text-gray-500 cursor-pointer">Show All Time</label>
-                      </div>
+              {/* Selector Card */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Date Selector */}
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Audit Date</label>
+                      <Input
+                        type="date"
+                        value={spreadSheetDate}
+                        onChange={(e) => {
+                          setSpreadSheetDate(e.target.value);
+                        }}
+                        className="h-9"
+                      />
                     </div>
-                    <Input
-                      type="date"
-                      value={spreadSheetDate}
-                      onChange={(e) => {
-                        setSpreadSheetDate(e.target.value);
-                        setShowAllTime(false);
-                      }}
-                      disabled={showAllTime}
-                      className={showAllTime ? 'opacity-50 h-9' : 'h-9'}
-                    />
-                  </div>
 
-                  {/* Photographer Filter */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Filter by Photographer</label>
-                    <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="All photographers" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Photographers</SelectItem>
-                        {uniquePhotographers.map(userId => {
-                          const photographer = allUsers.find(p => p.id === userId);
-                          return (
-                            <SelectItem key={userId} value={userId}>
-                              {photographer?.name || 'Unknown'}
+                    {/* Photographer Selector */}
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Audited Photographer</label>
+                      <Select 
+                        value={selectedPhotographer} 
+                        onValueChange={(v) => {
+                          setSelectedPhotographer(v);
+                          // reset standup form on photographer change
+                          setStandupForm({
+                            status: 'CONFIRMED',
+                            confirmed_count: '',
+                            screenshotFile: null,
+                            previewUrl: '',
+                            submitting: false
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select Photographer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Select Photographer...</SelectItem>
+                          {cityIsolatedPhotographers.filter(p => p.active).map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
                             </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
 
-          {/* Payment Screenshots Gallery */}
-          {viewMode === 'payment' && (
-            <div className="space-y-4">
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Payment Screenshots Gallery</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • Binary artifacts storage</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[#2563EB] text-white">{filteredPaymentScreenshots.length} images</Badge>
-                  <Button
-                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
-                  >
-                    <Grid className="h-4 w-4 mr-2" />
-                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
-              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
-                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
-                </p>
-              </div>
-
-              {/* V1 SPEC: Screenshot gallery is NOT spreadsheet - distinct mental model */}
-              <div className="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded text-sm">
-                <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-700" />
-                <div className="text-purple-800">
-                  <p className="font-medium">Gallery Mode (Not Spreadsheet)</p>
-                  <p className="text-xs text-purple-700 mt-1">
-                    This is a separate binary artifacts view. Screenshot deletion does NOT affect spreadsheet data, delivery status, or reopen tasks.
-                  </p>
-                </div>
-              </div>
-
-              {filteredPaymentScreenshots.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-gray-500">No payment screenshots available</p>
-                  </CardContent>
-                </Card>
-              ) : galleryViewMode === 'single' ? (
-                /* V1 SPEC: Default to single-image inspection with Next/Previous */
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    {/* Image */}
-                    <div className="relative">
-                      <ImageWithFallback
-                        src={filteredPaymentScreenshots[currentImageIndex]?.file_url}
-                        alt="Payment Screenshot"
-                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
-                      />
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === 0}
-                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        {currentImageIndex + 1} / {filteredPaymentScreenshots.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === filteredPaymentScreenshots.length - 1}
-                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredPaymentScreenshots.length - 1, prev + 1))}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-
-                    {/* Metadata - persistently visible */}
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Delivery Name:</span>
-                        <span className="text-sm text-gray-900">
-                          {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.delivery_name || 'Unknown'}
+              {/* Main Content Areas */}
+              {selectedPhotographer && selectedPhotographer !== 'all' ? (
+                <div className="space-y-6">
+                  
+                  {/* Task 1: Morning Standup Call Card */}
+                  <Card className="border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-blue-500" />
+                          Task 1: Morning Standup Call Verification
                         </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
-                        <span className="text-sm text-gray-600 mt-1">
-                          {allUsers.find(p => p.id === filteredPaymentScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Date:</span>
-                        <span className="text-sm text-gray-500 mt-1">
-                          {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Amount Received:</span>
-                        <span className="text-sm font-semibold text-green-600 mt-1">
-                          {deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount ? `₹${deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount}` : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
-                        <span className="text-sm font-semibold text-blue-600 mt-1">
-                          {getPhotographerPayoutModel(
-                            filteredPaymentScreenshots[currentImageIndex]?.user_id,
-                            deliveries.find(d => d.id === filteredPaymentScreenshots[currentImageIndex]?.delivery_id)?.date
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* V1 SPEC: Deletion helper text */}
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                      <p className="font-semibold">Deletion is for audit cleanup only</p>
-                      <p className="mt-1">Deleting a screenshot removes it from the gallery and storage but does NOT affect delivery status, spreadsheet data, or reopen tasks.</p>
-                    </div>
-
-                    {/* Actions */}
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
-                          handleDeleteScreenshot(filteredPaymentScreenshots[currentImageIndex]?.id);
-                          if (currentImageIndex >= filteredPaymentScreenshots.length - 1) {
-                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Screenshot
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Grid view (optional) */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredPaymentScreenshots.map((screenshot, index) => {
-                    const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
-                    return (
-                      <Card
-                        key={screenshot.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                        onClick={() => {
-                          setCurrentImageIndex(index);
-                          setGalleryViewMode('single');
-                        }}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={screenshot.file_url}
-                            alt="Payment Screenshot"
-                            className="w-full h-64 object-cover"
-                          />
-                          <div className="p-4 space-y-2 bg-white">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate text-gray-900">
-                                  {delivery?.delivery_name || 'Unknown Delivery'}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Photographer: {photographer?.name || 'Unknown'}
-                                </div>
-                                <div className="text-xs font-semibold text-green-600 mt-1">
-                                  Amount Received: {delivery?.received_amount ? `₹${delivery.received_amount}` : 'N/A'}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })}
-                                </div>
+                        {currentStandupCall ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 font-semibold border-green-200">
+                            Verified & Saved
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-500 bg-gray-50">
+                            Pending
+                          </Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {standupLoading ? (
+                        <div className="py-6 text-center text-xs text-gray-400">Loading standup details...</div>
+                      ) : currentStandupCall ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
+                          <div className="space-y-2 text-sm text-gray-700">
+                            <div className="flex justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Standup Status:</span>
+                              <span className={`font-bold ${currentStandupCall.status === 'CONFIRMED' ? 'text-green-600' : 'text-blue-600'}`}>
+                                {currentStandupCall.status === 'CONFIRMED' ? 'CONFIRMED DELIVERIES' : 'ON LEAVE'}
+                              </span>
+                            </div>
+                            {currentStandupCall.status === 'CONFIRMED' && (
+                              <div className="flex justify-between border-b pb-1.5">
+                                <span className="text-gray-500">Confirmed Deliveries Count:</span>
+                                <span className="font-bold text-gray-900">{currentStandupCall.confirmed_count}</span>
                               </div>
+                            )}
+                            <div className="flex justify-between border-b pb-1.5">
+                              <span className="text-gray-500">Verified Date:</span>
+                              <span className="font-medium">{new Date(currentStandupCall.created_at).toLocaleDateString('en-IN')}</span>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Follow Screenshots Gallery */}
-          {viewMode === 'follow' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Follow Screenshots Gallery</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • Binary artifacts storage</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[#2563EB] text-white">{filteredFollowScreenshots.length} images</Badge>
-                  <Button
-                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
-                  >
-                    <Grid className="h-4 w-4 mr-2" />
-                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
-              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
-                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
-                </p>
-              </div>
-
-              {filteredFollowScreenshots.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-gray-500">No follow screenshots available</p>
-                  </CardContent>
-                </Card>
-              ) : galleryViewMode === 'single' ? (
-                /* V1 SPEC: Default to single-image inspection with Next/Previous */
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    {/* Image */}
-                    <div className="relative">
-                      <ImageWithFallback
-                        src={filteredFollowScreenshots[currentImageIndex]?.file_url}
-                        alt="Follow Screenshot"
-                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
-                        fallback={<div className="w-full rounded-lg max-h-96 object-contain bg-gray-100 flex items-center justify-center text-gray-400">Image not found</div>}
-                      />
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === 0}
-                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        {currentImageIndex + 1} / {filteredFollowScreenshots.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === filteredFollowScreenshots.length - 1}
-                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredFollowScreenshots.length - 1, prev + 1))}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-
-                    {/* Metadata - persistently visible */}
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Delivery Name:</span>
-                        <span className="text-sm text-gray-900">
-                          {deliveries.find(d => d.id === filteredFollowScreenshots[currentImageIndex]?.delivery_id)?.delivery_name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
-                        <span className="text-sm text-gray-600 mt-1">
-                          {allUsers.find(p => p.id === filteredFollowScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Date:</span>
-                        <span className="text-sm text-gray-500 mt-1">
-                          {deliveries.find(d => d.id === filteredFollowScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
-                        <span className="text-sm font-semibold text-blue-600 mt-1">
-                          {getPhotographerPayoutModel(
-                            filteredFollowScreenshots[currentImageIndex]?.user_id,
-                            deliveries.find(d => d.id === filteredFollowScreenshots[currentImageIndex]?.delivery_id)?.date
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* V1 SPEC: Deletion helper text */}
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                      <p className="font-semibold">Deletion is for audit cleanup only</p>
-                      <p className="mt-1">Deleting a screenshot removes it from the gallery and storage but does NOT affect delivery status, spreadsheet data, or reopen tasks.</p>
-                    </div>
-
-                    {/* Actions */}
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
-                          handleDeleteScreenshot(filteredFollowScreenshots[currentImageIndex]?.id);
-                          if (currentImageIndex >= filteredFollowScreenshots.length - 1) {
-                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Screenshot
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Grid view (optional) */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredFollowScreenshots.map((screenshot, index) => {
-                    const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
-                    return (
-                      <Card
-                        key={screenshot.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                        onClick={() => {
-                          setCurrentImageIndex(index);
-                          setGalleryViewMode('single');
-                        }}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={screenshot.file_url}
-                            alt="Follow Screenshot"
-                            className="w-full h-64 object-cover"
-                          />
-                          <div className="p-4 space-y-2 bg-white">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate text-gray-900">
-                                  {delivery?.delivery_name || 'Unknown Delivery'}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Photographer: {photographer?.name || 'Unknown'}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })}
-                                </div>
-                              </div>
-                            </div>
+                          
+                          <div className="flex flex-col items-center justify-center p-2 bg-white rounded border">
+                            <span className="text-xs text-gray-500 mb-1.5 font-semibold">Call Log Screenshot</span>
+                            <a 
+                              href={currentStandupCall.call_log_screenshot_url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View Call Log Screenshot
+                            </a>
                           </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Radio Options */}
+                            <div className="space-y-3">
+                              <label className="text-xs font-bold text-gray-700 block">Select Standup Status</label>
+                              <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer bg-white p-3 border rounded-lg hover:bg-gray-50 flex-1">
+                                  <input 
+                                    type="radio" 
+                                    name="standup-status" 
+                                    checked={standupForm.status === 'CONFIRMED'}
+                                    onChange={() => setStandupForm(prev => ({ ...prev, status: 'CONFIRMED' }))}
+                                    className="h-4 w-4 text-blue-600"
+                                  />
+                                  <div className="text-xs">
+                                    <div className="font-semibold text-gray-800">Confirmed Count</div>
+                                    <div className="text-gray-400 text-[10px]">Photographer is working today</div>
+                                  </div>
+                                </label>
+                                
+                                <label className="flex items-center gap-2 cursor-pointer bg-white p-3 border rounded-lg hover:bg-gray-50 flex-1">
+                                  <input 
+                                    type="radio" 
+                                    name="standup-status" 
+                                    checked={standupForm.status === 'LEAVE'}
+                                    onChange={() => setStandupForm(prev => ({ ...prev, status: 'LEAVE' }))}
+                                    className="h-4 w-4 text-blue-600"
+                                  />
+                                  <div className="text-xs">
+                                    <div className="font-semibold text-gray-800">I'm on Leave</div>
+                                    <div className="text-gray-400 text-[10px]">Photographer is absent today</div>
+                                  </div>
+                                </label>
+                              </div>
 
-          {/* Rapido Screenshots Gallery */}
-          {viewMode === 'rapido' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Rapido Screenshots Gallery</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • Travel proof storage</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[#2563EB] text-white">{filteredRapidoScreenshots.length} images</Badge>
-                  <Button
-                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
-                  >
-                    <Grid className="h-4 w-4 mr-2" />
-                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
-              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
-                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
-                </p>
-              </div>
-
-              {filteredRapidoScreenshots.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-gray-500">No rapido screenshots available</p>
-                  </CardContent>
-                </Card>
-              ) : galleryViewMode === 'single' ? (
-                /* V1 SPEC: Default to single-image inspection with Next/Previous */
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    {/* Image */}
-                    <div className="relative">
-                      <ImageWithFallback
-                        src={filteredRapidoScreenshots[currentImageIndex]?.file_url}
-                        alt="Rapido Screenshot"
-                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
-                        fallback={<div className="w-full rounded-lg max-h-96 object-contain bg-gray-100 flex items-center justify-center text-gray-400">Image not found</div>}
-                      />
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === 0}
-                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        {currentImageIndex + 1} / {filteredRapidoScreenshots.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === filteredRapidoScreenshots.length - 1}
-                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredRapidoScreenshots.length - 1, prev + 1))}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-
-                    {/* Metadata - persistently visible */}
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Delivery Name:</span>
-                        <span className="text-sm text-gray-900">
-                          {deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.delivery_name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
-                        <span className="text-sm text-gray-600 mt-1">
-                          {allUsers.find(p => p.id === filteredRapidoScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Date:</span>
-                        <span className="text-sm text-gray-500 mt-1">
-                          {deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Rapido Charge:</span>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          ₹{deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.rapido_charge || 0}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
-                        <span className="text-sm font-semibold text-blue-600 mt-1">
-                          {getPhotographerPayoutModel(
-                            filteredRapidoScreenshots[currentImageIndex]?.user_id,
-                            deliveries.find(d => d.id === filteredRapidoScreenshots[currentImageIndex]?.delivery_id)?.date
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* V1 SPEC: Deletion helper text */}
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                      <p className="font-semibold">Deletion is for audit cleanup only</p>
-                      <p className="mt-1">Deleting a screenshot removes it from the gallery and storage but does NOT affect delivery status, spreadsheet data, or reopen tasks.</p>
-                    </div>
-
-                    {/* Actions */}
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
-                          handleDeleteScreenshot(filteredRapidoScreenshots[currentImageIndex]?.id);
-                          if (currentImageIndex >= filteredRapidoScreenshots.length - 1) {
-                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Screenshot
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Grid view (optional) */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredRapidoScreenshots.map((screenshot, index) => {
-                    const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
-                    return (
-                      <Card
-                        key={screenshot.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                        onClick={() => {
-                          setCurrentImageIndex(index);
-                          setGalleryViewMode('single');
-                        }}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={screenshot.file_url}
-                            alt="Rapido Screenshot"
-                            className="w-full h-64 object-cover"
-                          />
-                          <div className="p-4 space-y-2 bg-white">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate text-gray-900">
-                                  {delivery?.delivery_name || 'Unknown Delivery'}
+                              {/* Leave Verification Alert */}
+                              {standupForm.status === 'LEAVE' && (
+                                <div className="mt-2">
+                                  {leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate) ? (
+                                    <div className="p-2.5 bg-green-50 border border-green-200 text-green-700 rounded text-xs font-semibold">
+                                      CRM Check: Leave record is verified for today.
+                                    </div>
+                                  ) : (
+                                    <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded text-xs font-semibold flex items-center gap-1.5">
+                                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                                      Leave is not applied in CRM! Cannot submit standup as absent.
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Photographer: {photographer?.name || 'Unknown'}
+                              )}
+
+                              {/* Deliveries Count Textbox */}
+                              {standupForm.status === 'CONFIRMED' && (
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-bold text-gray-700 block">
+                                    Confirmed Deliveries Count <span className="text-red-500">*</span>
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Enter expected count today"
+                                    value={standupForm.confirmed_count}
+                                    onChange={(e) => setStandupForm(prev => ({ ...prev, confirmed_count: e.target.value }))}
+                                    className="h-9"
+                                  />
                                 </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1 flex items-center justify-between">
-                                  <span>
-                                    {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}
+                              )}
+                            </div>
+
+                            {/* Screenshot Upload Block */}
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-gray-700 block">
+                                Call Log Screenshot <span className="text-red-500">*</span>
+                              </label>
+                              {standupForm.previewUrl ? (
+                                <div className="p-3 bg-gray-50 border rounded-lg flex items-center justify-between">
+                                  <span className="text-xs font-medium text-green-700 truncate max-w-[200px]">
+                                    📷 {standupForm.screenshotFile?.name}
                                   </span>
-                                  {delivery?.rapido_charge && (
-                                    <Badge variant="outline" className="h-5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                                      ₹{delivery.rapido_charge}
-                                    </Badge>
+                                  <Button 
+                                    variant="ghost" 
+                                    className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
+                                    onClick={() => setStandupForm(prev => ({ ...prev, screenshotFile: null, previewUrl: '' }))}
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                  <Upload className="h-6 w-6 text-gray-400 mb-1.5" />
+                                  <span className="text-xs font-semibold text-gray-600">Upload Call Log Image</span>
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                    onChange={handleStandupFileChange}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={async () => {
+                              if (standupForm.submitting) return;
+                              // Validation
+                              if (!standupForm.screenshotFile) {
+                                toast.error('Call log screenshot is mandatory');
+                                return;
+                              }
+                              if (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) {
+                                toast.error('Please enter confirmed deliveries count');
+                                return;
+                              }
+                              if (standupForm.status === 'LEAVE') {
+                                const hasLeave = leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate);
+                                if (!hasLeave) {
+                                  toast.error('Cannot submit. Leave has not been applied in the CRM for today.');
+                                  return;
+                                }
+                              }
+
+                              setStandupForm(prev => ({ ...prev, submitting: true }));
+                              try {
+                                const client = supabase;
+                                // Upload file
+                                const path = `standup_call_logs/${selectedPhotographer}/${spreadSheetDate}_${Date.now()}.jpg`;
+                                const url = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, client);
+                                
+                                await standupDb.createStandupCall({
+                                  photographer_id: selectedPhotographer,
+                                  date: spreadSheetDate,
+                                  status: standupForm.status,
+                                  confirmed_count: standupForm.status === 'CONFIRMED' ? parseInt(standupForm.confirmed_count) : null,
+                                  call_log_screenshot_url: url
+                                }, client);
+
+                                toast.success('Standup call verified and submitted!');
+                                
+                                // Refresh standup details
+                                const call = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
+                                setCurrentStandupCall(call);
+                              } catch (err) {
+                                console.error('Failed to submit standup call:', err);
+                                toast.error('Failed to submit standup verification');
+                              } finally {
+                                setStandupForm(prev => ({ ...prev, submitting: false }));
+                              }
+                            }}
+                            disabled={
+                              standupForm.submitting || 
+                              !standupForm.screenshotFile || 
+                              (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) ||
+                              (standupForm.status === 'LEAVE' && !leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate))
+                            }
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm"
+                          >
+                            {standupForm.submitting ? 'Submitting...' : 'Submit Standup Verification'}
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Task 2: Dealership-Level Fraud Verification */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-amber-600" />
+                      Task 2: Dealership-Level Fraud Audits
+                    </h3>
+                    
+                    {uniqueShowroomCodesForPhotographer.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-6 text-center text-gray-500 text-xs italic">
+                          No deliveries completed today to verify.
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      uniqueShowroomCodesForPhotographer.map(showroomCode => {
+                        const showroomDeliveries = deliveries.filter(d => 
+                          d.assigned_user_id === selectedPhotographer && 
+                          d.date === spreadSheetDate && 
+                          d.status === 'DONE' &&
+                          getShowroomCode(d.showroom_code) === showroomCode
+                        );
+                        
+                        const dealership = dealerships.find(d => getShowroomCode(d.name) === showroomCode);
+                        const displayShowroomName = dealership ? dealership.name : showroomCode;
+
+                        // Fraud verification is done once per photographer + dealership + date.
+                        // Check if any of these deliveries have witness_phone or call log screenshot.
+                        const verifiedDelivery = showroomDeliveries.find(d => 
+                          !!d.witness_phone && 
+                          screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+                        );
+                        
+                        // Grab fraud screenshots uploaded by the photographer
+                        const fraudScreenshots = screenshots.filter(s => 
+                          ['FRAUD_DETECTION', 'FRAUD_CALL_LOG'].includes(s.type) && 
+                          !s.deleted_at && 
+                          s.user_id === selectedPhotographer &&
+                          (s.showroom_code === showroomCode || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id)))
+                        );
+                        
+                        const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION');
+                        const callLogScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_CALL_LOG');
+
+                        // local state mapping
+                        const [witnessPhone, setWitnessPhone] = useState(verifiedDelivery?.witness_phone || '');
+                        const [callLogFile, setCallLogFile] = useState<File | null>(null);
+                        const [submittingFraud, setSubmittingFraud] = useState(false);
+
+                        return (
+                          <Card key={showroomCode} className="border-l-4 border-l-amber-500">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm font-bold flex items-center justify-between">
+                                <span>{displayShowroomName}</span>
+                                {verifiedDelivery ? (
+                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
+                                    Audited & Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-amber-600 bg-amber-50 border-amber-200">
+                                    Pending
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              {/* Read-Only Info Comparison */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-3 rounded border text-xs">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Deliveries Completed:</span>
+                                  <span className="font-bold text-gray-900">{showroomDeliveries.length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Morning Standup Confirmed Count:</span>
+                                  <span className="font-bold text-gray-900">
+                                    {currentStandupCall?.confirmed_count != null ? currentStandupCall.confirmed_count : 'Not logged'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Images Section */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <span className="text-xs font-semibold text-gray-600 block">Photographer Dealership doc screenshot:</span>
+                                  {mainFraudScreenshot ? (
+                                    <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+                                      <img 
+                                        src={mainFraudScreenshot.file_url} 
+                                        alt="dealership doc" 
+                                        className="max-h-full object-contain cursor-pointer"
+                                        onClick={() => {
+                                          setCurrentImageIndex(screenshots.indexOf(mainFraudScreenshot));
+                                          setGalleryViewMode('single');
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                          <Eye className="h-5 w-5" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
+                                      No dealership document uploaded by photographer
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <span className="text-xs font-semibold text-gray-600 block">Witness Call Log verification screenshot:</span>
+                                  {verifiedDelivery && callLogScreenshot ? (
+                                    <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+                                      <img 
+                                        src={callLogScreenshot.file_url} 
+                                        alt="call log" 
+                                        className="max-h-full object-contain"
+                                      />
+                                    </div>
+                                  ) : !verifiedDelivery ? (
+                                    <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
+                                      {callLogFile ? (
+                                        <div className="p-4 text-center">
+                                          <span className="text-green-600 font-semibold block">Image selected:</span>
+                                          <span className="truncate max-w-[150px] block mt-1">{callLogFile.name}</span>
+                                          <Button 
+                                            variant="ghost" 
+                                            className="mt-2 text-xs text-red-500 h-6 px-2 hover:bg-red-50"
+                                            onClick={() => setCallLogFile(null)}
+                                          >
+                                            Remove
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <label className="cursor-pointer flex flex-col items-center p-6 text-center hover:bg-gray-100/50 w-full h-full justify-center">
+                                          <Upload className="h-5 w-5 text-gray-400 mb-1" />
+                                          <span>Upload Call Log Screenshot <span className="text-red-500">*</span></span>
+                                          <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            onChange={(e) => {
+                                              if (e.target.files && e.target.files[0]) {
+                                                setCallLogFile(e.target.files[0]);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
+                                      Screenshot not found
+                                    </div>
                                   )}
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Yourphotocrew Payment Gallery (Renamed from Platform Settlements) */}
-          {viewMode === 'platform_payment' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Yourphotocrew Payment Screenshots</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • 30% Platform Settlement Proof</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[#2563EB] text-white">{filteredPlatformPaymentScreenshots.length} images</Badge>
-                  <Button
-                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
-                  >
-                    <Grid className="h-4 w-4 mr-2" />
-                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
-              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
-                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
-                </p>
-              </div>
-
-              {filteredPlatformPaymentScreenshots.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-gray-500">No settlement screenshots available</p>
-                  </CardContent>
-                </Card>
-              ) : galleryViewMode === 'single' ? (
-                /* V1 SPEC: Default to single-image inspection with Next/Previous */
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    {/* Image */}
-                    <div className="relative">
-                      <ImageWithFallback
-                        src={filteredPlatformPaymentScreenshots[currentImageIndex]?.file_url}
-                        alt="Platform Settlement Screenshot"
-                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
-                        fallback={<div className="w-full rounded-lg max-h-96 object-contain bg-gray-100 flex items-center justify-center text-gray-400">Image not found</div>}
-                      />
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === 0}
-                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        {currentImageIndex + 1} / {filteredPlatformPaymentScreenshots.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === filteredPlatformPaymentScreenshots.length - 1}
-                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredPlatformPaymentScreenshots.length - 1, prev + 1))}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-
-                    {/* Metadata - persistently visible */}
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Delivery Name:</span>
-                        <span className="text-sm text-gray-900">
-                          {deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.delivery_name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
-                        <span className="text-sm text-gray-600 mt-1">
-                          {allUsers.find(p => p.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Date:</span>
-                        <span className="text-sm text-gray-500 mt-1">
-                          {deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.date || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Collection:</span>
-                        <span className="text-sm text-gray-600">₹{deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.received_amount || 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Settlement Code:</span>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          PLATFORM_PAYMENT
-                        </Badge>
-                      </div>
-                      {(() => {
-                        const screenshot = filteredPlatformPaymentScreenshots[currentImageIndex];
-                        const delivery = deliveries.find(d => d.id === screenshot?.delivery_id);
-                        const calc = getPayableAmountAndLabel(
-                          screenshot?.user_id,
-                          delivery?.date,
-                          delivery?.received_amount || 0,
-                          delivery?.rapido_charge || 0
-                        );
-                        return (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">{calc.label}</span>
-                            <Badge variant="outline" className="bg-green-600 text-white border-green-700">
-                              ₹{calc.amount}
-                            </Badge>
-                          </div>
-                        );
-                      })()}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Payout Model:</span>
-                        <span className="text-sm font-semibold text-blue-600 mt-1">
-                          {getPhotographerPayoutModel(
-                            filteredPlatformPaymentScreenshots[currentImageIndex]?.user_id,
-                            deliveries.find(d => d.id === filteredPlatformPaymentScreenshots[currentImageIndex]?.delivery_id)?.date
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* V1 SPEC: Deletion helper text */}
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                      <p className="font-semibold">Deletion is for audit cleanup only</p>
-                      <p className="mt-1">Deleting a screenshot removes it from the gallery and storage but does NOT affect delivery status, spreadsheet data, or reopen tasks.</p>
-                    </div>
-
-                    {/* Actions */}
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
-                          handleDeleteScreenshot(filteredPlatformPaymentScreenshots[currentImageIndex]?.id);
-                          if (currentImageIndex >= filteredPlatformPaymentScreenshots.length - 1) {
-                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Screenshot
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Grid view (optional) */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredPlatformPaymentScreenshots.map((screenshot, index) => {
-                    const delivery = deliveries.find(d => d.id === screenshot.delivery_id);
-                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
-                    return (
-                      <Card
-                        key={screenshot.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                        onClick={() => {
-                          setCurrentImageIndex(index);
-                          setGalleryViewMode('single');
-                        }}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={screenshot.file_url}
-                            alt="Platform Settlement Screenshot"
-                            className="w-full h-64 object-cover"
-                          />
-                          <div className="p-4 space-y-2 bg-white">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate text-gray-900">
-                                  {delivery?.delivery_name || 'Unknown Delivery'}
+                              {/* Witness Phone Inputs */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-gray-700 block">
+                                    Witness Phone Number <span className="text-red-500">*</span>
+                                  </label>
+                                  <Input
+                                    type="text"
+                                    maxLength={10}
+                                    placeholder="Enter 10-digit number"
+                                    value={witnessPhone}
+                                    onChange={(e) => setWitnessPhone(e.target.value.replace(/\D/g, ''))}
+                                    disabled={!!verifiedDelivery}
+                                    className="h-9"
+                                  />
                                 </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Photographer: {photographer?.name || 'Unknown'}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Payout Model: {getPhotographerPayoutModel(screenshot.user_id, delivery?.date)}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1 flex items-center justify-between">
-                                  <span>
-                                    {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}
-                                  </span>
-                                  {delivery?.received_amount && (() => {
-                                    const calc = getPayableAmountAndLabel(
-                                      screenshot.user_id,
-                                      delivery.date,
-                                      delivery.received_amount || 0,
-                                      delivery.rapido_charge || 0
-                                    );
-                                    return (
-                                      <div className="flex flex-col items-end gap-1">
-                                        <Badge variant="outline" className="h-5 text-[10px] bg-green-600 text-white border-green-700">
-                                          {calc.shortLabel}
-                                        </Badge>
-                                        <div className="text-[10px] text-gray-400">
-                                          from ₹{delivery.received_amount}
-                                        </div>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Fraud Detection Screenshots Gallery */}
-          {viewMode === 'fraud_detection' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Fraud Detection Gallery</h2>
-                  <p className="text-sm text-gray-500">Admin-only view • Binary artifacts storage</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[#2563EB] text-white">{filteredFraudDetectionScreenshots.length} images</Badge>
-                  <Button
-                    variant={galleryViewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setGalleryViewMode(prev => prev === 'grid' ? 'single' : 'grid')}
-                  >
-                    <Grid className="h-4 w-4 mr-2" />
-                    {galleryViewMode === 'grid' ? 'Single View' : 'Grid View'}
-                  </Button>
-                </div>
-              </div>
+                                {!verifiedDelivery && (
+                                  <Button
+                                    onClick={async () => {
+                                      if (submittingFraud) return;
+                                      if (witnessPhone.length < 10) {
+                                        toast.error('Witness Phone Number must be 10 digits');
+                                        return;
+                                      }
+                                      if (!callLogFile) {
+                                        toast.error('Please upload witness call log verification screenshot');
+                                        return;
+                                      }
+                                      
+                                      setSubmittingFraud(true);
+                                      try {
+                                        const client = supabase;
+                                        // 1. Update witness_phone for all deliveries at this dealership
+                                        const updatePromises = showroomDeliveries.map(async d => {
+                                          const updated = await deliveriesDb.updateDelivery(d.id, {
+                                            witness_phone: witnessPhone
+                                          }, client);
+                                          // Sync with Google Sheets
+                                          await handleTriggerSheetSync(updated, 'sync', null);
+                                          return updated;
+                                        });
+                                        const updatedDels = await Promise.all(updatePromises);
+                                        
+                                        // 2. Upload and attach call log screenshot to the first delivery
+                                        const path = `call_logs/${updatedDels[0].id}_${Date.now()}.jpg`;
+                                        const url = await screenshotsDb.uploadScreenshotFile(callLogFile, path, client);
+                                        await screenshotsDb.createScreenshot({
+                                          delivery_id: updatedDels[0].id,
+                                          user_id: selectedPhotographer,
+                                          type: 'FRAUD_CALL_LOG',
+                                          file_url: url,
+                                          thumbnail_url: url,
+                                          deleted_at: null
+                                        }, client);
 
-              {/* V1 SPEC: Persistent warning - Gallery actions are audit-only */}
-              <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-lg">
-                <p className="text-sm font-semibold text-amber-900">⚠️ Gallery Actions are Audit-Only</p>
-                <p className="text-xs text-amber-800 mt-1">
-                  Screenshots are immutable after SEND UPDATE. Deleting screenshots removes them from storage but does NOT reopen tasks, affect delivery status, or modify spreadsheet data.
-                </p>
-              </div>
-
-              {/* V1 SPEC: Screenshot gallery is NOT spreadsheet - distinct mental model */}
-              <div className="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded text-sm">
-                <FileText className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-700" />
-                <div className="text-purple-800">
-                  <p className="font-medium">Gallery Mode (Not Spreadsheet)</p>
-                  <p className="text-xs text-purple-700 mt-1">
-                    This is a separate binary artifacts view. Screenshot deletion does NOT affect spreadsheet data, delivery status, or reopen tasks.
-                  </p>
-                </div>
-              </div>
-
-              {filteredFraudDetectionScreenshots.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-gray-500">No fraud detection screenshots available</p>
-                  </CardContent>
-                </Card>
-              ) : galleryViewMode === 'single' ? (
-                /* Single view */
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    {/* Image */}
-                    <div className="relative">
-                      <ImageWithFallback
-                        src={filteredFraudDetectionScreenshots[currentImageIndex]?.file_url}
-                        alt="Fraud Detection Screenshot"
-                        className="w-full rounded-lg max-h-96 object-contain bg-gray-100"
-                      />
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === 0}
-                        onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-                      <span className="text-sm text-gray-600">
-                        {currentImageIndex + 1} / {filteredFraudDetectionScreenshots.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={currentImageIndex === filteredFraudDetectionScreenshots.length - 1}
-                        onClick={() => setCurrentImageIndex(prev => Math.min(filteredFraudDetectionScreenshots.length - 1, prev + 1))}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Proof Type:</span>
-                        <Badge variant="outline" className={filteredFraudDetectionScreenshots[currentImageIndex]?.type === 'FRAUD_CALL_LOG' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-blue-100 text-blue-800 border-blue-200'}>
-                          {filteredFraudDetectionScreenshots[currentImageIndex]?.type === 'FRAUD_CALL_LOG' ? '📞 Call Log Proof' : '🛡️ Fraud Screenshot'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Showroom Name:</span>
-                        <span className="text-sm text-gray-900">
-                          {(() => {
-                            const code = filteredFraudDetectionScreenshots[currentImageIndex]?.showroom_code;
-                            const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
-                            return dealership ? dealership.name : code || 'Unknown';
-                          })()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Photographer:</span>
-                        <span className="text-sm text-gray-600">
-                          {allUsers.find(p => p.id === filteredFraudDetectionScreenshots[currentImageIndex]?.user_id)?.name || 'Unknown'}
-                        </span>
-                      </div>
-                      {(() => {
-                        const screenshot = filteredFraudDetectionScreenshots[currentImageIndex];
-                        const d = deliveries.find(del => del.id === screenshot?.delivery_id);
-                        if (!d || !d.witness_phone) return null;
-                        return (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">Witness Phone:</span>
-                            <span className="text-sm text-gray-900 font-semibold">{d.witness_phone}</span>
-                          </div>
-                        );
-                      })()}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Uploaded At:</span>
-                        <span className="text-sm text-gray-500">
-                          {new Date(filteredFraudDetectionScreenshots[currentImageIndex]?.uploaded_at).toLocaleString('en-IN', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm('Delete this screenshot permanently? This action cannot be undone.')) {
-                          handleDeleteScreenshot(filteredFraudDetectionScreenshots[currentImageIndex]?.id);
-                          if (currentImageIndex >= filteredFraudDetectionScreenshots.length - 1) {
-                            setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Screenshot
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Grid view */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredFraudDetectionScreenshots.map((screenshot, index) => {
-                    const code = screenshot.showroom_code;
-                    const dealership = dealerships.find(d => getShowroomCode(d.name) === code);
-                    const photographer = allUsers.find(p => p.id === screenshot.user_id);
-                    const del = deliveries.find(d => d.id === screenshot.delivery_id);
-                    return (
-                      <Card
-                        key={screenshot.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-                        onClick={() => {
-                          setCurrentImageIndex(index);
-                          setGalleryViewMode('single');
-                        }}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={screenshot.file_url}
-                            alt="Fraud Detection Screenshot"
-                            className="w-full h-64 object-cover"
-                          />
-                          <div className="p-4 space-y-2 bg-white">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start gap-1">
-                                  <div className="text-sm font-semibold truncate text-gray-900 max-w-[200px]">
-                                    {dealership ? dealership.name : code || 'Unknown Showroom'}
-                                  </div>
-                                  <Badge variant="outline" className={screenshot.type === 'FRAUD_CALL_LOG' ? 'text-[10px] bg-amber-50 text-amber-700 border-amber-200' : 'text-[10px] bg-blue-50 text-blue-700 border-blue-200'}>
-                                    {screenshot.type === 'FRAUD_CALL_LOG' ? 'Call Log' : 'Fraud Scr'}
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Photographer: {photographer?.name || 'Unknown'}
-                                </div>
-                                {del?.witness_phone && (
-                                  <div className="text-xs text-gray-600 mt-1 font-medium">
-                                    Witness: {del.witness_phone}
-                                  </div>
+                                        toast.success(`Fraud audits verified for ${displayShowroomName}`);
+                                        loadData();
+                                      } catch (err) {
+                                        console.error('Failed to submit fraud verification:', err);
+                                        toast.error('Failed to submit fraud verification');
+                                      } finally {
+                                        setSubmittingFraud(false);
+                                      }
+                                    }}
+                                    disabled={submittingFraud || witnessPhone.length < 10 || !callLogFile}
+                                    className="h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
+                                  >
+                                    {submittingFraud ? 'Verifying...' : 'Submit Fraud Audit'}
+                                  </Button>
                                 )}
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {new Date(screenshot.uploaded_at).toLocaleDateString('en-IN', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })}
-                                </div>
                               </div>
-                            </div>
-                          </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Task 3: Deliveries Verification Cards */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-green-600" />
+                      Task 3: Deliveries Verification checklist
+                    </h3>
+
+                    {photographerDeliveries.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-6 text-center text-gray-500 text-xs italic">
+                          No deliveries found.
                         </CardContent>
                       </Card>
-                    );
-                  })}
+                    ) : (
+                      photographerDeliveries.map(d => {
+                        const inputs = verificationInputs[d.id] || {
+                          payment_date: '',
+                          payment_time: '',
+                          payment_amount: '',
+                          platform_date: '',
+                          platform_time: '',
+                          platform_amount: '',
+                          rapido_date: '',
+                          rapido_time: '',
+                          rapido_amount: '',
+                          witness_phone: '',
+                        };
+
+                        const updateInput = (field: keyof typeof inputs, val: string) => {
+                          setVerificationInputs(prev => ({
+                            ...prev,
+                            [d.id]: {
+                              ...prev[d.id],
+                              [field]: val
+                            }
+                          }));
+                        };
+
+                        // Check status
+                        const isCustomerPaid = d.payment_type === 'CUSTOMER_PAID';
+                        const photographerObj = allUsers.find(p => p.id === selectedPhotographer);
+                        const is15PercentModel = photographerObj && getPhotographerRawPayoutModel(selectedPhotographer, d.date) === 'PERCENTAGE_15_DAILY';
+                        const hasRapido = d.rapido_charge != null && d.rapido_charge > 0;
+
+                        const isCustomerPayVerified = !isCustomerPaid || (!!d.payment_screenshot_date && !!d.payment_screenshot_time && !!d.payment_screenshot_amount);
+                        const isPlatformPayVerified = !is15PercentModel || !isCustomerPaid || (!!d.platform_payment_screenshot_date && !!d.platform_payment_screenshot_time && !!d.platform_payment_screenshot_amount);
+                        const isRapidoVerified = !hasRapido || (!!d.rapido_screenshot_date && !!d.rapido_screenshot_time && !!d.rapido_screenshot_amount);
+
+                        const isDeliveryAudited = isCustomerPayVerified && isPlatformPayVerified && isRapidoVerified;
+
+                        // Grab screenshots
+                        const paymentScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PAYMENT' && !s.deleted_at);
+                        const platformScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
+                        const rapidoScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'RAPIDO' && !s.deleted_at);
+
+                        return (
+                          <Card key={d.id} className="border-l-4 border-l-green-600">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm font-bold flex items-center justify-between">
+                                <div>
+                                  <span className="text-gray-900">{d.delivery_name}</span>
+                                  <span className="text-xs text-gray-500 font-normal ml-2">({d.showroom_code})</span>
+                                </div>
+                                {isDeliveryAudited ? (
+                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
+                                    Audited & Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
+                                    Pending Verification
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                              {/* 1. Customer Payment Auditing */}
+                              {isCustomerPaid && (
+                                <div className="border-b pb-4 space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">1. Customer Payment Screenshot</h4>
+                                    {isCustomerPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {paymentScr ? (
+                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group">
+                                        <img src={paymentScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
+                                          setCurrentImageIndex(screenshots.indexOf(paymentScr));
+                                          setGalleryViewMode('single');
+                                        }} alt="payment" />
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">Collection: ₹{d.received_amount}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                        No screenshot uploaded
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="DD-MM-YYYY"
+                                          value={inputs.payment_date}
+                                          onChange={(e) => updateInput('payment_date', e.target.value)}
+                                          disabled={isCustomerPayVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="HH:MM"
+                                          value={inputs.payment_time}
+                                          onChange={(e) => updateInput('payment_time', e.target.value)}
+                                          disabled={isCustomerPayVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="Amount ₹"
+                                          value={inputs.payment_amount}
+                                          onChange={(e) => updateInput('payment_amount', e.target.value)}
+                                          disabled={isCustomerPayVerified}
+                                          className="h-8 text-xs font-semibold font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 2. Platform Payment Auditing */}
+                              {isCustomerPaid && is15PercentModel && (
+                                <div className="border-b pb-4 space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">2. Yourphotocrew Platform Payment Screenshot</h4>
+                                    {isPlatformPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {platformScr ? (
+                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative">
+                                        <img src={platformScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
+                                          setCurrentImageIndex(screenshots.indexOf(platformScr));
+                                          setGalleryViewMode('single');
+                                        }} alt="platform payment" />
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">
+                                          Expected cut (15%): ₹{Math.max(0, Math.round((parseFloat(String(d.received_amount || '0')) - parseFloat(String(d.rapido_charge || '0'))) * 0.15))}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                        No screenshot uploaded
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="DD-MM-YYYY"
+                                          value={inputs.platform_date}
+                                          onChange={(e) => updateInput('platform_date', e.target.value)}
+                                          disabled={isPlatformPayVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="HH:MM"
+                                          value={inputs.platform_time}
+                                          onChange={(e) => updateInput('platform_time', e.target.value)}
+                                          disabled={isPlatformPayVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="Amount ₹"
+                                          value={inputs.platform_amount}
+                                          onChange={(e) => updateInput('platform_amount', e.target.value)}
+                                          disabled={isPlatformPayVerified}
+                                          className="h-8 text-xs font-semibold font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 3. Rapido Auditing */}
+                              {hasRapido && (
+                                <div className="border-b pb-4 space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">3. Rapido Ride Screenshot</h4>
+                                    {isRapidoVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {rapidoScr ? (
+                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative">
+                                        <img src={rapidoScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
+                                          setCurrentImageIndex(screenshots.indexOf(rapidoScr));
+                                          setGalleryViewMode('single');
+                                        }} alt="rapido" />
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">Charge: ₹{d.rapido_charge}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                        No screenshot uploaded
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="DD-MM-YYYY"
+                                          value={inputs.rapido_date}
+                                          onChange={(e) => updateInput('rapido_date', e.target.value)}
+                                          disabled={isRapidoVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="HH:MM"
+                                          value={inputs.rapido_time}
+                                          onChange={(e) => updateInput('rapido_time', e.target.value)}
+                                          disabled={isRapidoVerified}
+                                          className="h-8 text-xs font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="Amount ₹"
+                                          value={inputs.rapido_amount}
+                                          onChange={(e) => updateInput('rapido_amount', e.target.value)}
+                                          disabled={isRapidoVerified}
+                                          className="h-8 text-xs font-semibold font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Submit delivery verification details */}
+                              {!isDeliveryAudited && (
+                                <Button
+                                  onClick={async () => {
+                                    // 1. Validate Customer Pay
+                                    if (isCustomerPaid && !isCustomerPayVerified) {
+                                      if (!inputs.payment_date || !inputs.payment_time || !inputs.payment_amount) {
+                                        toast.error('Please fill all Customer Payment screenshot fields');
+                                        return;
+                                      }
+                                      if (parseFloat(inputs.payment_amount) !== parseFloat(String(d.received_amount))) {
+                                        toast.error('can you check with the photographer about this discrepancy?');
+                                        return;
+                                      }
+                                    }
+
+                                    // 2. Validate Platform Payment
+                                    if (isCustomerPaid && is15PercentModel && !isPlatformPayVerified) {
+                                      if (!inputs.platform_date || !inputs.platform_time || !inputs.platform_amount) {
+                                        toast.error('Please fill all Yourphotocrew Platform Payment screenshot fields');
+                                        return;
+                                      }
+                                      const expectedCut = Math.max(0, Math.round((parseFloat(String(d.received_amount || '0')) - parseFloat(String(d.rapido_charge || '0'))) * 0.15));
+                                      if (parseFloat(inputs.platform_amount) !== expectedCut) {
+                                        toast.error('have you collected the correct amount from photographer?');
+                                        return;
+                                      }
+                                    }
+
+                                    // 3. Validate Rapido
+                                    if (hasRapido && !isRapidoVerified) {
+                                      if (!inputs.rapido_date || !inputs.rapido_time || !inputs.rapido_amount) {
+                                        toast.error('Please fill all Rapido Ride screenshot fields');
+                                        return;
+                                      }
+                                      if (parseFloat(inputs.rapido_amount) !== parseFloat(String(d.rapido_charge))) {
+                                        toast.error('the amount is not matching call photographer');
+                                        return;
+                                      }
+                                    }
+
+                                    // Build update payload
+                                    const updateData: Partial<Delivery> = {};
+                                    if (isCustomerPaid && !isCustomerPayVerified) {
+                                      updateData.payment_screenshot_date = inputs.payment_date;
+                                      updateData.payment_screenshot_time = inputs.payment_time;
+                                      updateData.payment_screenshot_amount = parseFloat(inputs.payment_amount);
+                                    }
+                                    if (isCustomerPaid && is15PercentModel && !isPlatformPayVerified) {
+                                      updateData.platform_payment_screenshot_date = inputs.platform_date;
+                                      updateData.platform_payment_screenshot_time = inputs.platform_time;
+                                      updateData.platform_payment_screenshot_amount = parseFloat(inputs.platform_amount);
+                                    }
+                                    if (hasRapido && !isRapidoVerified) {
+                                      updateData.rapido_screenshot_date = inputs.rapido_date;
+                                      updateData.rapido_screenshot_time = inputs.rapido_time;
+                                      updateData.rapido_screenshot_amount = parseFloat(inputs.rapido_amount);
+                                    }
+
+                                    try {
+                                      const client = supabase;
+                                      const updated = await deliveriesDb.updateDelivery(d.id, updateData, client);
+                                      await handleTriggerSheetSync(updated, 'sync', null);
+                                      toast.success('Delivery audit submitted and closed!');
+                                      loadData();
+                                    } catch (err) {
+                                      console.error('Failed to submit delivery audit:', err);
+                                      toast.error('Failed to save audit details');
+                                    }
+                                  }}
+                                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold text-sm h-10"
+                                >
+                                  Submit Delivery Audit
+                                </Button>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </div>
+
                 </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-400 text-sm">
+                    Select a photographer from the list above to view and complete their audit tasks.
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}
@@ -3898,7 +3802,7 @@ export function ViewScreen() {
                               <span className="font-bold">{p.completedCount}</span>
                             </div>
                             <div className="flex items-center justify-between border-b pb-1.5">
-                              <span className="text-gray-500">Total Deliveries:</span>
+                              <span className="text-gray-500">Total Deliveries in CRM/Sheet:</span>
                               <span className="font-bold">{p.totalCount}</span>
                             </div>
                             <div className="flex items-center justify-between border-b pb-1.5">
@@ -3909,16 +3813,58 @@ export function ViewScreen() {
                             </div>
                           </div>
 
-                          {/* Individual Nudge Button */}
-                          {!p.hasSentUpdate && !hasZeroDeliveries && (
-                            <Button
-                              onClick={() => handleNudgePhotographer(p.photographerId, p.name, p.totalCount - p.completedCount)}
-                              className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs py-2 h-8"
-                            >
-                              <BellRing className="h-3 w-3 mr-1.5" />
-                              Nudge Photographer
-                            </Button>
-                          )}
+                          {/* Close Audit Task Workflow */}
+                          <div className="space-y-2 pt-2 border-t border-dashed">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-600 block uppercase">
+                                Reported Deliveries Count <span className="text-red-500">*</span>
+                              </label>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="Enter count reported by photographer"
+                                value={enteredCounts[p.photographerId] || ''}
+                                onChange={(e) => setEnteredCounts({
+                                  ...enteredCounts,
+                                  [p.photographerId]: e.target.value
+                                })}
+                                className="h-8 text-xs font-semibold"
+                              />
+                            </div>
+                            
+                            <div className="text-[10px] bg-gray-50 p-2 rounded border space-y-1">
+                              <div className="flex justify-between font-medium">
+                                <span className="text-gray-500">Status:</span>
+                                <span className={enteredCounts[p.photographerId] === '' ? 'text-gray-500' : parseInt(enteredCounts[p.photographerId]) === p.totalCount ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
+                                  {enteredCounts[p.photographerId] === '' 
+                                    ? 'Awaiting input...' 
+                                    : parseInt(enteredCounts[p.photographerId]) === p.totalCount
+                                      ? '✅ Count Matches'
+                                      : '❌ Mismatch! Add delivery row in Sheet'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-1">
+                              <Button
+                                onClick={() => handleCloseMissedSendUpdateTask(p)}
+                                disabled={enteredCounts[p.photographerId] === '' || parseInt(enteredCounts[p.photographerId]) !== p.totalCount}
+                                className="flex-1 bg-[#16A34A] hover:bg-green-700 text-white text-[11px] h-8 font-semibold"
+                              >
+                                Close Audit Task
+                              </Button>
+                              
+                              {!p.hasSentUpdate && !hasZeroDeliveries && (
+                                <Button
+                                  onClick={() => handleNudgePhotographer(p.photographerId, p.name, p.totalCount - p.completedCount)}
+                                  variant="outline"
+                                  className="border-rose-200 text-rose-600 hover:bg-rose-50 text-[11px] px-2 h-8"
+                                >
+                                  <BellRing className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     );

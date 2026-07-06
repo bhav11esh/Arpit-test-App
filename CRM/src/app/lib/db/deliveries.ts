@@ -62,6 +62,9 @@ const rowToDelivery = (row: DeliveryRow): Delivery => {
     platform_payment_screenshot_date: row.platform_payment_screenshot_date ?? null,
     platform_payment_screenshot_time: row.platform_payment_screenshot_time ?? null,
     platform_payment_screenshot_amount: row.platform_payment_screenshot_amount != null ? Number(row.platform_payment_screenshot_amount) : null,
+    rapido_screenshot_date: (row as any).rapido_screenshot_date ?? null,
+    rapido_screenshot_time: (row as any).rapido_screenshot_time ?? null,
+    rapido_screenshot_amount: (row as any).rapido_screenshot_amount != null ? Number((row as any).rapido_screenshot_amount) : null,
   };
 };
 
@@ -132,6 +135,9 @@ export const createDelivery = async (
     platform_payment_screenshot_date: delivery.platform_payment_screenshot_date,
     platform_payment_screenshot_time: delivery.platform_payment_screenshot_time,
     platform_payment_screenshot_amount: delivery.platform_payment_screenshot_amount,
+    rapido_screenshot_date: delivery.rapido_screenshot_date,
+    rapido_screenshot_time: delivery.rapido_screenshot_time,
+    rapido_screenshot_amount: delivery.rapido_screenshot_amount,
   };
 
   const { data, error } = await (supabaseClient.from('deliveries') as any)
@@ -179,6 +185,9 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     platform_payment_screenshot_date: updates.platform_payment_screenshot_date,
     platform_payment_screenshot_time: updates.platform_payment_screenshot_time,
     platform_payment_screenshot_amount: updates.platform_payment_screenshot_amount,
+    rapido_screenshot_date: updates.rapido_screenshot_date,
+    rapido_screenshot_time: updates.rapido_screenshot_time,
+    rapido_screenshot_amount: updates.rapido_screenshot_amount,
   };
 
   // Remove undefined values
