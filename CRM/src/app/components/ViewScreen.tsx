@@ -683,6 +683,33 @@ export function ViewScreen() {
   const [conflictDelivery, setConflictDelivery] = useState<Delivery | null>(null);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
 
+  const [newRowStandupCall, setNewRowStandupCall] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchNewRowStandupCall = async () => {
+      if (!newRowData.assigned_user_id || !newRowData.date) {
+        setNewRowStandupCall(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('standup_calls')
+          .eq('photographer_id', newRowData.assigned_user_id)
+          .eq('date', newRowData.date)
+          .maybeSingle();
+        if (!error) {
+          setNewRowStandupCall(data);
+        } else {
+          setNewRowStandupCall(null);
+        }
+      } catch (err) {
+        console.error('Error fetching new row standup call:', err);
+        setNewRowStandupCall(null);
+      }
+    };
+    fetchNewRowStandupCall();
+  }, [newRowData.assigned_user_id, newRowData.date]);
+
   const [missedSendUpdateData, setMissedSendUpdateData] = useState<{
     photographerId: string;
     name: string;
@@ -3495,6 +3522,17 @@ export function ViewScreen() {
                                 <div className="space-y-4 border-t pt-4">
                                   <h4 className="text-xs font-bold uppercase text-amber-600">Fraud Detection Verification</h4>
                                   
+                                  {newRowStandupCall && (
+                                    <div className="p-2.5 bg-amber-50/50 border border-amber-200 rounded-md flex justify-between items-center text-xs">
+                                      <span className="text-gray-600 font-semibold">Morning Standup Confirmed Count:</span>
+                                      <span className="font-bold text-amber-900 bg-amber-100/50 px-2 py-0.5 rounded border border-amber-200">
+                                        {newRowStandupCall.status === 'CONFIRMED' 
+                                          ? `${newRowStandupCall.confirmed_count} deliveries` 
+                                          : 'On Leave'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
                                   <div className="space-y-2">
                                     <label className="text-xs font-semibold uppercase text-gray-500">
                                       Witness Phone Number (Dealership Team member) <span className="text-red-500">*</span>
@@ -3536,7 +3574,7 @@ export function ViewScreen() {
 
                                     <div className="space-y-2">
                                       <label className="text-xs font-semibold uppercase text-gray-500">
-                                        Call Log Screenshot <span className="text-red-500">*</span>
+                                        Witness Call Log Screenshot <span className="text-red-500">*</span>
                                       </label>
                                       <div className="flex gap-2 items-center">
                                         <Input
