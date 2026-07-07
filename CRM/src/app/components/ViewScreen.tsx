@@ -601,6 +601,11 @@ export function ViewScreen() {
   // V1 SPEC: Gallery filters
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
 
+  const selectedPhotographerObj = React.useMemo(() => {
+    if (!selectedPhotographer || selectedPhotographer === 'all') return null;
+    return allUsers.find(p => p.id === selectedPhotographer);
+  }, [allUsers, selectedPhotographer]);
+
   // V1 SPEC: Spreadsheet showroom filter (log of deliveries covered per showroom)
   const [selectedShowroom, setSelectedShowroom] = useState<string>('all');
 
@@ -3724,6 +3729,21 @@ export function ViewScreen() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
+                      {/* Secondary Contact Number Display */}
+                      {selectedPhotographerObj && (selectedPhotographerObj.phone_number || selectedPhotographerObj.secondary_phone_number) && (
+                        <div className="mb-4 p-3 bg-blue-50/60 border border-blue-100 rounded-lg flex items-center justify-between text-xs">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-700">
+                            <span className="font-bold text-blue-900">Photographer Contact:</span>
+                            {selectedPhotographerObj.phone_number && (
+                              <span>Primary: <span className="font-mono font-bold text-gray-900">{selectedPhotographerObj.phone_number}</span></span>
+                            )}
+                            {selectedPhotographerObj.secondary_phone_number && (
+                              <span>Secondary: <span className="font-mono font-bold text-blue-800">{selectedPhotographerObj.secondary_phone_number}</span></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Handover Warning Banner */}
                       {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
                         <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 mb-4 font-semibold text-xs">
@@ -3930,6 +3950,12 @@ export function ViewScreen() {
                                     // Refresh standup details
                                     const call = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
                                     setCurrentStandupCall(call);
+                                    if (call) {
+                                      setAllStandupCalls(prev => {
+                                        const filtered = prev.filter(c => c.id !== call.id);
+                                        return [...filtered, call];
+                                      });
+                                    }
                                   } catch (err) {
                                     console.error('Failed to submit standup call:', err);
                                     toast.error('Failed to submit standup verification');
@@ -4053,6 +4079,20 @@ export function ViewScreen() {
                       <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800">
                         <ShieldCheck className="h-4 w-4 text-amber-600" />
                         ⚠️ This task has been handed over to Super Admin and is now read-only.
+                      </div>
+                    )}
+
+                    {selectedPhotographerObj && (selectedPhotographerObj.phone_number || selectedPhotographerObj.secondary_phone_number) && (
+                      <div className="mb-4 p-3 bg-blue-50/60 border border-blue-100 rounded-lg flex items-center justify-between text-xs">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-700">
+                          <span className="font-bold text-blue-900">Photographer Contact:</span>
+                          {selectedPhotographerObj.phone_number && (
+                            <span>Primary: <span className="font-mono font-bold text-gray-900">{selectedPhotographerObj.phone_number}</span></span>
+                          )}
+                          {selectedPhotographerObj.secondary_phone_number && (
+                            <span>Secondary: <span className="font-mono font-bold text-blue-800">{selectedPhotographerObj.secondary_phone_number}</span></span>
+                          )}
+                        </div>
                       </div>
                     )}
 
