@@ -41,7 +41,7 @@ import { AlertTriangle } from 'lucide-react';
 export function ViewScreen() {
   const { user } = useAuth();
   const { dealerships, clusters, mappings, photographers, allUsers } = useConfig();
-  const { isPhotographerOnLeave } = useLeave();
+  const { isPhotographerOnLeave, leaves } = useLeave();
   const navigate = useNavigate();
 
   // Helper to determine payout model for a photographer on a given date
