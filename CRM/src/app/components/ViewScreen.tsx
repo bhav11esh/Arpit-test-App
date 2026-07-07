@@ -646,6 +646,9 @@ export function ViewScreen() {
     witness_phone: string;
     fraud_screenshot: File | null;
     fraud_call_log_screenshot: File | null;
+    rapido_screenshot_date: string;
+    rapido_screenshot_time: string;
+    rapido_screenshot_amount: string;
   }>({
     date: '',
     showroom_id: '',
@@ -657,6 +660,9 @@ export function ViewScreen() {
     rapido_charge: '',
     payment_screenshot: null,
     rapido_screenshot: null,
+    rapido_screenshot_date: '',
+    rapido_screenshot_time: '',
+    rapido_screenshot_amount: '',
     assigned_user_id: '',
     payment_screenshot_date: '',
     payment_screenshot_time: '',
@@ -2149,6 +2155,9 @@ export function ViewScreen() {
       rapido_charge: '',
       payment_screenshot: null,
       rapido_screenshot: null,
+      rapido_screenshot_date: '',
+      rapido_screenshot_time: '',
+      rapido_screenshot_amount: '',
       assigned_user_id: '',
       payment_screenshot_date: '',
       payment_screenshot_time: '',
@@ -2272,11 +2281,23 @@ export function ViewScreen() {
         return;
       }
       
-      // If Rapido Charge is non-zero, screenshot is mandatory
-      if (parseFloat(newRowData.rapido_charge) > 0 && !newRowData.rapido_screenshot) {
-        toast.error('Rapido screenshot is mandatory when charge is greater than 0');
-        setIsSubmitting(false);
-        return;
+      // If Rapido Charge is non-zero, screenshot and metadata are mandatory
+      if (parseFloat(newRowData.rapido_charge) > 0) {
+        if (!newRowData.rapido_screenshot) {
+          toast.error('Rapido screenshot is mandatory when charge is greater than 0');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.rapido_screenshot_date || !newRowData.rapido_screenshot_time || !newRowData.rapido_screenshot_amount) {
+          toast.error('Rapido screenshot metadata (Date, Time, Amount) is mandatory');
+          setIsSubmitting(false);
+          return;
+        }
+        if (parseFloat(newRowData.rapido_screenshot_amount) !== parseFloat(newRowData.rapido_charge)) {
+          toast.error('Rapido screenshot amount must match the rapido charge');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Fraud Detection check for this combo
@@ -2350,6 +2371,9 @@ export function ViewScreen() {
           : (selectedDealership.paymentType === 'DEALER_PAID' ? selectedDealership.ratePerDelivery : undefined),
         customer_phone: newRowData.customer_phone || undefined,
         rapido_charge: newRowData.rapido_charge ? parseFloat(newRowData.rapido_charge) : undefined,
+        rapido_screenshot_date: newRowData.rapido_charge && parseFloat(newRowData.rapido_charge) > 0 ? newRowData.rapido_screenshot_date : null,
+        rapido_screenshot_time: newRowData.rapido_charge && parseFloat(newRowData.rapido_charge) > 0 ? newRowData.rapido_screenshot_time : null,
+        rapido_screenshot_amount: newRowData.rapido_charge && parseFloat(newRowData.rapido_charge) > 0 ? parseFloat(newRowData.rapido_screenshot_amount) : null,
         
         witness_phone: !fraudAlreadyVerified ? newRowData.witness_phone.trim() : null,
         payment_screenshot_date: selectedDealership.paymentType === 'CUSTOMER_PAID' ? newRowData.payment_screenshot_date : null,
@@ -3511,6 +3535,38 @@ export function ViewScreen() {
                                           {newRowData.rapido_screenshot ? newRowData.rapido_screenshot.name : 'Upload Rapido Bill'}
                                         </span>
                                       </label>
+                                    </div>
+                                    
+                                    {/* Rapido Screenshot metadata */}
+                                    <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="date"
+                                          value={newRowData.rapido_screenshot_date}
+                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_date: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="time"
+                                          value={newRowData.rapido_screenshot_time}
+                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_time: e.target.value })}
+                                          className="h-8 text-xs"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
+                                        <Input
+                                          type="number"
+                                          value={newRowData.rapido_screenshot_amount}
+                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_amount: e.target.value })}
+                                          className="h-8 text-xs"
+                                          placeholder="On photo"
+                                        />
+                                      </div>
                                     </div>
                                   </div>
                                 )}
