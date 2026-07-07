@@ -83,19 +83,18 @@ function FraudAuditShowroomCard({
   // Check if any of these deliveries have witness_phone or call log screenshot.
   const verifiedDelivery = showroomDeliveries.find(d => 
     !!d.witness_phone && 
-    screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+    screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
   );
   
-  // Grab fraud screenshots uploaded by the photographer
+  // Grab fraud screenshots (both photographer's dealership doc and admin's call log verification)
   const fraudScreenshots = screenshots.filter(s => 
-    ['FRAUD_DETECTION', 'FRAUD_CALL_LOG'].includes(s.type) && 
+    s.type === 'FRAUD_DETECTION' && 
     !s.deleted_at && 
-    s.user_id === selectedPhotographer &&
     (s.showroom_code === showroomCode || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id)))
   );
   
-  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION');
-  const callLogScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_CALL_LOG');
+  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id);
+  const callLogScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && s.delivery_id);
 
   // local state mapping
   const [witnessPhone, setWitnessPhone] = useState(verifiedDelivery?.witness_phone || '');
@@ -263,7 +262,7 @@ function FraudAuditShowroomCard({
                   await screenshotsDb.createScreenshot({
                     delivery_id: updatedDels[0].id,
                     user_id: selectedPhotographer,
-                    type: 'FRAUD_CALL_LOG',
+                    type: 'FRAUD_DETECTION',
                     file_url: url,
                     thumbnail_url: url,
                     deleted_at: null
@@ -657,7 +656,7 @@ export function ViewScreen() {
       const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
       const verified = showroomDeliveries.some(d => 
         !!d.witness_phone && 
-        screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+        screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
       );
       if (!verified) return false;
     }
@@ -853,7 +852,7 @@ export function ViewScreen() {
           const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
           const verified = showroomDeliveries.some(d => 
             !!d.witness_phone && 
-            screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+            screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
           );
           if (!verified) {
             allVerified = false;
@@ -2190,7 +2189,7 @@ export function ViewScreen() {
         await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
-          type: 'FRAUD_CALL_LOG',
+          type: 'FRAUD_DETECTION',
           file_url: url,
           thumbnail_url: url,
           deleted_at: null
@@ -2297,7 +2296,7 @@ export function ViewScreen() {
   const followScreenshots = screenshots.filter(s => s.type === 'FOLLOW' && !s.deleted_at);
   const rapidoScreenshots = screenshots.filter(s => s.type === 'RAPIDO' && !s.deleted_at);
   const platformPaymentScreenshots = screenshots.filter(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
-  const fraudDetectionScreenshots = screenshots.filter(s => ['FRAUD_DETECTION', 'FRAUD_CALL_LOG'].includes(s.type) && !s.deleted_at);
+  const fraudDetectionScreenshots = screenshots.filter(s => s.type === 'FRAUD_DETECTION' && !s.deleted_at);
 
   // V1 SPEC: Apply filters to screenshots
   const applyFilters = (screenshotList: any[]) => {
