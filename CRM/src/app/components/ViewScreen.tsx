@@ -323,8 +323,13 @@ export function ViewScreen() {
         
       if (error) throw error;
       
-      // Unclaimed: assigned_user_id === original_user_id or null
-      const unclaimed = (data || []).filter(t => t.assigned_user_id === t.original_user_id || !t.assigned_user_id);
+      // Unclaimed: assigned_user_id === original_user_id or null, and original user is active
+      const activeUserIds = new Set(allUsers.filter(u => u.active).map(u => u.id));
+      const unclaimed = (data || []).filter(t => {
+        const isUnclaimed = t.assigned_user_id === t.original_user_id || !t.assigned_user_id;
+        const isOriginalUserActive = !t.original_user_id || activeUserIds.has(t.original_user_id);
+        return isUnclaimed && isOriginalUserActive;
+      });
       
       setBountyBoardCount(unclaimed.length);
       if (unclaimed.length === 0) {
