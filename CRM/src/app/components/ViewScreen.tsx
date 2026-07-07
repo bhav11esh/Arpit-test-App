@@ -3237,6 +3237,23 @@ export function ViewScreen() {
                                 </SelectContent>
                               </Select>
                             </div>
+                            {(() => {
+                              const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
+                              if (!photographerObj || (!photographerObj.phone_number && !photographerObj.secondary_phone_number)) return null;
+                              return (
+                                <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-md flex justify-between items-center text-xs">
+                                  <span className="text-gray-600 font-semibold">Photographer Contact:</span>
+                                  <div className="flex gap-3 text-right">
+                                    {photographerObj.phone_number && (
+                                      <span>Primary: <span className="font-mono font-bold text-gray-900">{photographerObj.phone_number}</span></span>
+                                    )}
+                                    {photographerObj.secondary_phone_number && (
+                                      <span>Secondary: <span className="font-mono font-bold text-blue-800">{photographerObj.secondary_phone_number}</span></span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <div className="space-y-2">
                               <label className="text-xs font-semibold uppercase text-gray-500">Reference ID (Internal)</label>
                               <Input
