@@ -34,7 +34,7 @@ import * as notificationsDb from '../lib/db/notifications';
 import * as leavesDb from '../lib/db/leaves';
 import * as screenshotsDb from '../lib/db/screenshots';
 import * as standupDb from '../lib/db/standup';
-import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw, Clock } from 'lucide-react';
+import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw, Clock, ShieldCheck, Eye } from 'lucide-react';
 import { SearchableSelect } from './ui/searchable-select';
 import { AlertTriangle } from 'lucide-react';
 
