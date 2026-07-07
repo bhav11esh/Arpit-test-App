@@ -289,6 +289,165 @@ function FraudAuditShowroomCard({
   );
 }
 
+interface CallLogsViewerProps {
+  spreadSheetDate: string;
+  setSpreadSheetDate: (d: string) => void;
+  selectedPhotographer: string;
+  setSelectedPhotographer: (p: string) => void;
+  photographers: any[];
+  deliveries: any[];
+  screenshots: any[];
+  dealerships: any[];
+  allStandupCalls: any[];
+  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
+  setGalleryViewMode: React.Dispatch<React.SetStateAction<'single' | 'grid'>>;
+}
+
+function CallLogsViewer({
+  spreadSheetDate,
+  setSpreadSheetDate,
+  selectedPhotographer,
+  setSelectedPhotographer,
+  photographers,
+  deliveries,
+  screenshots,
+  dealerships,
+  allStandupCalls,
+  setCurrentImageIndex,
+  setGalleryViewMode
+}: CallLogsViewerProps) {
+  // 1. Gather Morning Standup Call Logs
+  const standupLogs = allStandupCalls
+    .filter(c => c.call_log_screenshot_url && (selectedPhotographer === 'all' || c.photographer_id === selectedPhotographer))
+    .map(c => {
+      const photographer = photographers.find(p => p.id === c.photographer_id);
+      return {
+        id: `standup_${c.id}`,
+        fileUrl: c.call_log_screenshot_url,
+        photographerName: photographer ? photographer.name : 'Unknown Photographer',
+        taskType: 'Morning Standup',
+        showroom: null,
+        date: c.date
+      };
+    });
+
+  // 2. Gather Fraud Detection Call Logs
+  const fraudLogs = screenshots
+    .filter(s => s.type === 'FRAUD_DETECTION' && s.delivery_id && !s.deleted_at)
+    .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
+    .map(s => {
+      const del = deliveries.find(d => d.id === s.delivery_id);
+      if (!del || del.date !== spreadSheetDate) return null;
+      
+      const photographer = photographers.find(p => p.id === s.user_id);
+      const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(del.showroom_code));
+      const displayShowroomName = dealership ? dealership.name : del.showroom_code;
+
+      return {
+        id: `fraud_${s.id}`,
+        fileUrl: s.file_url,
+        photographerName: photographer ? photographer.name : 'Unknown Photographer',
+        taskType: 'Fraud Detection',
+        showroom: displayShowroomName,
+        date: del.date
+      };
+    })
+    .filter((log): log is NonNullable<typeof log> => log !== null);
+
+  const combinedLogs = [...standupLogs, ...fraudLogs];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Call Logs</h2>
+          <p className="text-sm text-gray-500">View uploaded call log verification screenshots for Morning Standups and Dealership Fraud Audits</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-end">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-700 block">Select Audit Date</label>
+            <Input
+              type="date"
+              value={spreadSheetDate}
+              onChange={(e) => setSpreadSheetDate(e.target.value)}
+              className="h-9 w-full sm:w-48"
+            />
+          </div>
+
+          <div className="space-y-1 flex-1">
+            <label className="text-xs font-bold text-gray-700 block">Filter by Photographer</label>
+            <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
+              <SelectTrigger className="h-9 w-full sm:w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Photographers</SelectItem>
+                {photographers.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {combinedLogs.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-gray-500 italic text-xs">
+            No call log screenshots found for {spreadSheetDate} with the selected filters.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {combinedLogs.map((log) => (
+            <Card key={log.id} className="overflow-hidden border border-gray-200 hover:shadow-md transition-shadow">
+              <div className="relative aspect-[3/4] bg-gray-100 flex items-center justify-center border-b group overflow-hidden">
+                <img 
+                  src={log.fileUrl} 
+                  alt={log.taskType} 
+                  className="max-h-full max-w-full object-contain cursor-pointer"
+                  onClick={() => {
+                    window.open(log.fileUrl, '_blank');
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                    <Eye className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+              <CardContent className="p-3 space-y-1 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-900">{log.photographerName}</span>
+                  <span className="text-gray-400 font-medium">{log.date}</span>
+                </div>
+                {log.showroom && (
+                  <div className="text-gray-600 font-semibold truncate">
+                    Showroom: {log.showroom}
+                  </div>
+                )}
+                <div className="pt-2 border-t mt-2 flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold">Audit Task Type:</span>
+                  <Badge className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    log.taskType === 'Morning Standup' 
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200' 
+                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200'
+                  }`}>
+                    {log.taskType}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ViewScreen() {
   const { user } = useAuth();
   const { dealerships, clusters, mappings, photographers, allUsers } = useConfig();
@@ -374,7 +533,7 @@ export function ViewScreen() {
   // 4. Logs View (admin audit trail)
   // 5. Portrait View (live_bookings)
   // V1 RULE: Photographers must NEVER see screenshot galleries (modes 2 & 3)
-  const [viewMode, setViewMode] = useState<'spreadsheet' | 'audit' | 'logs' | 'portrait' | 'missed_send_update'>('spreadsheet');
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'audit' | 'logs' | 'portrait' | 'missed_send_update' | 'call_logs'>('spreadsheet');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -542,7 +701,7 @@ export function ViewScreen() {
   };
 
   useEffect(() => {
-    if (viewMode === 'audit' && spreadSheetDate && user) {
+    if ((viewMode === 'audit' || viewMode === 'call_logs') && spreadSheetDate && user) {
       fetchHandoverAndSentLogs();
       fetchMissedSendUpdateData(spreadSheetDate);
       
@@ -2372,6 +2531,7 @@ export function ViewScreen() {
                         <SelectSeparator />
                         <SelectLabel className="text-xs font-bold text-gray-400 uppercase mt-1">🔒 Audit Views</SelectLabel>
                         <SelectItem value="audit" className="text-sm">Photographer Audit</SelectItem>
+                        <SelectItem value="call_logs" className="text-sm">Call Logs</SelectItem>
                         <SelectItem value="logs" className="text-sm">Admin Logs</SelectItem>
                       </SelectGroup>
                     )}
@@ -4366,6 +4526,23 @@ export function ViewScreen() {
           {/* Admin Logs Viewer */}
           {viewMode === 'logs' && (
             <AdminLogsViewer />
+          )}
+
+          {/* Call Logs View */}
+          {viewMode === 'call_logs' && (
+            <CallLogsViewer
+              spreadSheetDate={spreadSheetDate}
+              setSpreadSheetDate={setSpreadSheetDate}
+              selectedPhotographer={selectedPhotographer}
+              setSelectedPhotographer={setSelectedPhotographer}
+              photographers={cityIsolatedPhotographers}
+              deliveries={deliveries}
+              screenshots={screenshots}
+              dealerships={cityIsolatedDealerships}
+              allStandupCalls={allStandupCalls}
+              setCurrentImageIndex={setCurrentImageIndex}
+              setGalleryViewMode={setGalleryViewMode}
+            />
           )}
 
 
