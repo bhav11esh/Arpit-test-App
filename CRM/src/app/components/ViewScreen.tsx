@@ -230,6 +230,7 @@ export function ViewScreen() {
   const [verifyingBountyBoard, setVerifyingBountyBoard] = useState<boolean>(false);
   const [allStandupCalls, setAllStandupCalls] = useState<any[]>([]);
   const [missedUpdateClosedPhotographers, setMissedUpdateClosedPhotographers] = useState<Set<string>>(new Set());
+  const [sentUpdateUserIds, setSentUpdateUserIds] = useState<Set<string>>(new Set());
 
   const fetchHandoverAndSentLogs = async () => {
     if (!spreadSheetDate || !user) return;
@@ -369,7 +370,7 @@ export function ViewScreen() {
     }
   };
 
-  const handleHandoverToSuperAdmin = async (taskType: 'STANDUP' | 'FRAUD' | 'DELIVERIES') => {
+  const handleHandoverToSuperAdmin = async (taskType: 'STANDUP' | 'FRAUD' | 'DELIVERIES' | 'MISSED_UPDATE') => {
     if (!selectedPhotographer || !spreadSheetDate || !user) return;
     try {
       const client = supabase;
@@ -385,7 +386,7 @@ export function ViewScreen() {
         }
       });
       if (error) throw error;
-      toast.success(`${taskType === 'STANDUP' ? 'Standup' : taskType === 'FRAUD' ? 'Fraud' : 'Deliveries'} task handed over to Super Admin`);
+      toast.success(`${taskType === 'STANDUP' ? 'Standup' : taskType === 'FRAUD' ? 'Fraud' : taskType === 'MISSED_UPDATE' ? 'Missed Update' : 'Deliveries'} task handed over to Super Admin`);
       fetchHandoverAndSentLogs();
     } catch (err) {
       console.error('Failed to handover task:', err);
@@ -583,15 +584,18 @@ export function ViewScreen() {
       const isStandupHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'STANDUP');
       const isFraudHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD');
       const isDeliveriesHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'DELIVERIES');
+      const isMissedUpdateHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'MISSED_UPDATE');
+
+      const hasSentUpdate = sentUpdateUserIds.has(p.id);
 
       // Standup Task status
       const standupDone = isStandupHandedOver || !!standupCall;
 
-      // Fraud Task status
+      // Fraud Task status — if update was completely missed, skip fraud audits
       const doneDeliveries = pDeliveries.filter(d => d.status === 'DONE');
       const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
-      let fraudDone = isFraudHandedOver || uniqueShowrooms.length === 0;
-      if (!isFraudHandedOver && uniqueShowrooms.length > 0) {
+      let fraudDone = !hasSentUpdate || isFraudHandedOver || uniqueShowrooms.length === 0;
+      if (hasSentUpdate && !isFraudHandedOver && uniqueShowrooms.length > 0) {
         let allVerified = true;
         for (const showroomCode of uniqueShowrooms) {
           const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
@@ -607,9 +611,9 @@ export function ViewScreen() {
         fraudDone = allVerified;
       }
 
-      // Deliveries Task status
-      let deliveriesDone = isDeliveriesHandedOver || doneDeliveries.length === 0;
-      if (!isDeliveriesHandedOver && doneDeliveries.length > 0) {
+      // Deliveries Task status — if update was completely missed, skip deliveries audits
+      let deliveriesDone = !hasSentUpdate || isDeliveriesHandedOver || doneDeliveries.length === 0;
+      if (hasSentUpdate && !isDeliveriesHandedOver && doneDeliveries.length > 0) {
         let allVerified = true;
         for (const d of doneDeliveries) {
           const isCustomerPaid = d.payment_type === 'CUSTOMER_PAID';
@@ -631,7 +635,7 @@ export function ViewScreen() {
 
       // Missed Send Update Task status — only relevant if this photographer appears in the missed list
       const missedUpdateEntry = missedSendUpdateData.find(m => m.photographerId === p.id);
-      const isMissedUpdateDone = !missedUpdateEntry || missedUpdateClosedPhotographers.has(p.id);
+      const isMissedUpdateDone = !missedUpdateEntry || missedUpdateClosedPhotographers.has(p.id) || isMissedUpdateHandedOver;
 
       const completed = standupDone && fraudDone && deliveriesDone && isMissedUpdateDone;
 
@@ -642,11 +646,13 @@ export function ViewScreen() {
         isStandupHandedOver,
         isFraudHandedOver,
         isDeliveriesHandedOver,
+        isMissedUpdateHandedOver,
         isMissedUpdateDone,
-        missedUpdateEntry: missedUpdateEntry || null
+        missedUpdateEntry: missedUpdateEntry || null,
+        hasSentUpdate
       };
     });
-  }, [cityIsolatedPhotographers, deliveries, allStandupCalls, handoverLogs, spreadSheetDate, screenshots, allUsers, missedSendUpdateData, missedUpdateClosedPhotographers]);
+  }, [cityIsolatedPhotographers, deliveries, allStandupCalls, handoverLogs, spreadSheetDate, screenshots, allUsers, missedSendUpdateData, missedUpdateClosedPhotographers, sentUpdateUserIds]);
 
   const allPhotographersCleared = React.useMemo(() => {
     return photographerStatusList.length > 0 && photographerStatusList.every(p => p.completed);
@@ -675,11 +681,12 @@ export function ViewScreen() {
       if (logsError) throw logsError;
       
       // Filter logs by operational date in JS
-      const sentUpdateUserIds = new Set(
+      const sentUpdateUserIdsSet = new Set(
         (logs || [])
           .filter(le => le.type === 'SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
           .map(le => le.actor_user_id)
       );
+      setSentUpdateUserIds(sentUpdateUserIdsSet);
 
       const auditedUserIds = new Set(
         (logs || [])
@@ -709,7 +716,7 @@ export function ViewScreen() {
         const dayDeliveries = (dayDeliveriesRaw || []).filter(d => d.assigned_user_id === p.id);
         const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
         const totalCount = dayDeliveries.length;
-        const hasSentUpdate = sentUpdateUserIds.has(p.id);
+        const hasSentUpdate = sentUpdateUserIdsSet.has(p.id);
         const isAuditClosed = auditedUserIds.has(p.id);
         
         const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
@@ -2062,6 +2069,9 @@ export function ViewScreen() {
   const uniqueDates = Array.from(new Set(screenshots.map(s => getOperationalDateString(new Date(s.uploaded_at)))));
   const uniquePhotographers = Array.from(new Set(screenshots.map(s => s.user_id)));
 
+  const selectedPhotographerStatus = photographerStatusList.find(p => p.id === selectedPhotographer);
+  const showTask2And3 = selectedPhotographerStatus ? selectedPhotographerStatus.hasSentUpdate !== false : true;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -3188,7 +3198,13 @@ export function ViewScreen() {
                       {allHandoverLogs.map((log) => {
                         const adminObj = allUsers.find(u => u.id === log.actor_user_id);
                         const adminName = adminObj ? adminObj.name : 'Another Admin';
-                        const taskName = log.metadata?.task_type === 'STANDUP' ? 'Morning Standup' : log.metadata?.task_type === 'FRAUD' ? 'Fraud Audit' : 'Deliveries';
+                        const taskName = log.metadata?.task_type === 'STANDUP' 
+                          ? 'Morning Standup' 
+                          : log.metadata?.task_type === 'FRAUD' 
+                          ? 'Fraud Audit' 
+                          : log.metadata?.task_type === 'MISSED_UPDATE'
+                          ? 'Missed Update'
+                          : 'Deliveries';
                         
                         return (
                           <div 
@@ -3470,8 +3486,10 @@ export function ViewScreen() {
                     </CardContent>
                   </Card>
 
-                  {/* Task 2: Dealership-Level Fraud Verification */}
-                  <div className="space-y-4">
+                  {showTask2And3 && (
+                    <>
+                      {/* Task 2: Dealership-Level Fraud Verification */}
+                      <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5 text-amber-600" />
@@ -4107,6 +4125,8 @@ export function ViewScreen() {
                       })
                     )}
                   </div>
+                    </>
+                  )}
 
                   {/* Missed Send Update Task — shown inline if this photographer missed update or had 0 deliveries */}
                   {(() => {
@@ -4116,12 +4136,35 @@ export function ViewScreen() {
                     const enteredVal = enteredCounts[missedEntry.photographerId] ?? '';
                     const enteredNum = parseInt(enteredVal);
                     const countMatches = enteredVal !== '' && enteredNum === missedEntry.totalCount;
+                    const isHandedOver = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'MISSED_UPDATE');
+                    const isEditingLocked = isHandedOver && user?.role !== 'SUPER_ADMIN';
+
                     return (
                       <div className="space-y-4">
-                        <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                          <AlertTriangle className="h-5 w-5 text-rose-500" />
-                          Missed Send Update / 0 Deliveries
-                        </h3>
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-rose-500" />
+                            Missed Send Update / 0 Deliveries
+                          </h3>
+                          {user?.role === 'ADMIN' && !isHandedOver && (
+                            <Button
+                              onClick={() => handleHandoverToSuperAdmin('MISSED_UPDATE')}
+                              variant="outline"
+                              size="sm"
+                              className="border-orange-200 text-orange-600 hover:bg-orange-50 font-semibold text-xs animate-pulse"
+                            >
+                              Handover to super admin
+                            </Button>
+                          )}
+                        </div>
+
+                        {isHandedOver && (
+                          <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs animate-fade-in">
+                            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                            <span>This missed send update task has been handed over to Super Admin. Editing is locked.</span>
+                          </div>
+                        )}
+
                         <Card className="border-l-4 border-l-rose-500">
                           <CardContent className="py-4 space-y-3">
                             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -4143,10 +4186,11 @@ export function ViewScreen() {
                               <Input
                                 type="number"
                                 min="0"
-                                placeholder="Enter count reported by photographer"
+                                placeholder={isEditingLocked ? "Handed over to Super Admin" : "Enter count reported by photographer"}
                                 value={enteredVal}
                                 onChange={(e) => setEnteredCounts({ ...enteredCounts, [missedEntry.photographerId]: e.target.value })}
                                 className="h-8 text-xs font-semibold"
+                                disabled={isEditingLocked}
                               />
                             </div>
                             <div className="text-[10px] bg-gray-50 p-2 rounded border">
@@ -4157,13 +4201,15 @@ export function ViewScreen() {
                                 </span>
                               </div>
                             </div>
-                            <Button
-                              onClick={() => handleCloseMissedSendUpdateTask(missedEntry)}
-                              disabled={!countMatches}
-                              className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs h-8 font-semibold"
-                            >
-                              Close Audit Task
-                            </Button>
+                            {(!isHandedOver || user?.role === 'SUPER_ADMIN') && (
+                              <Button
+                                onClick={() => handleCloseMissedSendUpdateTask(missedEntry)}
+                                disabled={!countMatches}
+                                className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs h-8 font-semibold"
+                              >
+                                Close Audit Task
+                              </Button>
+                            )}
                           </CardContent>
                         </Card>
                       </div>
