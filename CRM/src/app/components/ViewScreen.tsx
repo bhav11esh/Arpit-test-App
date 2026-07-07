@@ -100,6 +100,43 @@ function FraudAuditShowroomCard({
   const [witnessPhone, setWitnessPhone] = useState(verifiedDelivery?.witness_phone || '');
   const [callLogFile, setCallLogFile] = useState<File | null>(null);
   const [submittingFraud, setSubmittingFraud] = useState(false);
+  const [previousWitnessPhones, setPreviousWitnessPhones] = useState<{ phone: string; date: string }[]>([]);
+
+  useEffect(() => {
+    const fetchPreviousWitnessPhones = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('deliveries')
+          .select('witness_phone, date, showroom_code')
+          .not('witness_phone', 'is', null)
+          .neq('witness_phone', '')
+          .order('date', { ascending: false });
+
+        if (!error && data) {
+          const matching = data.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+          
+          const phoneList: { phone: string; date: string }[] = [];
+          const seen = new Set<string>();
+          
+          for (const item of matching) {
+            if (!seen.has(item.witness_phone)) {
+              seen.add(item.witness_phone);
+              phoneList.push({
+                phone: item.witness_phone,
+                date: item.date
+              });
+            }
+            if (phoneList.length >= 3) break;
+          }
+          setPreviousWitnessPhones(phoneList);
+        }
+      } catch (err) {
+        console.error('Failed to fetch previous witness phones:', err);
+      }
+    };
+
+    fetchPreviousWitnessPhones();
+  }, [showroomCode]);
 
   return (
     <Card className="border-l-4 border-l-amber-500">
@@ -227,6 +264,27 @@ function FraudAuditShowroomCard({
               disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN')}
               className="h-9"
             />
+            {previousWitnessPhones.length > 0 && (
+              <div className="mt-1.5 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Previous Witness Numbers (Click to use):</span>
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {previousWitnessPhones.map((pw, idx) => (
+                    <Badge 
+                      key={idx} 
+                      variant="secondary" 
+                      className="text-[10px] cursor-pointer hover:bg-gray-200 transition-colors font-medium"
+                      onClick={() => {
+                        if (!verifiedDelivery && !(handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN')) {
+                          setWitnessPhone(pw.phone);
+                        }
+                      }}
+                    >
+                      {pw.phone} ({pw.date})
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {!verifiedDelivery && (
