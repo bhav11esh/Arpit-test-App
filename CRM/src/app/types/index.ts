@@ -27,7 +27,7 @@
  * ❌ Reel backlog modification on photographer disable
  */
 
-export type UserRole = 'ADMIN' | 'PHOTOGRAPHER';
+export type UserRole = 'ADMIN' | 'PHOTOGRAPHER' | 'SUPER_ADMIN';
 
 // V1 SPEC: No DONE status exists - SEND UPDATE is the only closure
 export type DeliveryStatus =

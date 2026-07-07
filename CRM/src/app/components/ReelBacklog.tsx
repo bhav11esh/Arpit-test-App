@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 
 export function ReelBacklog() {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [reelTasks, setReelTasks] = useState<ReelTask[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
@@ -59,7 +60,7 @@ export function ReelBacklog() {
       const client = supabase;
 
       // 1. Fetch relevant reel tasks first
-      const allTasks = user.role === 'ADMIN'
+      const allTasks = isAdmin
         ? await reelsDb.getAllReelTasks(undefined, client)
         : await reelsDb.getReelTasksByUser(user.id, client);
 
@@ -73,7 +74,7 @@ export function ReelBacklog() {
       const allDbUsers = await usersDb.getUsers(client);
 
       // 5. NEW: Refresh and Fetch Post-its for photographers and admins
-      if (user.role === 'PHOTOGRAPHER' || user.role === 'ADMIN') {
+      if (user.role === 'PHOTOGRAPHER' || isAdmin) {
         try {
           await reelsDb.refreshPostIts(client);
           const availablePostIts = await reelsDb.getPostItReels(client);
@@ -211,7 +212,7 @@ export function ReelBacklog() {
   const pendingTasks = reelTasks.filter(t => t.status === 'PENDING' && !t.is_post_it);
   // V18.3: Resolved section logic
   // Only show entries where the reel was reassigned to them (Admin or Post-it)
-  const resolvedTasks = user?.role === 'ADMIN' 
+  const resolvedTasks = isAdmin 
     ? reelTasks.filter(t => t.status === 'RESOLVED')
     : reelTasks.filter(t => t.status === 'RESOLVED' && t.reassigned_reason !== null);
 
@@ -240,7 +241,7 @@ export function ReelBacklog() {
   return (
     <div className="space-y-4 p-1 sm:p-4 pb-36">
       {/* NEW: Bounty Board / Post-its Marketplace */}
-      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || user?.role === 'ADMIN') && (
+      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || isAdmin) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -286,7 +287,7 @@ export function ReelBacklog() {
                       : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-500'
                   }`}
                 >
-                  <span>{user?.role === 'ADMIN' ? 'All Bounties' : 'Others'} ({othersReels.length})</span>
+                  <span>{isAdmin ? 'All Bounties' : 'Others'} ({othersReels.length})</span>
                   {othersTotal > 0 && (
                     <span className={`text-[9px] font-black ${bountyFilter === 'others' ? 'text-emerald-200' : 'text-emerald-500'}`}>
                       +₹{othersTotal} to earn
@@ -396,7 +397,7 @@ export function ReelBacklog() {
                       )}
 
                       {/* V1 ADMIN: Admin can resolve bounty reels directly */}
-                      {user?.role === 'ADMIN' && (
+                      {isAdmin && (
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9" onClick={() => {
@@ -506,7 +507,7 @@ export function ReelBacklog() {
                         </CardTitle>
                         <CardDescription className="text-[10px] truncate mt-0.5">{delivery.showroom_code}</CardDescription>
                         {/* V1 ADMIN: Show photographer name for admin view */}
-                        {user?.role === 'ADMIN' && photographer && (
+                        {isAdmin && photographer && (
                           <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-orange-500 bg-orange-50 w-fit px-2 py-0.5 rounded-full">
                             <User className="h-3 w-3" />
                             <span>{photographer.name}</span>
@@ -625,7 +626,7 @@ export function ReelBacklog() {
                     )}
 
                     {/* V1 ADMIN: Admins can reassign reel tasks */}
-                    {user?.role === 'ADMIN' && (
+                    {isAdmin && (
                       <Dialog open={reassignDialogOpen && selectedTask?.id === task.id} onOpenChange={(open) => {
                         setReassignDialogOpen(open);
                         if (!open) {
@@ -734,7 +735,7 @@ export function ReelBacklog() {
                           </CardTitle>
                           <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                           {/* V1 ADMIN: Show photographer name for admin view */}
-                          {user?.role === 'ADMIN' && photographer && (
+                          {isAdmin && photographer && (
                             <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full">
                               <User className="h-3 w-3" />
                               <span>{photographer.name}</span>

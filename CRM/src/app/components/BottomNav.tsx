@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 
+import { UserRole } from '../types';
+
 interface BottomNavProps {
-  userRole: 'ADMIN' | 'PHOTOGRAPHER';
+  userRole: UserRole;
 }
 
 export function BottomNav({ userRole }: BottomNavProps) {
@@ -14,6 +16,8 @@ export function BottomNav({ userRole }: BottomNavProps) {
   const location = useLocation();
   const { user } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
+
+  const isNavAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
 
   useEffect(() => {
     if (user?.id && userRole === 'PHOTOGRAPHER') {
@@ -54,18 +58,18 @@ export function BottomNav({ userRole }: BottomNavProps) {
   // V1 SPEC: Different tabs for Admin vs Photographer
   const allTabs = [
     { id: 'home', label: 'Home', icon: Home, path: '/', photographerOnly: true },
-    { id: 'reels', label: userRole === 'ADMIN' ? 'Reels' : 'Reel Backlog', icon: Film, path: '/reels', photographerOnly: false },
-    { id: 'view', label: userRole === 'ADMIN' ? 'View' : 'Stats', icon: BarChart3, path: '/view', photographerOnly: false },
+    { id: 'reels', label: isNavAdmin ? 'Reels' : 'Reel Backlog', icon: Film, path: '/reels', photographerOnly: false },
+    { id: 'view', label: isNavAdmin ? 'View' : 'Stats', icon: BarChart3, path: '/view', photographerOnly: false },
     { id: 'profile', label: 'Profile', icon: User, path: '/profile', photographerOnly: false },
   ];
 
   // Filter tabs based on user role
-  const tabs = userRole === 'ADMIN' 
+  const tabs = isNavAdmin 
     ? allTabs.filter(tab => !tab.photographerOnly)
     : allTabs;
 
   // Determine active tab from current path
-  const currentTab = tabs.find(tab => tab.path === location.pathname)?.id || (userRole === 'ADMIN' ? 'view' : 'home');
+  const currentTab = tabs.find(tab => tab.path === location.pathname)?.id || (isNavAdmin ? 'view' : 'home');
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 nav-glass z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
@@ -73,7 +77,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[7px] px-2 py-0.5 rounded-full font-mono pointer-events-none opacity-40">
         UI-V2.0-MOBILE
       </div>
-      <div className={`grid ${userRole === 'ADMIN' ? 'grid-cols-3' : 'grid-cols-4'} h-16`}>
+      <div className={`grid ${isNavAdmin ? 'grid-cols-3' : 'grid-cols-4'} h-16`}>
         {tabs.map(tab => {
           const Icon = tab.icon;
           const isActive = currentTab === tab.id;

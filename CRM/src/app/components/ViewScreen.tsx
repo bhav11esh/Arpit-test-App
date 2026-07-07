@@ -221,6 +221,207 @@ export function ViewScreen() {
   const [missedSendUpdateLoading, setMissedSendUpdateLoading] = useState(false);
   const [enteredCounts, setEnteredCounts] = useState<Record<string, string>>({});
 
+  // Super Admin & Handover workflow states
+  const [handoverLogs, setHandoverLogs] = useState<any[]>([]);
+  const [allHandoverLogs, setAllHandoverLogs] = useState<any[]>([]);
+  const [adminUpdateSent, setAdminUpdateSent] = useState<boolean>(false);
+  const [bountyBoardVerified, setBountyBoardVerified] = useState<boolean>(false);
+  const [bountyBoardCount, setBountyBoardCount] = useState<number | null>(null);
+  const [verifyingBountyBoard, setVerifyingBountyBoard] = useState<boolean>(false);
+  const [allStandupCalls, setAllStandupCalls] = useState<any[]>([]);
+  const [missedUpdateClosedPhotographers, setMissedUpdateClosedPhotographers] = useState<Set<string>>(new Set());
+
+  const fetchHandoverAndSentLogs = async () => {
+    if (!spreadSheetDate || !user) return;
+    try {
+      const client = supabase;
+      const [year, month, day] = spreadSheetDate.split('-').map(Number);
+      const start = new Date(year, month - 1, day - 1, 0, 0, 0).toISOString();
+      const end = new Date(year, month - 1, day + 2, 23, 59, 59).toISOString();
+
+      // Fetch logs for current selected date
+      const { data: logs, error } = await client
+        .from('log_events')
+        .select('*')
+        .in('type', ['ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN', 'ADMIN_DAILY_AUDIT_UPDATE_SENT', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+      if (error) throw error;
+
+      // Filter events by operational date in JS
+      const handovers = (logs || []).filter(le => 
+        le.type === 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN' && 
+        le.metadata?.date === spreadSheetDate
+      );
+
+      const updateSent = (logs || []).some(le => 
+        le.type === 'ADMIN_DAILY_AUDIT_UPDATE_SENT' && 
+        le.metadata?.date === spreadSheetDate
+      );
+
+      setHandoverLogs(handovers);
+      setAdminUpdateSent(updateSent);
+
+      // Fetch missed-send-update closed tasks for this date
+      const closedIds = new Set<string>(
+        (logs || [])
+          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && le.metadata?.date === spreadSheetDate)
+          .map((le: any) => le.metadata?.photographer_id as string)
+          .filter(Boolean)
+      );
+      setMissedUpdateClosedPhotographers(closedIds);
+
+      // Fetch all handovers from the past 14 days for the review queue
+      const past14Days = new Date();
+      past14Days.setDate(past14Days.getDate() - 14);
+      
+      const { data: allHandovers, error: allHandoversError } = await client
+        .from('log_events')
+        .select('*')
+        .eq('type', 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN')
+        .gte('created_at', past14Days.toISOString());
+
+      if (allHandoversError) throw allHandoversError;
+      setAllHandoverLogs(allHandovers || []);
+    } catch (err) {
+      console.error('Failed to fetch handover logs:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'audit' && spreadSheetDate && user) {
+      fetchHandoverAndSentLogs();
+      fetchMissedSendUpdateData(spreadSheetDate);
+      
+      // Fetch all standup calls for the selected date
+      const fetchStandupCalls = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('standup_calls')
+            .eq('date', spreadSheetDate);
+          if (!error && data) {
+            setAllStandupCalls(data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch standup calls:', err);
+        }
+      };
+      fetchStandupCalls();
+    }
+  }, [spreadSheetDate, viewMode, user]);
+
+  const handleVerifyBountyBoard = async () => {
+    setVerifyingBountyBoard(true);
+    try {
+      const client = supabase;
+      const { data, error } = await client
+        .from('reel_tasks')
+        .select('*')
+        .eq('is_post_it', true)
+        .eq('status', 'PENDING');
+        
+      if (error) throw error;
+      
+      // Unclaimed: assigned_user_id === original_user_id or null
+      const unclaimed = (data || []).filter(t => t.assigned_user_id === t.original_user_id || !t.assigned_user_id);
+      
+      setBountyBoardCount(unclaimed.length);
+      if (unclaimed.length === 0) {
+        setBountyBoardVerified(true);
+        toast.success('Bounty board verification passed! No unclaimed bounties found.');
+      } else {
+        setBountyBoardVerified(false);
+        toast.error(`Verification failed: ${unclaimed.length} unclaimed bounty reels are still pending.`);
+      }
+    } catch (err) {
+      console.error('Failed to verify bounty board:', err);
+      toast.error('Failed to verify bounty board');
+    } finally {
+      setVerifyingBountyBoard(false);
+    }
+  };
+
+  const handleSendAdminDailyUpdate = async () => {
+    if (!spreadSheetDate || !user) return;
+    try {
+      const client = supabase;
+      const { error } = await client.from('log_events').insert({
+        type: 'ADMIN_DAILY_AUDIT_UPDATE_SENT',
+        actor_user_id: user.id,
+        target_id: user.id,
+        metadata: {
+          date: spreadSheetDate,
+          admin_name: user.name
+        }
+      });
+      if (error) throw error;
+      toast.success('Daily audit update sent successfully!');
+      setAdminUpdateSent(true);
+    } catch (err) {
+      console.error('Failed to send admin daily update:', err);
+      toast.error('Failed to send daily update');
+    }
+  };
+
+  const handleHandoverToSuperAdmin = async (taskType: 'STANDUP' | 'FRAUD' | 'DELIVERIES') => {
+    if (!selectedPhotographer || !spreadSheetDate || !user) return;
+    try {
+      const client = supabase;
+      const photographerName = cityIsolatedPhotographers.find(p => p.id === selectedPhotographer)?.name || 'Unknown';
+      const { error } = await client.from('log_events').insert({
+        type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
+        actor_user_id: user.id,
+        target_id: selectedPhotographer,
+        metadata: {
+          date: spreadSheetDate,
+          photographer_name: photographerName,
+          task_type: taskType
+        }
+      });
+      if (error) throw error;
+      toast.success(`${taskType === 'STANDUP' ? 'Standup' : taskType === 'FRAUD' ? 'Fraud' : 'Deliveries'} task handed over to Super Admin`);
+      fetchHandoverAndSentLogs();
+    } catch (err) {
+      console.error('Failed to handover task:', err);
+      toast.error('Failed to handover task');
+    }
+  };
+
+  const isPhotographerAuditCompleted = (photographerId: string, photographerDeliveries: Delivery[], standupCall: any) => {
+    if (!standupCall) return false;
+    if (standupCall.status === 'LEAVE') return true;
+
+    const doneDeliveries = photographerDeliveries.filter(d => d.status === 'DONE');
+    const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
+    
+    for (const showroomCode of uniqueShowrooms) {
+      const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+      const verified = showroomDeliveries.some(d => 
+        !!d.witness_phone && 
+        screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+      );
+      if (!verified) return false;
+    }
+
+    for (const d of doneDeliveries) {
+      const isCustomerPaid = d.payment_type === 'CUSTOMER_PAID';
+      const photographerObj = allUsers.find(p => p.id === photographerId);
+      const is15PercentModel = photographerObj && getPhotographerRawPayoutModel(photographerId, d.date) === 'PERCENTAGE_15_DAILY';
+      const hasRapido = d.rapido_charge != null && d.rapido_charge > 0;
+
+      const isCustomerPayVerified = !isCustomerPaid || (!!d.payment_screenshot_date && !!d.payment_screenshot_time && !!d.payment_screenshot_amount);
+      const isPlatformPayVerified = !is15PercentModel || !isCustomerPaid || (!!d.platform_payment_screenshot_date && !!d.platform_payment_screenshot_time && !!d.platform_payment_screenshot_amount);
+      const isRapidoVerified = !hasRapido || (!!d.rapido_screenshot_date && !!d.rapido_screenshot_time && !!d.rapido_screenshot_amount);
+
+      if (!isCustomerPayVerified || !isPlatformPayVerified || !isRapidoVerified) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const [currentStandupCall, setCurrentStandupCall] = useState<any>(null);
   const [standupLoading, setStandupLoading] = useState(false);
   const [standupForm, setStandupForm] = useState<{
@@ -306,6 +507,9 @@ export function ViewScreen() {
       
       toast.success(`Audit task for ${p.name} completed successfully`);
       
+      // Update local closed set immediately so Send Update button reacts
+      setMissedUpdateClosedPhotographers(prev => new Set([...prev, p.photographerId]));
+      
       // Remove from list locally
       setMissedSendUpdateData(prev => prev.filter(item => item.photographerId !== p.photographerId));
     } catch (err) {
@@ -357,111 +561,189 @@ export function ViewScreen() {
     return photographers.filter(p => allowedPhotographerIds.has(p.id));
   }, [photographers, allowedPhotographerIds, user]);
 
-  // Missed Send Update / Covered 0 Delivery fetcher
+  const photographerStatusList = React.useMemo(() => {
+    if (!spreadSheetDate) return [];
+    
+    // For calculating checklist completeness, only active photographers for this date are relevant
+    const targetPhotographers = cityIsolatedPhotographers.filter(p => p.active);
+    
+    return targetPhotographers.map(p => {
+      const pDeliveries = deliveries.filter(d => d.assigned_user_id === p.id && d.date === spreadSheetDate);
+      const standupCall = allStandupCalls.find(c => c.photographer_id === p.id);
+      
+      // A photographer's audits are complete if:
+      // - Either ALL 3 tasks are completed (standup verified, fraud verified, deliveries verified)
+      // - OR any task that is not completed is handed over to the super admin
+      
+      const isStandupHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'STANDUP');
+      const isFraudHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD');
+      const isDeliveriesHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'DELIVERIES');
+
+      // Standup Task status
+      const standupDone = isStandupHandedOver || !!standupCall;
+
+      // Fraud Task status
+      const doneDeliveries = pDeliveries.filter(d => d.status === 'DONE');
+      const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
+      let fraudDone = isFraudHandedOver || uniqueShowrooms.length === 0;
+      if (!isFraudHandedOver && uniqueShowrooms.length > 0) {
+        let allVerified = true;
+        for (const showroomCode of uniqueShowrooms) {
+          const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+          const verified = showroomDeliveries.some(d => 
+            !!d.witness_phone && 
+            screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_CALL_LOG' && !s.deleted_at)
+          );
+          if (!verified) {
+            allVerified = false;
+            break;
+          }
+        }
+        fraudDone = allVerified;
+      }
+
+      // Deliveries Task status
+      let deliveriesDone = isDeliveriesHandedOver || doneDeliveries.length === 0;
+      if (!isDeliveriesHandedOver && doneDeliveries.length > 0) {
+        let allVerified = true;
+        for (const d of doneDeliveries) {
+          const isCustomerPaid = d.payment_type === 'CUSTOMER_PAID';
+          const photographerObj = allUsers.find(u => u.id === p.id);
+          const is15PercentModel = photographerObj && getPhotographerRawPayoutModel(p.id, d.date) === 'PERCENTAGE_15_DAILY';
+          const hasRapido = d.rapido_charge != null && d.rapido_charge > 0;
+
+          const isCustomerPayVerified = !isCustomerPaid || (!!d.payment_screenshot_date && !!d.payment_screenshot_time && !!d.payment_screenshot_amount);
+          const isPlatformPayVerified = !is15PercentModel || !isCustomerPaid || (!!d.platform_payment_screenshot_date && !!d.platform_payment_screenshot_time && !!d.platform_payment_screenshot_amount);
+          const isRapidoVerified = !hasRapido || (!!d.rapido_screenshot_date && !!d.rapido_screenshot_time && !!d.rapido_screenshot_amount);
+
+          if (!isCustomerPayVerified || !isPlatformPayVerified || !isRapidoVerified) {
+            allVerified = false;
+            break;
+          }
+        }
+        deliveriesDone = allVerified;
+      }
+
+      // Missed Send Update Task status — only relevant if this photographer appears in the missed list
+      const missedUpdateEntry = missedSendUpdateData.find(m => m.photographerId === p.id);
+      const isMissedUpdateDone = !missedUpdateEntry || missedUpdateClosedPhotographers.has(p.id);
+
+      const completed = standupDone && fraudDone && deliveriesDone && isMissedUpdateDone;
+
+      return {
+        id: p.id,
+        name: p.name,
+        completed,
+        isStandupHandedOver,
+        isFraudHandedOver,
+        isDeliveriesHandedOver,
+        isMissedUpdateDone,
+        missedUpdateEntry: missedUpdateEntry || null
+      };
+    });
+  }, [cityIsolatedPhotographers, deliveries, allStandupCalls, handoverLogs, spreadSheetDate, screenshots, allUsers, missedSendUpdateData, missedUpdateClosedPhotographers]);
+
+  const allPhotographersCleared = React.useMemo(() => {
+    return photographerStatusList.length > 0 && photographerStatusList.every(p => p.completed);
+  }, [photographerStatusList]);
+
+  // Shared function to fetch missed send update data (called from both audit and missed_send_update tabs)
+  const fetchMissedSendUpdateData = async (dateStr: string) => {
+    if (!user) return;
+    setMissedSendUpdateLoading(true);
+    try {
+      // 1. Get active photographers
+      const activePhotographers = cityIsolatedPhotographers.filter(p => p.active === true);
+      
+      // 2. Fetch log events for SEND_UPDATE_COMPLETED and ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED around dateStr
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const start = new Date(year, month - 1, day - 1, 0, 0, 0);
+      const end = new Date(year, month - 1, day + 2, 23, 59, 59);
+      
+      const { data: logs, error: logsError } = await supabase
+        .from('log_events')
+        .select('*')
+        .in('type', ['SEND_UPDATE_COMPLETED', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+        
+      if (logsError) throw logsError;
+      
+      // Filter logs by operational date in JS
+      const sentUpdateUserIds = new Set(
+        (logs || [])
+          .filter(le => le.type === 'SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+          .map(le => le.actor_user_id)
+      );
+
+      const auditedUserIds = new Set(
+        (logs || [])
+          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+          .map(le => le.metadata?.photographer_id)
+      );
+      
+      // 3. Fetch leaves for dateStr
+      const { data: leaves, error: leavesError } = await supabase
+        .from('leaves')
+        .select('*')
+        .eq('date', dateStr);
+        
+      if (leavesError) throw leavesError;
+
+      // 4. Fetch all deliveries for dateStr
+      const { data: dayDeliveriesRaw, error: deliveriesError } = await supabase
+        .from('deliveries')
+        .select('*')
+        .eq('date', dateStr)
+        .is('deleted_at', null);
+
+      if (deliveriesError) throw deliveriesError;
+      
+      // 5. Process each photographer
+      const results = activePhotographers.map(p => {
+        const dayDeliveries = (dayDeliveriesRaw || []).filter(d => d.assigned_user_id === p.id);
+        const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
+        const totalCount = dayDeliveries.length;
+        const hasSentUpdate = sentUpdateUserIds.has(p.id);
+        const isAuditClosed = auditedUserIds.has(p.id);
+        
+        const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
+        let leaveText = null;
+        if (userLeaves.length >= 2) {
+          leaveText = 'Full Day Leave';
+        } else if (userLeaves.length === 1) {
+          leaveText = userLeaves[0].half === 'FIRST_HALF' ? '1st Half Leave' : '2nd Half Leave';
+        }
+        
+        return { photographerId: p.id, name: p.name, completedCount, totalCount, hasSentUpdate, isAuditClosed, leaveText };
+      });
+      
+      // 6. Filter: missed update or 0 completions AND not yet closed
+      const filteredResults = results.filter(r => 
+        !r.isAuditClosed && (r.completedCount === 0 || !r.hasSentUpdate)
+      );
+      
+      setMissedSendUpdateData(filteredResults);
+
+      // Also sync closed IDs into local state so Send Update gate is accurate
+      setMissedUpdateClosedPhotographers(new Set(
+        (logs || [])
+          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+          .map((le: any) => le.metadata?.photographer_id as string)
+          .filter(Boolean)
+      ));
+    } catch (err) {
+      console.error('Failed to fetch missed send update audit data:', err);
+      if (viewMode === 'missed_send_update') toast.error('Failed to load audit results');
+    } finally {
+      setMissedSendUpdateLoading(false);
+    }
+  };
+
+  // Missed Send Update / Covered 0 Delivery fetcher — triggered by tab switch or date change
   useEffect(() => {
     if (viewMode !== 'missed_send_update' || !user) return;
-
-    const fetchAuditData = async () => {
-      setMissedSendUpdateLoading(true);
-      try {
-        const dateStr = spreadSheetDate;
-        
-        // 1. Get active photographers
-        const activePhotographers = cityIsolatedPhotographers.filter(p => p.active === true);
-        
-        // 2. Fetch log events for SEND_UPDATE_COMPLETED and ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED around dateStr
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const start = new Date(year, month - 1, day - 1, 0, 0, 0); // Widen range to be timezone safe
-        const end = new Date(year, month - 1, day + 2, 23, 59, 59);
-        
-        const { data: logs, error: logsError } = await supabase
-          .from('log_events')
-          .select('*')
-          .in('type', ['SEND_UPDATE_COMPLETED', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString());
-          
-        if (logsError) throw logsError;
-        
-        // Filter logs by operational date in JS
-        const sentUpdateUserIds = new Set(
-          (logs || [])
-            .filter(le => le.type === 'SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
-            .map(le => le.actor_user_id)
-        );
-
-        const auditedUserIds = new Set(
-          (logs || [])
-            .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
-            .map(le => le.metadata?.photographer_id)
-        );
-        
-        // 3. Fetch leaves for dateStr
-        const { data: leaves, error: leavesError } = await supabase
-          .from('leaves')
-          .select('*')
-          .eq('date', dateStr);
-          
-        if (leavesError) throw leavesError;
-
-        // 4. Fetch all deliveries for dateStr directly (so we see ASSIGNED / UNASSIGNED / DONE / etc.)
-        const { data: dayDeliveriesRaw, error: deliveriesError } = await supabase
-          .from('deliveries')
-          .select('*')
-          .eq('date', dateStr)
-          .is('deleted_at', null);
-
-        if (deliveriesError) throw deliveriesError;
-        
-        // 5. Process each photographer
-        const results = activePhotographers.map(p => {
-          // Deliveries assigned to this photographer on this date
-          const dayDeliveries = (dayDeliveriesRaw || []).filter(d => 
-            d.assigned_user_id === p.id
-          );
-          
-          const completedCount = dayDeliveries.filter(d => d.status === 'DONE').length;
-          const totalCount = dayDeliveries.length;
-          const hasSentUpdate = sentUpdateUserIds.has(p.id);
-          const isAuditClosed = auditedUserIds.has(p.id);
-          
-          // Determine leave status
-          const userLeaves = (leaves || []).filter(l => l.photographer_id === p.id);
-          let leaveText = null;
-          if (userLeaves.length >= 2) {
-            leaveText = 'Full Day Leave';
-          } else if (userLeaves.length === 1) {
-            leaveText = userLeaves[0].half === 'FIRST_HALF' ? '1st Half Leave' : '2nd Half Leave';
-          }
-          
-          return {
-            photographerId: p.id,
-            name: p.name,
-            completedCount,
-            totalCount,
-            hasSentUpdate,
-            isAuditClosed,
-            leaveText
-          };
-        });
-        
-        // 6. Filter results: Keep only those who:
-        // - (Completed 0 deliveries OR missed send update)
-        // - AND have NOT been audited/closed yet
-        const filteredResults = results.filter(r => 
-          !r.isAuditClosed && (r.completedCount === 0 || !r.hasSentUpdate)
-        );
-        
-        setMissedSendUpdateData(filteredResults);
-      } catch (err) {
-        console.error('Failed to fetch missed send update audit data:', err);
-        toast.error('Failed to load audit results');
-      } finally {
-        setMissedSendUpdateLoading(false);
-      }
-    };
-    
-    fetchAuditData();
+    fetchMissedSendUpdateData(spreadSheetDate);
   }, [viewMode, spreadSheetDate, cityIsolatedPhotographers, user]);
 
   useEffect(() => {
@@ -2869,17 +3151,65 @@ export function ViewScreen() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Select Photographer...</SelectItem>
-                          {cityIsolatedPhotographers.filter(p => p.active).map(p => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
+                          {cityIsolatedPhotographers.filter(p => p.active).map(p => {
+                            const isPHandedOver = handoverLogs.some(l => l.target_id === p.id);
+                            return (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}{isPHandedOver ? ' (Handed Over)' : ''}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Super Admin Handover Queue */}
+              {user.role === 'SUPER_ADMIN' && allHandoverLogs.length > 0 && (
+                <Card className="border-orange-200 bg-orange-50/10">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-orange-500 animate-pulse" />
+                      Pending Handover Audits ({allHandoverLogs.length})
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      The following daily audit tasks were handed over to you by other admins. Click to review.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {allHandoverLogs.map((log) => {
+                        const adminObj = allUsers.find(u => u.id === log.actor_user_id);
+                        const adminName = adminObj ? adminObj.name : 'Another Admin';
+                        const taskName = log.metadata?.task_type === 'STANDUP' ? 'Morning Standup' : log.metadata?.task_type === 'FRAUD' ? 'Fraud Audit' : 'Deliveries';
+                        
+                        return (
+                          <div 
+                            key={log.id} 
+                            onClick={() => {
+                              setSelectedPhotographer(log.target_id);
+                              setSpreadSheetDate(log.metadata?.date);
+                              toast.info(`Loaded ${log.metadata?.photographer_name} for ${log.metadata?.date}`);
+                            }}
+                            className="p-3 bg-white hover:bg-orange-50 border border-gray-100 rounded-xl shadow-sm cursor-pointer transition-all flex flex-col gap-1 text-xs group"
+                          >
+                            <div className="flex justify-between items-start">
+                              <span className="font-bold text-gray-800 group-hover:text-orange-600 truncate">{log.metadata?.photographer_name}</span>
+                              <Badge className="bg-orange-100 text-orange-700 font-bold text-[9px] border-0 px-1.5 py-0.5">{taskName}</Badge>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                              <span>Date: {log.metadata?.date}</span>
+                              <span>By: {adminName}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Main Content Areas */}
               {selectedPhotographer && selectedPhotographer !== 'all' ? (
@@ -2905,6 +3235,14 @@ export function ViewScreen() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
+                      {/* Handover Warning Banner */}
+                      {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
+                        <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 mb-4 font-semibold text-xs">
+                          <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                          <span>This standup task has been handed over to Super Admin. Editing is locked.</span>
+                        </div>
+                      )}
+
                       {standupLoading ? (
                         <div className="py-6 text-center text-xs text-gray-400">Loading standup details...</div>
                       ) : currentStandupCall ? (
@@ -2952,6 +3290,7 @@ export function ViewScreen() {
                                     type="radio" 
                                     name="standup-status" 
                                     checked={standupForm.status === 'CONFIRMED'}
+                                    disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN'}
                                     onChange={() => setStandupForm(prev => ({ ...prev, status: 'CONFIRMED' }))}
                                     className="h-4 w-4 text-blue-600"
                                   />
@@ -2966,6 +3305,7 @@ export function ViewScreen() {
                                     type="radio" 
                                     name="standup-status" 
                                     checked={standupForm.status === 'LEAVE'}
+                                    disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN'}
                                     onChange={() => setStandupForm(prev => ({ ...prev, status: 'LEAVE' }))}
                                     className="h-4 w-4 text-blue-600"
                                   />
@@ -3003,6 +3343,7 @@ export function ViewScreen() {
                                     min="0"
                                     placeholder="Enter expected count today"
                                     value={standupForm.confirmed_count}
+                                    disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN'}
                                     onChange={(e) => setStandupForm(prev => ({ ...prev, confirmed_count: e.target.value }))}
                                     className="h-9"
                                   />
@@ -3020,22 +3361,27 @@ export function ViewScreen() {
                                   <span className="text-xs font-medium text-green-700 truncate max-w-[200px]">
                                     📷 {standupForm.screenshotFile?.name}
                                   </span>
-                                  <Button 
-                                    variant="ghost" 
-                                    className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
-                                    onClick={() => setStandupForm(prev => ({ ...prev, screenshotFile: null, previewUrl: '' }))}
-                                  >
-                                    Remove
-                                  </Button>
+                                  {!(handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN') && (
+                                    <Button 
+                                      variant="ghost" 
+                                      className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
+                                      onClick={() => setStandupForm(prev => ({ ...prev, screenshotFile: null, previewUrl: '' }))}
+                                    >
+                                      Remove
+                                    </Button>
+                                  )}
                                 </div>
                               ) : (
-                                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                <label className={`flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                                  handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN' ? 'pointer-events-none opacity-50' : ''
+                                }`}>
                                   <Upload className="h-6 w-6 text-gray-400 mb-1.5" />
                                   <span className="text-xs font-semibold text-gray-600">Upload Call Log Image</span>
                                   <input 
                                     type="file" 
                                     accept="image/*" 
                                     className="hidden" 
+                                    disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && user.role === 'ADMIN'}
                                     onChange={handleStandupFileChange}
                                   />
                                 </label>
@@ -3043,63 +3389,77 @@ export function ViewScreen() {
                             </div>
                           </div>
 
-                          <Button
-                            onClick={async () => {
-                              if (standupForm.submitting) return;
-                              // Validation
-                              if (!standupForm.screenshotFile) {
-                                toast.error('Call log screenshot is mandatory');
-                                return;
-                              }
-                              if (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) {
-                                toast.error('Please enter confirmed deliveries count');
-                                return;
-                              }
-                              if (standupForm.status === 'LEAVE') {
-                                const hasLeave = leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate);
-                                if (!hasLeave) {
-                                  toast.error('Cannot submit. Leave has not been applied in the CRM for today.');
-                                  return;
+                          <div className="flex gap-3">
+                            {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
+                              <Button
+                                onClick={() => handleHandoverToSuperAdmin('STANDUP')}
+                                variant="outline"
+                                className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50 font-semibold text-sm animate-pulse"
+                              >
+                                Handover to super admin
+                              </Button>
+                            )}
+
+                            {(!handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') || user.role === 'SUPER_ADMIN') && (
+                              <Button
+                                onClick={async () => {
+                                  if (standupForm.submitting) return;
+                                  // Validation
+                                  if (!standupForm.screenshotFile) {
+                                    toast.error('Call log screenshot is mandatory');
+                                    return;
+                                  }
+                                  if (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) {
+                                    toast.error('Please enter confirmed deliveries count');
+                                    return;
+                                  }
+                                  if (standupForm.status === 'LEAVE') {
+                                    const hasLeave = leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate);
+                                    if (!hasLeave) {
+                                      toast.error('Cannot submit. Leave has not been applied in the CRM for today.');
+                                      return;
+                                    }
+                                  }
+
+                                  setStandupForm(prev => ({ ...prev, submitting: true }));
+                                  try {
+                                    const client = supabase;
+                                    // Upload file
+                                    const path = `standup_call_logs/${selectedPhotographer}/${spreadSheetDate}_${Date.now()}.jpg`;
+                                    const url = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, client);
+                                    
+                                    await standupDb.createStandupCall({
+                                      photographer_id: selectedPhotographer,
+                                      date: spreadSheetDate,
+                                      status: standupForm.status,
+                                      confirmed_count: standupForm.status === 'CONFIRMED' ? parseInt(standupForm.confirmed_count) : null,
+                                      call_log_screenshot_url: url
+                                    }, client);
+
+                                    toast.success('Standup call verified and submitted!');
+                                    
+                                    // Refresh standup details
+                                    const call = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
+                                    setCurrentStandupCall(call);
+                                  } catch (err) {
+                                    console.error('Failed to submit standup call:', err);
+                                    toast.error('Failed to submit standup verification');
+                                  } finally {
+                                    setStandupForm(prev => ({ ...prev, submitting: false }));
+                                  }
+                                }}
+                                disabled={
+                                  standupForm.submitting || 
+                                  !standupForm.screenshotFile || 
+                                  (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) ||
+                                  (standupForm.status === 'LEAVE' && !leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate))
                                 }
-                              }
-
-                              setStandupForm(prev => ({ ...prev, submitting: true }));
-                              try {
-                                const client = supabase;
-                                // Upload file
-                                const path = `standup_call_logs/${selectedPhotographer}/${spreadSheetDate}_${Date.now()}.jpg`;
-                                const url = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, client);
-                                
-                                await standupDb.createStandupCall({
-                                  photographer_id: selectedPhotographer,
-                                  date: spreadSheetDate,
-                                  status: standupForm.status,
-                                  confirmed_count: standupForm.status === 'CONFIRMED' ? parseInt(standupForm.confirmed_count) : null,
-                                  call_log_screenshot_url: url
-                                }, client);
-
-                                toast.success('Standup call verified and submitted!');
-                                
-                                // Refresh standup details
-                                const call = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
-                                setCurrentStandupCall(call);
-                              } catch (err) {
-                                console.error('Failed to submit standup call:', err);
-                                toast.error('Failed to submit standup verification');
-                              } finally {
-                                setStandupForm(prev => ({ ...prev, submitting: false }));
-                              }
-                            }}
-                            disabled={
-                              standupForm.submitting || 
-                              !standupForm.screenshotFile || 
-                              (standupForm.status === 'CONFIRMED' && !standupForm.confirmed_count) ||
-                              (standupForm.status === 'LEAVE' && !leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate))
-                            }
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm"
-                          >
-                            {standupForm.submitting ? 'Submitting...' : 'Submit Standup Verification'}
-                          </Button>
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm"
+                              >
+                                {standupForm.submitting ? 'Submitting...' : 'Submit Standup Verification'}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </CardContent>
@@ -3107,10 +3467,29 @@ export function ViewScreen() {
 
                   {/* Task 2: Dealership-Level Fraud Verification */}
                   <div className="space-y-4">
-                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-amber-600" />
-                      Task 2: Dealership-Level Fraud Audits
-                    </h3>
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-amber-600" />
+                        Task 2: Dealership-Level Fraud Audits
+                      </h3>
+                      {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && uniqueShowroomCodesForPhotographer.length > 0 && (
+                        <Button
+                          onClick={() => handleHandoverToSuperAdmin('FRAUD')}
+                          variant="outline"
+                          size="sm"
+                          className="border-orange-200 text-orange-600 hover:bg-orange-50 font-semibold text-xs animate-pulse"
+                        >
+                          Handover to super admin
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
+                      <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs">
+                        <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                        <span>This fraud audit task has been handed over to Super Admin. Editing is locked.</span>
+                      </div>
+                    )}
                     
                     {uniqueShowroomCodesForPhotographer.length === 0 ? (
                       <Card>
@@ -3237,13 +3616,16 @@ export function ViewScreen() {
                                           </Button>
                                         </div>
                                       ) : (
-                                        <label className="cursor-pointer flex flex-col items-center p-6 text-center hover:bg-gray-100/50 w-full h-full justify-center">
+                                        <label className={`flex flex-col items-center p-6 text-center hover:bg-gray-100/50 w-full h-full justify-center ${
+                                          handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN' ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                                        }`}>
                                           <Upload className="h-5 w-5 text-gray-400 mb-1" />
                                           <span>Upload Call Log Screenshot <span className="text-red-500">*</span></span>
                                           <input 
                                             type="file" 
                                             accept="image/*" 
                                             className="hidden" 
+                                            disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN'}
                                             onChange={(e) => {
                                               if (e.target.files && e.target.files[0]) {
                                                 setCallLogFile(e.target.files[0]);
@@ -3273,7 +3655,7 @@ export function ViewScreen() {
                                     placeholder="Enter 10-digit number"
                                     value={witnessPhone}
                                     onChange={(e) => setWitnessPhone(e.target.value.replace(/\D/g, ''))}
-                                    disabled={!!verifiedDelivery}
+                                    disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN')}
                                     className="h-9"
                                   />
                                 </div>
@@ -3342,10 +3724,49 @@ export function ViewScreen() {
 
                   {/* Task 3: Deliveries Verification Cards */}
                   <div className="space-y-4">
-                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-green-600" />
-                      Task 3: Deliveries Verification checklist
+                    <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-green-600" />
+                        Task 3: Deliveries Verification checklist
+                      </span>
+                      {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50"
+                          onClick={async () => {
+                            if (!selectedPhotographer || !spreadSheetDate) return;
+                            try {
+                              await supabase.from('log_events').insert({
+                                type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
+                                user_id: user.id,
+                                target_id: selectedPhotographer,
+                                metadata: { date: spreadSheetDate, task_type: 'DELIVERIES' }
+                              });
+                              toast.success('Task 3 handed over to Super Admin');
+                              // refresh handover logs
+                              const { data: newLogs } = await supabase
+                                .from('log_events')
+                                .select('*')
+                                .eq('type', 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN')
+                                .eq('user_id', user.id)
+                                .contains('metadata', { date: spreadSheetDate });
+                              setHandoverLogs(newLogs || []);
+                            } catch (e) {
+                              toast.error('Failed to handover');
+                            }
+                          }}
+                        >
+                          Handover to super admin
+                        </Button>
+                      )}
                     </h3>
+                    {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
+                      <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800">
+                        <ShieldCheck className="h-4 w-4 text-amber-600" />
+                        ⚠️ This task has been handed over to Super Admin and is now read-only.
+                      </div>
+                    )}
 
                     {photographerDeliveries.length === 0 ? (
                       <Card>
@@ -3445,7 +3866,7 @@ export function ViewScreen() {
                                           placeholder="DD-MM-YYYY"
                                           value={inputs.payment_date}
                                           onChange={(e) => updateInput('payment_date', e.target.value)}
-                                          disabled={isCustomerPayVerified}
+                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3456,7 +3877,7 @@ export function ViewScreen() {
                                           placeholder="HH:MM"
                                           value={inputs.payment_time}
                                           onChange={(e) => updateInput('payment_time', e.target.value)}
-                                          disabled={isCustomerPayVerified}
+                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3467,7 +3888,7 @@ export function ViewScreen() {
                                           placeholder="Amount ₹"
                                           value={inputs.payment_amount}
                                           onChange={(e) => updateInput('payment_amount', e.target.value)}
-                                          disabled={isCustomerPayVerified}
+                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold font-mono"
                                         />
                                       </div>
@@ -3508,7 +3929,7 @@ export function ViewScreen() {
                                           placeholder="DD-MM-YYYY"
                                           value={inputs.platform_date}
                                           onChange={(e) => updateInput('platform_date', e.target.value)}
-                                          disabled={isPlatformPayVerified}
+                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3519,7 +3940,7 @@ export function ViewScreen() {
                                           placeholder="HH:MM"
                                           value={inputs.platform_time}
                                           onChange={(e) => updateInput('platform_time', e.target.value)}
-                                          disabled={isPlatformPayVerified}
+                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3530,7 +3951,7 @@ export function ViewScreen() {
                                           placeholder="Amount ₹"
                                           value={inputs.platform_amount}
                                           onChange={(e) => updateInput('platform_amount', e.target.value)}
-                                          disabled={isPlatformPayVerified}
+                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold font-mono"
                                         />
                                       </div>
@@ -3569,7 +3990,7 @@ export function ViewScreen() {
                                           placeholder="DD-MM-YYYY"
                                           value={inputs.rapido_date}
                                           onChange={(e) => updateInput('rapido_date', e.target.value)}
-                                          disabled={isRapidoVerified}
+                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3580,7 +4001,7 @@ export function ViewScreen() {
                                           placeholder="HH:MM"
                                           value={inputs.rapido_time}
                                           onChange={(e) => updateInput('rapido_time', e.target.value)}
-                                          disabled={isRapidoVerified}
+                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold"
                                         />
                                       </div>
@@ -3591,7 +4012,7 @@ export function ViewScreen() {
                                           placeholder="Amount ₹"
                                           value={inputs.rapido_amount}
                                           onChange={(e) => updateInput('rapido_amount', e.target.value)}
-                                          disabled={isRapidoVerified}
+                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
                                           className="h-8 text-xs font-semibold font-mono"
                                         />
                                       </div>
@@ -3601,7 +4022,7 @@ export function ViewScreen() {
                               )}
 
                               {/* Submit delivery verification details */}
-                              {!isDeliveryAudited && (
+                              {!isDeliveryAudited && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
                                 <Button
                                   onClick={async () => {
                                     // 1. Validate Customer Pay
@@ -3681,6 +4102,152 @@ export function ViewScreen() {
                       })
                     )}
                   </div>
+
+                  {/* Missed Send Update Task — shown inline if this photographer missed update or had 0 deliveries */}
+                  {(() => {
+                    const missedEntry = missedSendUpdateData.find(m => m.photographerId === selectedPhotographer);
+                    const isAlreadyClosed = missedUpdateClosedPhotographers.has(selectedPhotographer || '');
+                    if (!missedEntry || isAlreadyClosed) return null;
+                    const enteredVal = enteredCounts[missedEntry.photographerId] ?? '';
+                    const enteredNum = parseInt(enteredVal);
+                    const countMatches = enteredVal !== '' && enteredNum === missedEntry.totalCount;
+                    return (
+                      <div className="space-y-4">
+                        <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-rose-500" />
+                          Missed Send Update / 0 Deliveries
+                        </h3>
+                        <Card className="border-l-4 border-l-rose-500">
+                          <CardContent className="py-4 space-y-3">
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div className="bg-gray-50 rounded p-2">
+                                <span className="text-gray-500">Deliveries in sheet:</span>
+                                <span className="font-bold ml-1">{missedEntry.totalCount}</span>
+                              </div>
+                              <div className="bg-gray-50 rounded p-2">
+                                <span className="text-gray-500">End-of-day update:</span>
+                                <span className={`font-bold ml-1 ${missedEntry.hasSentUpdate ? 'text-green-600' : 'text-red-600'}`}>
+                                  {missedEntry.hasSentUpdate ? 'SENT' : 'MISSED'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-600 block uppercase">
+                                Reported Deliveries Count <span className="text-red-500">*</span>
+                              </label>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="Enter count reported by photographer"
+                                value={enteredVal}
+                                onChange={(e) => setEnteredCounts({ ...enteredCounts, [missedEntry.photographerId]: e.target.value })}
+                                className="h-8 text-xs font-semibold"
+                              />
+                            </div>
+                            <div className="text-[10px] bg-gray-50 p-2 rounded border">
+                              <div className="flex justify-between font-medium">
+                                <span className="text-gray-500">Verification:</span>
+                                <span className={enteredVal === '' ? 'text-gray-500' : countMatches ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
+                                  {enteredVal === '' ? 'Awaiting input...' : countMatches ? '✅ Count Matches' : '❌ Mismatch — add delivery row in Sheet view'}
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => handleCloseMissedSendUpdateTask(missedEntry)}
+                              disabled={!countMatches}
+                              className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs h-8 font-semibold"
+                            >
+                              Close Audit Task
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Task 4: Bounty Board Clearance */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-purple-600" />
+                      Task 4: Bounty Board Clearance
+                    </h3>
+                    <Card className="border-l-4 border-l-purple-600">
+                      <CardContent className="py-5 space-y-3">
+                        <p className="text-xs text-gray-600">
+                          Verify that there are no unresolved, unclaimed bounty reels pending in the Reel Backlog bounty board. Click the button below to check live.
+                        </p>
+                        {bountyBoardCount !== null && (
+                          bountyBoardVerified ? (
+                            <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-300 px-4 py-2 text-xs font-semibold text-green-800">
+                              <ShieldCheck className="h-4 w-4 text-green-600" />
+                              ✅ Bounty board is clear — no unclaimed pending reels found.
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 rounded-md bg-red-50 border border-red-300 px-4 py-2 text-xs font-semibold text-red-800">
+                              <Clock className="h-4 w-4 text-red-600" />
+                              ❌ {bountyBoardCount} unclaimed bounty reel{bountyBoardCount !== 1 ? 's' : ''} still pending. Please resolve before sending update.
+                            </div>
+                          )
+                        )}
+                        <Button
+                          onClick={handleVerifyBountyBoard}
+                          disabled={verifyingBountyBoard || bountyBoardVerified}
+                          className="h-9 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs"
+                        >
+                          {verifyingBountyBoard ? 'Verifying...' : bountyBoardVerified ? '✅ Verified' : 'Verify Bounty Board'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Send Update for Audit Tasks today */}
+                  {user.role === 'ADMIN' && (
+                    <div className="pt-2">
+                      {adminUpdateSent ? (
+                        <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-400 px-4 py-3 text-sm font-semibold text-green-800">
+                          <ShieldCheck className="h-5 w-5 text-green-600" />
+                          ✅ Audit update already sent for {spreadSheetDate}
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={async () => {
+                            if (!allPhotographersCleared) {
+                              toast.error('Complete or hand over all photographer audit tasks first');
+                              return;
+                            }
+                            if (!bountyBoardVerified) {
+                              toast.error('Please verify the Bounty Board clearance first');
+                              return;
+                            }
+                            if (missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))) {
+                              toast.error('Close all Missed Send Update audit tasks first');
+                              return;
+                            }
+                            try {
+                              await supabase.from('log_events').insert({
+                                type: 'ADMIN_DAILY_AUDIT_UPDATE_SENT',
+                                user_id: user.id,
+                                target_id: user.id,
+                                metadata: { date: spreadSheetDate }
+                              });
+                              setAdminUpdateSent(true);
+                              toast.success('Audit update sent for today!');
+                            } catch (e) {
+                              toast.error('Failed to send update');
+                            }
+                          }}
+                          disabled={!allPhotographersCleared || !bountyBoardVerified || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
+                          className={`w-full h-11 font-bold text-sm ${
+                            allPhotographersCleared && bountyBoardVerified && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Send Update for Audit Tasks today
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
                 </div>
               ) : (

@@ -12,7 +12,7 @@ const rowToUser = (row: UserRow): User => ({
   id: row.id,
   name: row.name,
   email: row.email,
-  role: row.role as UserRole,
+  role: (row.email === 'arpitmudgal24@gmail.com' ? 'SUPER_ADMIN' : row.role) as UserRole,
   active: row.active,
   phone_number: row.phone_number,
   secondary_phone_number: row.secondary_phone_number ?? undefined,

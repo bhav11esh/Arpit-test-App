@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: (data as any).id,
             name: (data as any).name,
             email: (data as any).email,
-            role: (data as any).role as 'ADMIN' | 'PHOTOGRAPHER',
+            role: ((data as any).email === 'arpitmudgal24@gmail.com' ? 'SUPER_ADMIN' : (data as any).role) as UserRole,
             active: (data as any).active,
             cluster_code: (data as any).cluster_code ?? undefined,
             city: (data as any).city ?? undefined,
@@ -148,11 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // V1 FALLBACK: Build user from JWT user_metadata when DB is unreachable
                 const meta = session.user.user_metadata || {};
                 
-                // CRITICAL: Prevent flickering. If we know this email is an admin, force it.
-                const hardcodedAdmins = ['arpitmudgal24@gmail.com'];
+                // CRITICAL: Prevent flickering. If we know this email is an admin/super_admin, force it.
+                const isSuperAdmin = (session.user.email || '') === 'arpitmudgal24@gmail.com';
+                const hardcodedAdmins = ['arpitmudgal24@gmail.com', 'suhas@gmail.com'];
                 const isHardcodedAdmin = hardcodedAdmins.includes(session.user.email || '');
 
-                const fallbackRole: 'ADMIN' | 'PHOTOGRAPHER' = isHardcodedAdmin ? 'ADMIN' : 
+                const fallbackRole: UserRole = isSuperAdmin ? 'SUPER_ADMIN' : isHardcodedAdmin ? 'ADMIN' : 
                   ((meta.role as any) || (user?.email === session.user.email ? user.role : 'PHOTOGRAPHER'));
 
                 const fallbackUser: User = {
@@ -165,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   city: meta.city || user?.city || 'bengaluru',
                 };
                 setUser(fallbackUser);
-                console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isHardcodedAdmin ? '(Hardcoded Admin)' : '');
+                console.log('[Auth] Fallback user set:', fallbackUser.email, fallbackUser.role, fallbackUser.city, fallbackUser.cluster_code, isSuperAdmin ? '(Super Admin)' : isHardcodedAdmin ? '(Hardcoded Admin)' : '');
               }
             } else if (!userData) {
               console.warn('[Auth] USER_DATA_NULL: User record missing');

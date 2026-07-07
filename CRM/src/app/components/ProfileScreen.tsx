@@ -6,7 +6,7 @@ import { simulateApiDelay } from '../lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw, MapPin, ExternalLink, Loader2 } from 'lucide-react';
+import { LogOut, User, Award, TrendingUp, Calendar, Radio, RefreshCw, MapPin, ExternalLink, Loader2, ShieldCheck, ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
 import { LeaveManagement } from './LeaveManagement';
 import { updateUserMonitoring, getUsers } from '../lib/db/users';
 import { checkGeolocationPermission } from '../lib/geofence';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { getMappings, getClusters, getDealerships } from '../lib/db/config';
 import { getLeavesByDate } from '../lib/db/leaves';
 import { getOperationalDateString } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,13 @@ export function ProfileScreen() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Super Admin audit compliance log
+  const [auditComplianceLog, setAuditComplianceLog] = useState<{
+    admin: { id: string; name: string };
+    dates: { date: string; label: string; sent: boolean }[];
+  }[]>([]);
+  const [loadingAuditLog, setLoadingAuditLog] = useState(false);
+
   // States for available showrooms
   const [isShowroomsOpen, setIsShowroomsOpen] = useState(false);
   const [availableShowrooms, setAvailableShowrooms] = useState<any[]>([]);
@@ -43,7 +51,59 @@ export function ProfileScreen() {
 
   useEffect(() => {
     loadStats();
+    if (user?.role === 'SUPER_ADMIN') {
+      loadAuditComplianceLog();
+    }
   }, [user]);
+
+  const loadAuditComplianceLog = async () => {
+    setLoadingAuditLog(true);
+    try {
+      // Build last 7 operational dates
+      const dates: { date: string; label: string }[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        const label = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+        dates.push({ date: dateStr, label });
+      }
+
+      // Fetch all ADMIN users
+      const allUsers = await getUsers();
+      const admins = allUsers.filter(u => u.role === 'ADMIN');
+
+      // Fetch all ADMIN_DAILY_AUDIT_UPDATE_SENT logs in range
+      const oldest = dates[dates.length - 1].date;
+      const { data: logs } = await supabase
+        .from('log_events')
+        .select('user_id, metadata, created_at')
+        .eq('type', 'ADMIN_DAILY_AUDIT_UPDATE_SENT')
+        .gte('created_at', `${oldest}T00:00:00`);
+
+      const sentSet = new Set<string>(
+        (logs || []).map((l: any) => `${l.user_id}__${l.metadata?.date}`)
+      );
+
+      const result = admins.map(admin => ({
+        admin: { id: admin.id, name: admin.name },
+        dates: dates.map(d => ({
+          date: d.date,
+          label: d.label,
+          sent: sentSet.has(`${admin.id}__${d.date}`)
+        }))
+      }));
+
+      setAuditComplianceLog(result);
+    } catch (e) {
+      console.error('Failed to load audit compliance log', e);
+    } finally {
+      setLoadingAuditLog(false);
+    }
+  };
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; // Radius of the earth in km
@@ -294,6 +354,75 @@ export function ProfileScreen() {
           </Card>
         </div>
       </div>
+
+      {/* Super Admin: Admin Audit Update Compliance */}
+      {user.role === 'SUPER_ADMIN' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-700 text-sm ml-1 flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-indigo-500" />
+              Admin Audit Update Compliance
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-indigo-600"
+              onClick={loadAuditComplianceLog}
+              disabled={loadingAuditLog}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingAuditLog ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {loadingAuditLog ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+            </div>
+          ) : auditComplianceLog.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center text-gray-400 text-xs italic">
+                No admin users found.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {auditComplianceLog.map(({ admin, dates }) => {
+                const sentCount = dates.filter(d => d.sent).length;
+                const missedCount = dates.filter(d => !d.sent).length;
+                return (
+                  <Card key={admin.id} className={`border-l-4 ${missedCount === 0 ? 'border-l-green-500' : missedCount >= 3 ? 'border-l-red-500' : 'border-l-amber-400'}`}>
+                    <CardContent className="py-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-gray-800">{admin.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          {missedCount === 0 ? (
+                            <Badge className="bg-green-100 text-green-800 border-green-200 text-[10px] font-semibold">All Sent</Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px] font-semibold">{missedCount} Missed</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {dates.map(d => (
+                          <div key={d.date} className="flex flex-col items-center gap-1">
+                            <span className="text-[9px] text-gray-400 font-medium text-center leading-tight">{d.label}</span>
+                            {d.sent ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-400" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Performance Highlights */}
       {user.role === 'PHOTOGRAPHER' && (

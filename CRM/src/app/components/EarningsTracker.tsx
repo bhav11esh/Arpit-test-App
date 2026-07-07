@@ -33,7 +33,7 @@ export function EarningsTracker() {
 
     const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
     const [photographers, setPhotographers] = useState<User[]>([]);
-    const isAdmin = user?.role === 'ADMIN';
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
     const isOrgImpact = selectedPhotographerId === 'YOURPHOTOCREW_IMPACT';
 
     const [forgivenPenalties, setForgivenPenalties] = useState<string[]>([]);
