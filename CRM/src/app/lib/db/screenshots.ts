@@ -143,11 +143,80 @@ export const deleteScreenshotById = async (id: string, client = supabase): Promi
 
 // ... (skipping updateScreenshot/deleteScreenshot for now as they aren't the acute issue, but good to align)
 
+// Helper to compress images client-side before upload
+const compressImage = (file: File): Promise<File> => {
+  return new Promise((resolve) => {
+    // If not an image, or already small (< 500KB), don't compress
+    if (!file.type.startsWith('image/') || file.size < 500 * 1024) {
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        const MAX_DIM = 1600;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          0.75 // 75% quality is clean and highly readable for screenshots
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
 // Upload a screenshot file to storage and return the public URL
 export const uploadScreenshotFile = async (file: File, path: string, client = supabase): Promise<string> => {
+  let fileToUpload = file;
+  try {
+    fileToUpload = await compressImage(file);
+    console.log(`📸 Image compression: reduced from ${(file.size / 1024).toFixed(1)}KB to ${(fileToUpload.size / 1024).toFixed(1)}KB`);
+  } catch (err) {
+    console.warn('Image compression failed, uploading original file:', err);
+  }
+
   const { data, error } = await client.storage
     .from('screenshots')
-    .upload(path, file, {
+    .upload(path, fileToUpload, {
       cacheControl: '3600',
       upsert: false // Don't overwrite
     });
