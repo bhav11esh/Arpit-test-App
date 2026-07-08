@@ -392,7 +392,7 @@ function CallLogsViewer({
 
   // 3. Gather Customer Call Logs
   const customerCallLogs = screenshots
-    .filter(s => s.type === 'CUSTOMER_CALL_LOG' && s.delivery_id && !s.deleted_at)
+    .filter(s => s.type.startsWith('CUSTOMER_CALL_LOG') && s.delivery_id && !s.deleted_at)
     .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
     .map(s => {
       const del = deliveries.find(d => d.id === s.delivery_id);
@@ -402,11 +402,13 @@ function CallLogsViewer({
       const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(del.showroom_code));
       const displayShowroomName = dealership ? dealership.name : del.showroom_code;
 
+      const confirmedAmt = s.type.split(':')[1] || '';
+
       return {
         id: `cust_${s.id}`,
         fileUrl: s.file_url,
         photographerName: photographer ? photographer.name : 'Unknown Photographer',
-        taskType: 'Customer Paid Call Log',
+        taskType: `Customer Paid Call Log${confirmedAmt ? ` (Confirmed: ₹${confirmedAmt})` : ''}`,
         showroom: displayShowroomName,
         date: del.date
       };
@@ -4314,7 +4316,7 @@ export function ViewScreen() {
                                   variant="outline"
                                   size="sm"
                                   className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
-                                  disabled={customerPaidDeliveries.some(d => !screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at))}
+                                  disabled={customerPaidDeliveries.some(d => !screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at))}
                                   onClick={async () => {
                                     if (!selectedPhotographer || !spreadSheetDate) return;
                                     try {
