@@ -36,7 +36,7 @@ import * as screenshotsDb from '../lib/db/screenshots';
 import * as standupDb from '../lib/db/standup';
 import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw, Clock, ShieldCheck, Eye } from 'lucide-react';
 import { SearchableSelect } from './ui/searchable-select';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 interface FraudAuditShowroomCardProps {
   showroomCode: string;
@@ -390,9 +390,9 @@ function CallLogsViewer({
       };
     });
 
-  // 2. Gather Fraud Detection Call Logs
-  const fraudLogs = screenshots
-    .filter(s => s.type === 'FRAUD_DETECTION' && s.delivery_id && !s.deleted_at)
+  // 3. Gather Customer Call Logs
+  const customerCallLogs = screenshots
+    .filter(s => s.type === 'CUSTOMER_CALL_LOG' && s.delivery_id && !s.deleted_at)
     .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
     .map(s => {
       const del = deliveries.find(d => d.id === s.delivery_id);
@@ -403,17 +403,17 @@ function CallLogsViewer({
       const displayShowroomName = dealership ? dealership.name : del.showroom_code;
 
       return {
-        id: `fraud_${s.id}`,
+        id: `cust_${s.id}`,
         fileUrl: s.file_url,
         photographerName: photographer ? photographer.name : 'Unknown Photographer',
-        taskType: 'Fraud Detection',
+        taskType: 'Customer Paid Call Log',
         showroom: displayShowroomName,
         date: del.date
       };
     })
     .filter((log): log is NonNullable<typeof log> => log !== null);
 
-  const combinedLogs = [...standupLogs, ...fraudLogs];
+  const combinedLogs = [...standupLogs, ...fraudLogs, ...customerCallLogs];
 
   return (
     <div className="space-y-4">
@@ -1128,18 +1128,33 @@ export function ViewScreen() {
       // Fraud Task status — if update was completely missed, skip fraud audits
       const doneDeliveries = pDeliveries.filter(d => d.status === 'DONE');
       const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
-      let fraudDone = !hasSentUpdate || isFraudHandedOver || uniqueShowrooms.length === 0;
-      if (hasSentUpdate && !isFraudHandedOver && uniqueShowrooms.length > 0) {
+      
+      const customerPaidDeliveriesForPhotographer = doneDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID');
+      let fraudDone = !hasSentUpdate || isFraudHandedOver || (uniqueShowrooms.length === 0 && customerPaidDeliveriesForPhotographer.length === 0);
+      if (hasSentUpdate && !isFraudHandedOver) {
         let allVerified = true;
-        for (const showroomCode of uniqueShowrooms) {
-          const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
-          const verified = showroomDeliveries.some(d => 
-            !!d.witness_phone && 
-            screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
-          );
-          if (!verified) {
-            allVerified = false;
-            break;
+        // 1. Witness verification (Task 2A)
+        if (uniqueShowrooms.length > 0) {
+          for (const showroomCode of uniqueShowrooms) {
+            const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+            const verified = showroomDeliveries.some(d => 
+              !!d.witness_phone && 
+              screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
+            );
+            if (!verified) {
+              allVerified = false;
+              break;
+            }
+          }
+        }
+        // 2. Customer paid call log verification (Task 2B)
+        if (allVerified && customerPaidDeliveriesForPhotographer.length > 0) {
+          for (const d of customerPaidDeliveriesForPhotographer) {
+            const verified = screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
+            if (!verified) {
+              allVerified = false;
+              break;
+            }
           }
         }
         fraudDone = allVerified;
@@ -2568,6 +2583,10 @@ export function ViewScreen() {
 
   const uniqueShowroomCodesForPhotographer = React.useMemo(() => {
     return Array.from(new Set(photographerDeliveries.map(d => getShowroomCode(d.showroom_code))));
+  }, [photographerDeliveries]);
+
+  const customerPaidDeliveries = React.useMemo(() => {
+    return photographerDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID');
   }, [photographerDeliveries]);
 
   const [verificationInputs, setVerificationInputs] = useState<Record<string, {
@@ -4181,50 +4200,221 @@ export function ViewScreen() {
 
                   {showTask2And3 && (
                     <>
-                      {/* Task 2: Dealership-Level Fraud Verification */}
-                      <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                        <ShieldCheck className="h-5 w-5 text-amber-600" />
-                        Task 2: Dealership-Level Fraud Audits
-                      </h3>
-                      {/* Handover to super admin is not relevant for Task 2 (Fraud Detection) */}
-                    </div>
-                    
-                    {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
-                      <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs">
-                        <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
-                        <span>This fraud audit task has been handed over to Super Admin. Editing is locked.</span>
+                      {/* Task 2: Fraud Detection Audits */}
+                      <div className="space-y-6">
+                        <div className="space-y-4">
+                          <h3 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b pb-2">
+                            <ShieldCheck className="h-5 w-5 text-amber-600" />
+                            Task 2: Fraud Detection Audits
+                          </h3>
+
+                          {/* Task 2A: Dealership Witness Call Audits */}
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
+                                Task 2A: Dealership Witness Call Audits
+                              </h4>
+                              {/* Handover to super admin is not relevant for Task 2A (Dealership Audits) */}
+                            </div>
+
+                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
+                              <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs">
+                                <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                                <span>This fraud audit task has been handed over to Super Admin. Editing is locked.</span>
+                              </div>
+                            )}
+
+                            {uniqueShowroomCodesForPhotographer.length === 0 ? (
+                              <Card>
+                                <CardContent className="py-6 text-center text-gray-500 text-xs italic">
+                                  No deliveries completed today to verify.
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              uniqueShowroomCodesForPhotographer.map(showroomCode => (
+                                <FraudAuditShowroomCard
+                                  key={showroomCode}
+                                  showroomCode={showroomCode}
+                                  selectedPhotographer={selectedPhotographer}
+                                  spreadSheetDate={spreadSheetDate}
+                                  deliveries={deliveries}
+                                  screenshots={screenshots}
+                                  dealerships={dealerships}
+                                  currentStandupCall={currentStandupCall}
+                                  handoverLogs={handoverLogs}
+                                  user={user}
+                                  setCurrentImageIndex={setCurrentImageIndex}
+                                  setGalleryViewMode={setGalleryViewMode}
+                                  handleTriggerSheetSync={handleTriggerSheetSync}
+                                  loadData={loadData}
+                                />
+                              ))
+                            )}
+                          </div>
+
+                          {/* Task 2B: Customer Payment Fraud Audits */}
+                          <div className="space-y-4 border-t pt-4 mt-6">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
+                                Task 2B: Customer Payment Fraud Audits
+                              </h4>
+                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && customerPaidDeliveries.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
+                                  disabled={customerPaidDeliveries.some(d => !screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at))}
+                                  onClick={async () => {
+                                    if (!selectedPhotographer || !spreadSheetDate) return;
+                                    try {
+                                      await supabase.from('log_events').insert({
+                                        type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
+                                        actor_user_id: user.id,
+                                        target_id: selectedPhotographer,
+                                        metadata: { 
+                                          date: spreadSheetDate, 
+                                          task_type: 'FRAUD'
+                                        }
+                                      });
+                                      toast.success('Task 2B handed over to Super Admin');
+                                      fetchHandoverAndSentLogs();
+                                    } catch (e) {
+                                      toast.error('Failed to handover');
+                                    }
+                                  }}
+                                >
+                                  Handover to super admin
+                                </Button>
+                              )}
+                            </div>
+
+                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
+                              <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800">
+                                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                                <span>⚠️ This customer fraud audit task has been handed over to Super Admin and is now read-only.</span>
+                              </div>
+                            )}
+
+                            {customerPaidDeliveries.length === 0 ? (
+                              <Card>
+                                <CardContent className="py-6 text-center text-gray-500 text-xs italic">
+                                  No customer-paid deliveries to verify for fraud.
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <div className="grid grid-cols-1 gap-4">
+                                {customerPaidDeliveries.map(d => {
+                                  const isVerified = screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
+                                  const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
+                                  const dealership = dealerships.find(dl => getShowroomCode(dl.name) === getShowroomCode(d.showroom_code));
+                                  const displayShowroomName = dealership ? dealership.name : d.showroom_code;
+                                  const mapping = mappings.find(m => m.dealershipId === dealership?.id);
+                                  const cluster = clusters.find(c => c.id === mapping?.clusterId);
+                                  const displayClusterName = cluster ? cluster.name : 'Unknown Cluster';
+
+                                  return (
+                                    <Card key={d.id} className="border-l-4 border-l-orange-500">
+                                      <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-bold flex items-center justify-between">
+                                          <span>{d.delivery_name}</span>
+                                          {isVerified ? (
+                                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
+                                              Audited & Verified
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-orange-600 bg-orange-50 border-orange-200">
+                                              Pending
+                                            </Badge>
+                                          )}
+                                        </CardTitle>
+                                      </CardHeader>
+                                      <CardContent className="space-y-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-gray-50 p-3 rounded border text-xs">
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-gray-500 font-medium">Dealership:</span>
+                                            <span className="font-bold text-gray-900 truncate">{displayShowroomName}</span>
+                                          </div>
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-gray-500 font-medium">Cluster:</span>
+                                            <span className="font-bold text-gray-900 truncate">{displayClusterName}</span>
+                                          </div>
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-gray-500 font-medium">Customer Phone:</span>
+                                            <span className="font-mono font-bold text-blue-900">{d.customer_phone || 'N/A'}</span>
+                                          </div>
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-gray-500 font-medium">Collection (Send Update):</span>
+                                            <span className="font-bold text-green-700">₹{d.received_amount || '0'}</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Call Log Screenshot Uploader / Viewer */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-1.5">
+                                            <span className="text-xs font-semibold text-gray-600 block">Customer Call Log Screenshot:</span>
+                                            {callLogScr ? (
+                                              <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+                                                <img 
+                                                  src={callLogScr.file_url} 
+                                                  alt="customer call log" 
+                                                  className="max-h-full object-contain cursor-pointer"
+                                                  onClick={() => {
+                                                    window.open(callLogScr.file_url, '_blank');
+                                                  }}
+                                                />
+                                              </div>
+                                            ) : (
+                                              <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
+                                                No customer call log uploaded
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
+                                            <div className="flex flex-col justify-center space-y-3">
+                                              <span className="text-xs font-semibold text-gray-600">Upload Call Log:</span>
+                                              <Input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (!file) return;
+                                                  try {
+                                                    const path = `customer_fraud_logs/${d.id}_${Date.now()}.jpg`;
+                                                    const url = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
+                                                    const scr = await screenshotsDb.createScreenshot({
+                                                      delivery_id: d.id,
+                                                      user_id: selectedPhotographer,
+                                                      type: 'CUSTOMER_CALL_LOG',
+                                                      file_url: url,
+                                                      thumbnail_url: url,
+                                                      deleted_at: null
+                                                    }, supabase);
+                                                    if (scr) {
+                                                      setScreenshots(prev => [scr, ...prev]);
+                                                      toast.success('Customer call log uploaded successfully!');
+                                                    }
+                                                  } catch (err) {
+                                                    console.error(err);
+                                                    toast.error('Failed to upload customer call log');
+                                                  }
+                                                }}
+                                                className="text-xs"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    
-                    {uniqueShowroomCodesForPhotographer.length === 0 ? (
-                      <Card>
-                        <CardContent className="py-6 text-center text-gray-500 text-xs italic">
-                          No deliveries completed today to verify.
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      uniqueShowroomCodesForPhotographer.map(showroomCode => (
-                        <FraudAuditShowroomCard
-                          key={showroomCode}
-                          showroomCode={showroomCode}
-                          selectedPhotographer={selectedPhotographer}
-                          spreadSheetDate={spreadSheetDate}
-                          deliveries={deliveries}
-                          screenshots={screenshots}
-                          dealerships={dealerships}
-                          currentStandupCall={currentStandupCall}
-                          handoverLogs={handoverLogs}
-                          user={user}
-                          setCurrentImageIndex={setCurrentImageIndex}
-                          setGalleryViewMode={setGalleryViewMode}
-                          handleTriggerSheetSync={handleTriggerSheetSync}
-                          loadData={loadData}
-                        />
-                      ))
-                    )}
-                  </div>
 
                   {/* Task 3: Deliveries Verification Cards */}
                   <div className="space-y-4">
