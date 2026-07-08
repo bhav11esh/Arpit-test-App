@@ -650,6 +650,8 @@ export function ViewScreen() {
     rapido_screenshot_date: string;
     rapido_screenshot_time: string;
     rapido_screenshot_amount: string;
+    customer_call_log_screenshot: File | null;
+    actual_amount_confirmed_by_customer: string;
   }>({
     date: '',
     showroom_id: '',
@@ -676,6 +678,8 @@ export function ViewScreen() {
     witness_phone: '',
     fraud_screenshot: null,
     fraud_call_log_screenshot: null,
+    customer_call_log_screenshot: null,
+    actual_amount_confirmed_by_customer: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -738,6 +742,7 @@ export function ViewScreen() {
   const [allStandupCalls, setAllStandupCalls] = useState<any[]>([]);
   const [missedUpdateClosedPhotographers, setMissedUpdateClosedPhotographers] = useState<Set<string>>(new Set());
   const [sentUpdateUserIds, setSentUpdateUserIds] = useState<Set<string>>(new Set());
+  const [confirmedAmounts, setConfirmedAmounts] = useState<Record<string, string>>({});
 
   const [task3CallLogFile, setTask3CallLogFile] = useState<File | null>(null);
   const [task3CallLogUrl, setTask3CallLogUrl] = useState<string>('');
@@ -1150,8 +1155,14 @@ export function ViewScreen() {
         // 2. Customer paid call log verification (Task 2B)
         if (allVerified && customerPaidDeliveriesForPhotographer.length > 0) {
           for (const d of customerPaidDeliveriesForPhotographer) {
-            const verified = screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
-            if (!verified) {
+            const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at);
+            if (!callLogScr) {
+              allVerified = false;
+              break;
+            }
+            const confirmedAmount = callLogScr.type.split(':')[1] || '';
+            const isMatch = parseFloat(confirmedAmount) === parseFloat(d.received_amount || '0');
+            if (!isMatch) {
               allVerified = false;
               break;
             }
@@ -2281,6 +2292,16 @@ export function ViewScreen() {
           setIsSubmitting(false);
           return;
         }
+        if (!newRowData.customer_call_log_screenshot) {
+          toast.error('Customer call log screenshot is mandatory for Customer Paid showrooms');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!newRowData.actual_amount_confirmed_by_customer || parseFloat(newRowData.actual_amount_confirmed_by_customer) <= 0) {
+          toast.error('Valid confirmed amount is mandatory for Customer Paid showrooms');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Photographer Payout model verification
@@ -2519,6 +2540,20 @@ export function ViewScreen() {
         if (scr) newScreenshotsList.push(scr);
       }
       
+      if (selectedDealership.paymentType === 'CUSTOMER_PAID' && newRowData.customer_call_log_screenshot && newRowData.actual_amount_confirmed_by_customer) {
+        const path = `customer_call_logs/${savedDelivery.id}_${Date.now()}.jpg`;
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.customer_call_log_screenshot, path, client);
+        const scr = await screenshotsDb.createScreenshot({
+          delivery_id: savedDelivery.id,
+          user_id: newRowData.assigned_user_id || user?.id || '',
+          type: `CUSTOMER_CALL_LOG:${newRowData.actual_amount_confirmed_by_customer}`,
+          file_url: url,
+          thumbnail_url: url,
+          deleted_at: null
+        }, client);
+        if (scr) newScreenshotsList.push(scr);
+      }
+
       if (newScreenshotsList.length > 0) {
         setScreenshots(prev => [...newScreenshotsList, ...prev]);
       }
@@ -4306,13 +4341,22 @@ export function ViewScreen() {
                             ) : (
                               <div className="grid grid-cols-1 gap-4">
                                 {customerPaidDeliveries.map(d => {
-                                  const isVerified = screenshots.some(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
-                                  const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'CUSTOMER_CALL_LOG' && !s.deleted_at);
+                                  const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at);
+                                  const confirmedAmount = callLogScr ? callLogScr.type.split(':')[1] || '' : '';
+                                  
+                                  const isVerified = screenshots.some(s => {
+                                    if (s.delivery_id !== d.id || !s.type.startsWith('CUSTOMER_CALL_LOG') || s.deleted_at) return false;
+                                    const confirmedVal = s.type.split(':')[1] || '';
+                                    return parseFloat(confirmedVal) === parseFloat(d.received_amount || '0');
+                                  });
+
                                   const dealership = dealerships.find(dl => getShowroomCode(dl.name) === getShowroomCode(d.showroom_code));
                                   const displayShowroomName = dealership ? dealership.name : d.showroom_code;
                                   const mapping = mappings.find(m => m.dealershipId === dealership?.id);
                                   const cluster = clusters.find(c => c.id === mapping?.clusterId);
                                   const displayClusterName = cluster ? cluster.name : 'Unknown Cluster';
+
+                                  const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') || user?.role !== 'ADMIN';
 
                                   return (
                                     <Card key={d.id} className="border-l-4 border-l-orange-500">
@@ -4331,7 +4375,7 @@ export function ViewScreen() {
                                         </CardTitle>
                                       </CardHeader>
                                       <CardContent className="space-y-4">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-gray-50 p-3 rounded border text-xs">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-gray-50 p-3 rounded border text-xs items-center">
                                           <div className="flex flex-col gap-0.5">
                                             <span className="text-gray-500 font-medium">Dealership:</span>
                                             <span className="font-bold text-gray-900 truncate">{displayShowroomName}</span>
@@ -4347,6 +4391,42 @@ export function ViewScreen() {
                                           <div className="flex flex-col gap-0.5">
                                             <span className="text-gray-500 font-medium">Collection (Send Update):</span>
                                             <span className="font-bold text-green-700">₹{d.received_amount || '0'}</span>
+                                          </div>
+                                          <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+                                            <span className="text-gray-500 font-medium uppercase text-[10px]">Confirmed Amount *</span>
+                                            {isLocked ? (
+                                              <span className="font-bold text-blue-700">{confirmedAmount ? `₹${confirmedAmount}` : 'N/A'}</span>
+                                            ) : (
+                                              <Input
+                                                type="number"
+                                                placeholder="Enter amount"
+                                                value={confirmedAmounts[d.id] ?? confirmedAmount}
+                                                onChange={async (e) => {
+                                                  const val = e.target.value;
+                                                  setConfirmedAmounts(prev => ({ ...prev, [d.id]: val }));
+                                                  
+                                                  // Auto-save to Supabase if screenshot already exists!
+                                                  if (callLogScr) {
+                                                    try {
+                                                      await supabase
+                                                        .from('screenshots')
+                                                        .update({ type: `CUSTOMER_CALL_LOG:${val}` })
+                                                        .eq('id', callLogScr.id);
+                                                      
+                                                      // Update screenshots state locally
+                                                      setScreenshots(prev => 
+                                                        prev.map(s => s.id === callLogScr.id ? { ...s, type: `CUSTOMER_CALL_LOG:${val}` } : s)
+                                                      );
+                                                      toast.success('Confirmed amount updated!');
+                                                    } catch (err) {
+                                                      console.error('Failed to update confirmed amount:', err);
+                                                      toast.error('Failed to update confirmed amount');
+                                                    }
+                                                  }
+                                                }}
+                                                className={`h-7 text-xs ${!confirmedAmount && !(confirmedAmounts[d.id]) ? 'border-red-300 bg-red-50' : ''}`}
+                                              />
+                                            )}
                                           </div>
                                         </div>
 
@@ -4372,22 +4452,24 @@ export function ViewScreen() {
                                             )}
                                           </div>
 
-                                          {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
-                                            <div className="flex flex-col justify-center space-y-3">
-                                              <span className="text-xs font-semibold text-gray-600">Upload Call Log:</span>
+                                          {!isLocked && (
+                                            <div className="flex flex-col justify-center space-y-2">
+                                              <span className="text-xs font-semibold text-gray-600 block">Upload Call Log:</span>
                                               <Input
                                                 type="file"
                                                 accept="image/*"
+                                                disabled={!(confirmedAmounts[d.id] ?? confirmedAmount) || parseFloat(confirmedAmounts[d.id] ?? confirmedAmount) <= 0}
                                                 onChange={async (e) => {
                                                   const file = e.target.files?.[0];
-                                                  if (!file) return;
+                                                  const amount = confirmedAmounts[d.id] ?? confirmedAmount;
+                                                  if (!file || !amount) return;
                                                   try {
                                                     const path = `customer_fraud_logs/${d.id}_${Date.now()}.jpg`;
                                                     const url = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
                                                     const scr = await screenshotsDb.createScreenshot({
                                                       delivery_id: d.id,
                                                       user_id: selectedPhotographer,
-                                                      type: 'CUSTOMER_CALL_LOG',
+                                                      type: `CUSTOMER_CALL_LOG:${amount}`,
                                                       file_url: url,
                                                       thumbnail_url: url,
                                                       deleted_at: null
