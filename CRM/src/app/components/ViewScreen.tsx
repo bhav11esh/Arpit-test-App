@@ -2654,7 +2654,7 @@ export function ViewScreen() {
                       <SelectItem value="spreadsheet" className="text-sm">Spreadsheet View</SelectItem>
                       <SelectItem value="portrait" className="text-sm">Live Portrait Bookings</SelectItem>
                     </SelectGroup>
-                    {isAdmin && (
+                    {(isAdmin || user?.role === 'SUPER_ADMIN') && (
                       <SelectGroup className="mt-2">
                         <SelectSeparator />
                         <SelectLabel className="text-xs font-bold text-gray-400 uppercase mt-1">🔒 Audit Views</SelectLabel>
