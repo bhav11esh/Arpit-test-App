@@ -739,6 +739,33 @@ export function ViewScreen() {
   const [missedUpdateClosedPhotographers, setMissedUpdateClosedPhotographers] = useState<Set<string>>(new Set());
   const [sentUpdateUserIds, setSentUpdateUserIds] = useState<Set<string>>(new Set());
 
+  const [task3CallLogFile, setTask3CallLogFile] = useState<File | null>(null);
+  const [task3CallLogUrl, setTask3CallLogUrl] = useState<string>('');
+  const [uploadingTask3CallLog, setUploadingTask3CallLog] = useState(false);
+
+  useEffect(() => {
+    setTask3CallLogUrl('');
+    setTask3CallLogFile(null);
+  }, [selectedPhotographer, spreadSheetDate]);
+
+  const handleTask3CallLogChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingTask3CallLog(true);
+    try {
+      const path = `handover_call_logs/${selectedPhotographer}_${spreadSheetDate}_${Date.now()}.jpg`;
+      const url = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
+      setTask3CallLogUrl(url);
+      setTask3CallLogFile(file);
+      toast.success('Call log screenshot uploaded successfully!');
+    } catch (err) {
+      console.error('Failed to upload call log:', err);
+      toast.error('Failed to upload call log screenshot');
+    } finally {
+      setUploadingTask3CallLog(false);
+    }
+  };
+
   const fetchHandoverAndSentLogs = async () => {
     if (!spreadSheetDate || !user) return;
     try {
@@ -4026,9 +4053,56 @@ export function ViewScreen() {
                           <div className="flex gap-3">
                             {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
                               <Button
-                                onClick={() => handleHandoverToSuperAdmin('STANDUP')}
+                                onClick={async () => {
+                                  // 1. Check if call log is uploaded
+                                  const hasCallLog = !!currentStandupCall?.call_log_screenshot_url || !!standupForm.screenshotFile;
+                                  if (!hasCallLog) {
+                                    toast.error('You must upload a call log screenshot first before handing over to Super Admin');
+                                    return;
+                                  }
+
+                                  try {
+                                    setStandupForm(prev => ({ ...prev, submitting: true }));
+                                    
+                                    let finalUrl = currentStandupCall?.call_log_screenshot_url || '';
+                                    
+                                    // If a new file is selected, upload it first
+                                    if (standupForm.screenshotFile) {
+                                      const path = `standup_calls/${selectedPhotographer}_${spreadSheetDate}_${Date.now()}.jpg`;
+                                      finalUrl = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, supabase);
+                                      
+                                      // Save or update standup call record
+                                      await standupDb.submitStandupCall({
+                                        photographer_id: selectedPhotographer,
+                                        date: spreadSheetDate,
+                                        status: standupForm.status || currentStandupCall?.status || 'PENDING',
+                                        confirmed_count: standupForm.confirmed_count ? parseInt(standupForm.confirmed_count) : (currentStandupCall?.confirmed_count || null),
+                                        call_log_screenshot_url: finalUrl
+                                      }, supabase);
+                                      
+                                      // Refresh state
+                                      const updatedCall = await standupDb.getStandupCall(selectedPhotographer, spreadSheetDate);
+                                      setCurrentStandupCall(updatedCall);
+                                      if (updatedCall) {
+                                        setAllStandupCalls(prev => {
+                                          const filtered = prev.filter(c => c.id !== updatedCall.id);
+                                          return [...filtered, updatedCall];
+                                        });
+                                      }
+                                    }
+
+                                    // Perform handover
+                                    await handleHandoverToSuperAdmin('STANDUP');
+                                  } catch (err) {
+                                    console.error('Failed to submit standup call log for handover:', err);
+                                    toast.error('Failed to upload call log for handover');
+                                  } finally {
+                                    setStandupForm(prev => ({ ...prev, submitting: false }));
+                                  }
+                                }}
                                 variant="outline"
                                 className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50 font-semibold text-sm animate-pulse"
+                                disabled={!currentStandupCall?.call_log_screenshot_url && !standupForm.screenshotFile}
                               >
                                 Handover to super admin
                               </Button>
@@ -4114,16 +4188,7 @@ export function ViewScreen() {
                         <ShieldCheck className="h-5 w-5 text-amber-600" />
                         Task 2: Dealership-Level Fraud Audits
                       </h3>
-                      {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && uniqueShowroomCodesForPhotographer.length > 0 && (
-                        <Button
-                          onClick={() => handleHandoverToSuperAdmin('FRAUD')}
-                          variant="outline"
-                          size="sm"
-                          className="border-orange-200 text-orange-600 hover:bg-orange-50 font-semibold text-xs animate-pulse"
-                        >
-                          Handover to super admin
-                        </Button>
-                      )}
+                      {/* Handover to super admin is not relevant for Task 2 (Fraud Detection) */}
                     </div>
                     
                     {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
@@ -4169,43 +4234,88 @@ export function ViewScreen() {
                         Task 3: Deliveries Verification checklist
                       </span>
                       {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50"
-                          onClick={async () => {
-                            if (!selectedPhotographer || !spreadSheetDate) return;
-                            try {
-                              await supabase.from('log_events').insert({
-                                type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
-                                user_id: user.id,
-                                target_id: selectedPhotographer,
-                                metadata: { date: spreadSheetDate, task_type: 'DELIVERIES' }
-                              });
-                              toast.success('Task 3 handed over to Super Admin');
-                              // refresh handover logs
-                              const { data: newLogs } = await supabase
-                                .from('log_events')
-                                .select('*')
-                                .eq('type', 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN')
-                                .eq('user_id', user.id)
-                                .contains('metadata', { date: spreadSheetDate });
-                              setHandoverLogs(newLogs || []);
-                            } catch (e) {
-                              toast.error('Failed to handover');
-                            }
-                          }}
-                        >
-                          Handover to super admin
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleTask3CallLogChange}
+                            className="hidden"
+                            id="task3-calllog-upload"
+                            disabled={uploadingTask3CallLog}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 border-blue-200 text-blue-600 hover:bg-blue-50 font-semibold cursor-pointer"
+                            asChild
+                            disabled={uploadingTask3CallLog}
+                          >
+                            <label htmlFor="task3-calllog-upload">
+                              {uploadingTask3CallLog 
+                                ? 'Uploading...' 
+                                : task3CallLogUrl 
+                                  ? '✓ Call Log Uploaded' 
+                                  : 'Tried solving with photographer? Call log Upload'}
+                            </label>
+                          </Button>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
+                            disabled={!task3CallLogUrl}
+                            onClick={async () => {
+                              if (!selectedPhotographer || !spreadSheetDate) return;
+                              try {
+                                await supabase.from('log_events').insert({
+                                  type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
+                                  actor_user_id: user.id,
+                                  target_id: selectedPhotographer,
+                                  metadata: { 
+                                    date: spreadSheetDate, 
+                                    task_type: 'DELIVERIES',
+                                    call_log_screenshot_url: task3CallLogUrl
+                                  }
+                                });
+                                toast.success('Task 3 handed over to Super Admin');
+                                fetchHandoverAndSentLogs();
+                              } catch (e) {
+                                toast.error('Failed to handover');
+                              }
+                            }}
+                          >
+                            Handover to super admin
+                          </Button>
+                        </div>
                       )}
                     </h3>
-                    {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
-                      <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800">
-                        <ShieldCheck className="h-4 w-4 text-amber-600" />
-                        ⚠️ This task has been handed over to Super Admin and is now read-only.
-                      </div>
-                    )}
+                    {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (() => {
+                      const logObj = handoverLogs.find(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES');
+                      const callLogUrl = logObj?.metadata?.call_log_screenshot_url;
+                      return (
+                        <div className="flex flex-col gap-3 rounded-md bg-amber-50 border border-amber-300 px-4 py-3 text-xs text-amber-800">
+                          <div className="flex items-center gap-2 font-semibold">
+                            <ShieldCheck className="h-4 w-4 text-amber-600" />
+                            <span>⚠️ This task has been handed over to Super Admin and is now read-only.</span>
+                          </div>
+                          {callLogUrl && (
+                            <div className="mt-1 space-y-1.5">
+                              <span className="font-semibold block text-[11px] text-amber-900">Admin-Uploaded Call Log Screenshot (Tried solving with photographer):</span>
+                              <div className="relative group border border-amber-200 rounded-lg overflow-hidden bg-white max-w-sm h-40 flex items-center justify-center">
+                                <img 
+                                  src={callLogUrl} 
+                                  alt="admin call log screenshot" 
+                                  className="max-h-full object-contain cursor-pointer"
+                                  onClick={() => {
+                                    window.open(callLogUrl, '_blank');
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {selectedPhotographerObj && (selectedPhotographerObj.phone_number || selectedPhotographerObj.secondary_phone_number) && (
                       <div className="mb-4 p-3 bg-blue-50/60 border border-blue-100 rounded-lg flex items-center justify-between text-xs">
