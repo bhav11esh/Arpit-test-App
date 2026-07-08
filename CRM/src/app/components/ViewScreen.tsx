@@ -93,8 +93,9 @@ function FraudAuditShowroomCard({
     (s.showroom_code === showroomCode || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id)))
   );
   
-  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id);
-  const callLogScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && s.delivery_id);
+  const deliveryFraudScreenshots = fraudScreenshots.filter(s => s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id));
+  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id) || deliveryFraudScreenshots[0];
+  const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
   // local state mapping
   const [witnessPhone, setWitnessPhone] = useState(verifiedDelivery?.witness_phone || '');
@@ -2404,10 +2405,12 @@ export function ViewScreen() {
       const savedDelivery = await deliveriesDb.createDelivery(newDelivery, client);
 
       // 2. Upload Screenshots if provided
+      const newScreenshotsList: any[] = [];
+
       if (newRowData.payment_screenshot) {
         const path = `payments/${savedDelivery.id}_${Date.now()}.jpg`;
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.payment_screenshot, path, client);
-        await screenshotsDb.createScreenshot({
+        const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
           type: 'PAYMENT',
@@ -2415,12 +2418,13 @@ export function ViewScreen() {
           thumbnail_url: url,
           deleted_at: null
         }, client);
+        if (scr) newScreenshotsList.push(scr);
       }
 
       if (newRowData.rapido_screenshot) {
         const path = `rapido/${savedDelivery.id}_${Date.now()}.jpg`;
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.rapido_screenshot, path, client);
-        await screenshotsDb.createScreenshot({
+        const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
           type: 'RAPIDO',
@@ -2428,12 +2432,13 @@ export function ViewScreen() {
           thumbnail_url: url,
           deleted_at: null
         }, client);
+        if (scr) newScreenshotsList.push(scr);
       }
 
       if (newRowData.platform_payment_screenshot) {
         const path = `platform_payments/${savedDelivery.id}_${Date.now()}.jpg`;
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.platform_payment_screenshot, path, client);
-        await screenshotsDb.createScreenshot({
+        const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
           type: 'PLATFORM_PAYMENT',
@@ -2441,12 +2446,13 @@ export function ViewScreen() {
           thumbnail_url: url,
           deleted_at: null
         }, client);
+        if (scr) newScreenshotsList.push(scr);
       }
 
       if (!fraudAlreadyVerified && newRowData.fraud_screenshot) {
         const path = `fraud/${savedDelivery.id}_${Date.now()}.jpg`;
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_screenshot, path, client);
-        await screenshotsDb.createScreenshot({
+        const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
           type: 'FRAUD_DETECTION',
@@ -2454,12 +2460,13 @@ export function ViewScreen() {
           thumbnail_url: url,
           deleted_at: null
         }, client);
+        if (scr) newScreenshotsList.push(scr);
       }
 
       if (!fraudAlreadyVerified && newRowData.fraud_call_log_screenshot) {
         const path = `call_logs/${savedDelivery.id}_${Date.now()}.jpg`;
         const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_call_log_screenshot, path, client);
-        await screenshotsDb.createScreenshot({
+        const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
           type: 'FRAUD_DETECTION',
@@ -2467,6 +2474,11 @@ export function ViewScreen() {
           thumbnail_url: url,
           deleted_at: null
         }, client);
+        if (scr) newScreenshotsList.push(scr);
+      }
+      
+      if (newScreenshotsList.length > 0) {
+        setScreenshots(prev => [...newScreenshotsList, ...prev]);
       }
       
       // 3. Sync with Google Sheets
@@ -2594,7 +2606,9 @@ export function ViewScreen() {
   const uniquePhotographers = Array.from(new Set(screenshots.map(s => s.user_id)));
 
   const selectedPhotographerStatus = photographerStatusList.find(p => p.id === selectedPhotographer);
-  const showTask2And3 = selectedPhotographerStatus ? selectedPhotographerStatus.hasSentUpdate !== false : true;
+  const showTask2And3 = selectedPhotographerStatus 
+    ? (selectedPhotographerStatus.hasSentUpdate !== false || photographerDeliveries.length > 0) 
+    : true;
 
   if (loading) {
     return (
