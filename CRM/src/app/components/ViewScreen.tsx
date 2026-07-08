@@ -3846,10 +3846,24 @@ export function ViewScreen() {
                         <SelectContent>
                           <SelectItem value="all">Select Photographer...</SelectItem>
                           {cityIsolatedPhotographers.filter(p => p.active).map(p => {
+                            const pStatus = photographerStatusList.find(s => s.id === p.id);
+                            const isDone = pStatus ? pStatus.completed : false;
                             const isPHandedOver = handoverLogs.some(l => l.target_id === p.id);
+                            
+                            let suffix = ' (Pending)';
+                            if (isPHandedOver) {
+                              suffix = ' (Handed Over)';
+                            } else if (isDone) {
+                              suffix = ' (Done)';
+                            }
+
                             return (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}{isPHandedOver ? ' (Handed Over)' : ''}
+                              <SelectItem 
+                                key={p.id} 
+                                value={p.id}
+                                className={isDone ? "text-green-600 font-semibold" : isPHandedOver ? "text-orange-600 font-semibold" : "text-red-600"}
+                              >
+                                {p.name}{suffix}
                               </SelectItem>
                             );
                           })}
