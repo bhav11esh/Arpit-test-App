@@ -44,6 +44,7 @@ interface FraudAuditShowroomCardProps {
   spreadSheetDate: string;
   deliveries: Delivery[];
   screenshots: any[];
+  setScreenshots: React.Dispatch<React.SetStateAction<any[]>>;
   dealerships: any[];
   currentStandupCall: any;
   handoverLogs: any[];
@@ -60,6 +61,7 @@ function FraudAuditShowroomCard({
   spreadSheetDate,
   deliveries,
   screenshots,
+  setScreenshots,
   dealerships,
   currentStandupCall,
   handoverLogs,
@@ -78,30 +80,41 @@ function FraudAuditShowroomCard({
   
   const dealership = dealerships.find(d => getShowroomCode(d.name) === showroomCode);
   const displayShowroomName = dealership ? dealership.name : showroomCode;
+  const isCustomerPaid = dealership?.paymentType === 'CUSTOMER_PAID';
 
-  // Fraud verification is done once per photographer + dealership + date.
-  // Check if any of these deliveries have witness_phone or call log screenshot.
-  const verifiedDelivery = showroomDeliveries.find(d => 
-    !!d.witness_phone && 
-    screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
-  );
-  
   // Grab fraud screenshots (both photographer's dealership doc and admin's call log verification)
   const fraudScreenshots = screenshots.filter(s => 
-    s.type === 'FRAUD_DETECTION' && 
+    s.type.startsWith('FRAUD_DETECTION') && 
     !s.deleted_at && 
     (s.showroom_code === showroomCode || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id)))
   );
   
   const deliveryFraudScreenshots = fraudScreenshots.filter(s => s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id));
-  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id) || deliveryFraudScreenshots[0];
+  const mainFraudScreenshot = fraudScreenshots.find(s => s.type.startsWith('FRAUD_DETECTION') && !s.delivery_id) || deliveryFraudScreenshots[0];
   const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
   // local state mapping
-  const [witnessPhone, setWitnessPhone] = useState(verifiedDelivery?.witness_phone || '');
+  const initialWitnessCount = callLogScreenshot && callLogScreenshot.type.startsWith('FRAUD_DETECTION:') ? callLogScreenshot.type.split(':')[1] || '' : '';
+  const [witnessCount, setWitnessCount] = useState(initialWitnessCount);
+  const [witnessPhone, setWitnessPhone] = useState('');
   const [callLogFile, setCallLogFile] = useState<File | null>(null);
   const [submittingFraud, setSubmittingFraud] = useState(false);
   const [previousWitnessPhones, setPreviousWitnessPhones] = useState<{ phone: string; date: string }[]>([]);
+
+  // Fraud verification is done once per photographer + dealership + date.
+  // Check if any of these deliveries have witness_phone or call log screenshot.
+  const isCountMatch = !isCustomerPaid || (witnessCount !== '' && parseFloat(witnessCount) === showroomDeliveries.length);
+  const verifiedDelivery = showroomDeliveries.find(d => 
+    !!d.witness_phone && 
+    screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('FRAUD_DETECTION') && !s.deleted_at) &&
+    isCountMatch
+  );
+
+  useEffect(() => {
+    if (verifiedDelivery) {
+      setWitnessPhone(verifiedDelivery.witness_phone);
+    }
+  }, [verifiedDelivery]);
 
   useEffect(() => {
     const fetchPreviousWitnessPhones = async () => {
@@ -205,7 +218,7 @@ function FraudAuditShowroomCard({
                 <img 
                   src={callLogScreenshot.file_url} 
                   alt="call log" 
-                  className="max-h-full object-contain"
+                  className="max-h-full object-contain text-xs"
                 />
               </div>
             ) : !verifiedDelivery ? (
@@ -224,7 +237,7 @@ function FraudAuditShowroomCard({
                   </div>
                 ) : (
                   <label className={`flex flex-col items-center p-6 text-center hover:bg-gray-100/50 w-full h-full justify-center ${
-                    handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN' ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                    handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN' ? 'pointer-events-none opacity-50' : 'cursor-pointer'
                   }`}>
                     <Upload className="h-5 w-5 text-gray-400 mb-1" />
                     <span>Upload Call Log Screenshot <span className="text-red-500">*</span></span>
@@ -232,7 +245,7 @@ function FraudAuditShowroomCard({
                       type="file" 
                       accept="image/*" 
                       className="hidden" 
-                      disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN'}
+                      disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN'}
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           setCallLogFile(e.target.files[0]);
@@ -262,7 +275,7 @@ function FraudAuditShowroomCard({
               placeholder="Enter 10-digit number"
               value={witnessPhone}
               onChange={(e) => setWitnessPhone(e.target.value.replace(/\D/g, ''))}
-              disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN')}
+              disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')}
               className="h-9"
             />
             {previousWitnessPhones.length > 0 && (
@@ -275,7 +288,7 @@ function FraudAuditShowroomCard({
                       variant="secondary" 
                       className="text-[10px] cursor-pointer hover:bg-gray-200 transition-colors font-medium"
                       onClick={() => {
-                        if (!verifiedDelivery && !(handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && user.role === 'ADMIN')) {
+                        if (!verifiedDelivery && !(handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')) {
                           setWitnessPhone(pw.phone);
                         }
                       }}
@@ -288,12 +301,55 @@ function FraudAuditShowroomCard({
             )}
           </div>
 
+          {isCustomerPaid && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-700 block">
+                Delivery Count Reported by Witness <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="number"
+                placeholder="Enter reported count"
+                value={witnessCount}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setWitnessCount(val);
+                  
+                  // Auto-save to Supabase if screenshot already exists!
+                  if (callLogScreenshot) {
+                    try {
+                      const typeString = `FRAUD_DETECTION:${val}`;
+                      await supabase
+                        .from('screenshots')
+                        .update({ type: typeString })
+                        .eq('id', callLogScreenshot.id);
+                      
+                      // Update screenshots state locally
+                      setScreenshots(prev => 
+                        prev.map(s => s.id === callLogScreenshot.id ? { ...s, type: typeString } : s)
+                      );
+                      toast.success('Witness count updated!');
+                    } catch (err) {
+                      console.error('Failed to update witness count:', err);
+                      toast.error('Failed to update witness count');
+                    }
+                  }
+                }}
+                disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')}
+                className={`h-9 ${!witnessCount ? 'border-red-300 bg-red-50' : ''}`}
+              />
+            </div>
+          )}
+
           {!verifiedDelivery && (
             <Button
               onClick={async () => {
                 if (submittingFraud) return;
                 if (witnessPhone.length < 10) {
                   toast.error('Witness Phone Number must be 10 digits');
+                  return;
+                }
+                if (isCustomerPaid && (!witnessCount || parseFloat(witnessCount) < 0)) {
+                  toast.error('Witness count count is mandatory for customer paid showrooms');
                   return;
                 }
                 if (!callLogFile) {
@@ -318,10 +374,11 @@ function FraudAuditShowroomCard({
                   // 2. Upload and attach call log screenshot to the first delivery
                   const path = `call_logs/${updatedDels[0].id}_${Date.now()}.jpg`;
                   const url = await screenshotsDb.uploadScreenshotFile(callLogFile, path, client);
+                  const typeString = isCustomerPaid ? `FRAUD_DETECTION:${witnessCount}` : 'FRAUD_DETECTION';
                   await screenshotsDb.createScreenshot({
                     delivery_id: updatedDels[0].id,
                     user_id: selectedPhotographer,
-                    type: 'FRAUD_DETECTION',
+                    type: typeString,
                     file_url: url,
                     thumbnail_url: url,
                     deleted_at: null
@@ -336,7 +393,7 @@ function FraudAuditShowroomCard({
                   setSubmittingFraud(false);
                 }
               }}
-              disabled={submittingFraud || witnessPhone.length < 10 || !callLogFile}
+              disabled={submittingFraud || witnessPhone.length < 10 || !callLogFile || (isCustomerPaid && !witnessCount)}
               className="h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
             >
               {submittingFraud ? 'Verifying...' : 'Submit Fraud Audit'}
@@ -389,6 +446,31 @@ function CallLogsViewer({
         date: c.date
       };
     });
+
+  // 2. Gather Witness Call Logs
+  const fraudLogs = screenshots
+    .filter(s => s.type.startsWith('FRAUD_DETECTION') && s.delivery_id && !s.deleted_at)
+    .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
+    .map(s => {
+      const del = deliveries.find(d => d.id === s.delivery_id);
+      if (!del || del.date !== spreadSheetDate) return null;
+      
+      const photographer = photographers.find(p => p.id === s.user_id);
+      const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(del.showroom_code));
+      const displayShowroomName = dealership ? dealership.name : del.showroom_code;
+
+      const witnessCount = s.type.split(':')[1] || '';
+
+      return {
+        id: `witness_${s.id}`,
+        fileUrl: s.file_url,
+        photographerName: photographer ? photographer.name : 'Unknown Photographer',
+        taskType: `Witness Call Log${witnessCount ? ` (Count: ${witnessCount})` : ''}`,
+        showroom: displayShowroomName,
+        date: del.date
+      };
+    })
+    .filter((log): log is NonNullable<typeof log> => log !== null);
 
   // 3. Gather Customer Call Logs
   const customerCallLogs = screenshots
@@ -1123,7 +1205,8 @@ export function ViewScreen() {
       // - OR any task that is not completed is handed over to the super admin
       
       const isStandupHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'STANDUP');
-      const isFraudHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD');
+      const isFraud2AHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD_2A');
+      const isFraud2BHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD_2B');
       const isDeliveriesHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'DELIVERIES');
       const isMissedUpdateHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'MISSED_UPDATE');
 
@@ -1137,41 +1220,53 @@ export function ViewScreen() {
       const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
       
       const customerPaidDeliveriesForPhotographer = doneDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID');
-      let fraudDone = !hasSentUpdate || isFraudHandedOver || (uniqueShowrooms.length === 0 && customerPaidDeliveriesForPhotographer.length === 0);
-      if (hasSentUpdate && !isFraudHandedOver) {
-        let allVerified = true;
-        // 1. Witness verification (Task 2A)
-        if (uniqueShowrooms.length > 0) {
-          for (const showroomCode of uniqueShowrooms) {
-            const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
-            const verified = showroomDeliveries.some(d => 
-              !!d.witness_phone && 
-              screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at)
-            );
-            if (!verified) {
-              allVerified = false;
-              break;
+      
+      let fraud2ADone = isFraud2AHandedOver || uniqueShowrooms.length === 0;
+      if (!isFraud2AHandedOver && uniqueShowrooms.length > 0) {
+        let all2AVerified = true;
+        for (const showroomCode of uniqueShowrooms) {
+          const showroomDeliveries = doneDeliveries.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+          const isCustomerPaid = showroomDeliveries[0]?.payment_type === 'CUSTOMER_PAID';
+          
+          const verified = showroomDeliveries.some(d => {
+            if (!d.witness_phone) return false;
+            const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type.startsWith('FRAUD_DETECTION') && !s.deleted_at);
+            if (!callLogScr) return false;
+            
+            if (isCustomerPaid) {
+              const witnessCount = callLogScr.type.split(':')[1] || '';
+              return parseFloat(witnessCount) === showroomDeliveries.length;
             }
+            return true;
+          });
+          if (!verified) {
+            all2AVerified = false;
+            break;
           }
         }
-        // 2. Customer paid call log verification (Task 2B)
-        if (allVerified && customerPaidDeliveriesForPhotographer.length > 0) {
-          for (const d of customerPaidDeliveriesForPhotographer) {
-            const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at);
-            if (!callLogScr) {
-              allVerified = false;
-              break;
-            }
-            const confirmedAmount = callLogScr.type.split(':')[1] || '';
-            const isMatch = parseFloat(confirmedAmount) === parseFloat(d.received_amount || '0');
-            if (!isMatch) {
-              allVerified = false;
-              break;
-            }
-          }
-        }
-        fraudDone = allVerified;
+        fraud2ADone = all2AVerified;
       }
+
+      let fraud2BDone = isFraud2BHandedOver || customerPaidDeliveriesForPhotographer.length === 0;
+      if (!isFraud2BHandedOver && customerPaidDeliveriesForPhotographer.length > 0) {
+        let all2BVerified = true;
+        for (const d of customerPaidDeliveriesForPhotographer) {
+          const callLogScr = screenshots.find(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at);
+          if (!callLogScr) {
+            all2BVerified = false;
+            break;
+          }
+          const confirmedAmount = callLogScr.type.split(':')[1] || '';
+          const isMatch = parseFloat(confirmedAmount) === parseFloat(d.received_amount || '0');
+          if (!isMatch) {
+            all2BVerified = false;
+            break;
+          }
+        }
+        fraud2BDone = all2BVerified;
+      }
+
+      const fraudDone = !hasSentUpdate || (fraud2ADone && fraud2BDone);
 
       // Deliveries Task status — if update was completely missed, skip deliveries audits
       let deliveriesDone = !hasSentUpdate || isDeliveriesHandedOver || doneDeliveries.length === 0;
@@ -4266,13 +4361,54 @@ export function ViewScreen() {
                                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
                                 Task 2A: Dealership Witness Call Audits
                               </h4>
-                              {/* Handover to super admin is not relevant for Task 2A (Dealership Audits) */}
+                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && uniqueShowroomCodesForPhotographer.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
+                                  disabled={uniqueShowroomCodesForPhotographer.some(code => {
+                                    const showroomDeliveries = deliveries.filter(d => 
+                                      d.assigned_user_id === selectedPhotographer && 
+                                      d.date === spreadSheetDate && 
+                                      d.status === 'DONE' &&
+                                      getShowroomCode(d.showroom_code) === code
+                                    );
+                                    const hasScreenshot = screenshots.some(s => 
+                                      s.type.startsWith('FRAUD_DETECTION') && 
+                                      !s.deleted_at && 
+                                      s.delivery_id && 
+                                      showroomDeliveries.some(d => d.id === s.delivery_id)
+                                    );
+                                    return !hasScreenshot;
+                                  })}
+                                  onClick={async () => {
+                                    if (!selectedPhotographer || !spreadSheetDate) return;
+                                    try {
+                                      await supabase.from('log_events').insert({
+                                        type: 'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN',
+                                        actor_user_id: user.id,
+                                        target_id: selectedPhotographer,
+                                        metadata: { 
+                                          date: spreadSheetDate, 
+                                          task_type: 'FRAUD_2A'
+                                        }
+                                      });
+                                      toast.success('Task 2A handed over to Super Admin');
+                                      fetchHandoverAndSentLogs();
+                                    } catch (e) {
+                                      toast.error('Failed to handover');
+                                    }
+                                  }}
+                                >
+                                  Handover to super admin
+                                </Button>
+                              )}
                             </div>
 
-                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
-                              <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs">
+                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && (
+                              <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-center gap-2 font-semibold text-xs mb-3">
                                 <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
-                                <span>This fraud audit task has been handed over to Super Admin. Editing is locked.</span>
+                                <span>This dealership witness audit task has been handed over to Super Admin. Editing is locked.</span>
                               </div>
                             )}
 
@@ -4291,6 +4427,7 @@ export function ViewScreen() {
                                   spreadSheetDate={spreadSheetDate}
                                   deliveries={deliveries}
                                   screenshots={screenshots}
+                                  setScreenshots={setScreenshots}
                                   dealerships={dealerships}
                                   currentStandupCall={currentStandupCall}
                                   handoverLogs={handoverLogs}
@@ -4311,7 +4448,7 @@ export function ViewScreen() {
                                 <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
                                 Task 2B: Customer Payment Fraud Audits
                               </h4>
-                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && customerPaidDeliveries.length > 0 && (
+                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && customerPaidDeliveries.length > 0 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -4326,7 +4463,7 @@ export function ViewScreen() {
                                         target_id: selectedPhotographer,
                                         metadata: { 
                                           date: spreadSheetDate, 
-                                          task_type: 'FRAUD'
+                                          task_type: 'FRAUD_2B'
                                         }
                                       });
                                       toast.success('Task 2B handed over to Super Admin');
@@ -4341,8 +4478,8 @@ export function ViewScreen() {
                               )}
                             </div>
 
-                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') && (
-                              <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800">
+                            {handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && (
+                              <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800 mb-3">
                                 <ShieldCheck className="h-4 w-4 text-amber-600" />
                                 <span>⚠️ This customer fraud audit task has been handed over to Super Admin and is now read-only.</span>
                               </div>
