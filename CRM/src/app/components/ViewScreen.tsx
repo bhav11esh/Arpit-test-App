@@ -1265,7 +1265,11 @@ export function ViewScreen() {
 
       // Fraud Task status — if update was completely missed, skip fraud audits
       const doneDeliveries = pDeliveries.filter(d => d.status === 'DONE');
-      const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
+      const uniqueShowrooms = Array.from(new Set(
+        doneDeliveries
+          .filter(d => d.payment_type === 'CUSTOMER_PAID')
+          .map(d => getShowroomCode(d.showroom_code))
+      ));
       
       const customerPaidDeliveriesForPhotographer = doneDeliveries.filter(d => d.payment_type === 'CUSTOMER_PAID');
       
@@ -2793,7 +2797,11 @@ export function ViewScreen() {
   }, [deliveries, selectedPhotographer, spreadSheetDate]);
 
   const uniqueShowroomCodesForPhotographer = React.useMemo(() => {
-    return Array.from(new Set(photographerDeliveries.map(d => getShowroomCode(d.showroom_code))));
+    return Array.from(new Set(
+      photographerDeliveries
+        .filter(d => d.payment_type === 'CUSTOMER_PAID')
+        .map(d => getShowroomCode(d.showroom_code))
+    ));
   }, [photographerDeliveries]);
 
   const customerPaidDeliveries = React.useMemo(() => {
