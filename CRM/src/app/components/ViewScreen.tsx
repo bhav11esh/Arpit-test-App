@@ -4964,12 +4964,23 @@ export function ViewScreen() {
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {paymentScr ? (
-                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group">
-                                        <img src={paymentScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
-                                          setCurrentImageIndex(screenshots.indexOf(paymentScr));
-                                          setGalleryViewMode('single');
-                                        }} alt="payment" />
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">Collection: ₹{d.received_amount}</span>
+                                      <div 
+                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                        onClick={() => {
+                                          const idx = screenshots.findIndex(s => s.id === paymentScr.id || s.file_url === paymentScr.file_url);
+                                          if (idx !== -1) {
+                                            setCurrentImageIndex(idx);
+                                            setGalleryViewMode('single');
+                                          }
+                                        }}
+                                      >
+                                        <img src={paymentScr.file_url} className="max-h-full object-contain" alt="payment" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                            <Eye className="h-5 w-5" />
+                                          </Button>
+                                        </div>
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Collection: ₹{d.received_amount}</span>
                                       </div>
                                     ) : (
                                       <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
@@ -5025,12 +5036,23 @@ export function ViewScreen() {
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {platformScr ? (
-                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative">
-                                        <img src={platformScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
-                                          setCurrentImageIndex(screenshots.indexOf(platformScr));
-                                          setGalleryViewMode('single');
-                                        }} alt="platform payment" />
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">
+                                      <div 
+                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                        onClick={() => {
+                                          const idx = screenshots.findIndex(s => s.id === platformScr.id || s.file_url === platformScr.file_url);
+                                          if (idx !== -1) {
+                                            setCurrentImageIndex(idx);
+                                            setGalleryViewMode('single');
+                                          }
+                                        }}
+                                      >
+                                        <img src={platformScr.file_url} className="max-h-full object-contain" alt="platform payment" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                            <Eye className="h-5 w-5" />
+                                          </Button>
+                                        </div>
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">
                                           Expected cut (15%): ₹{Math.max(0, Math.round((parseFloat(String(d.received_amount || '0')) - parseFloat(String(d.rapido_charge || '0'))) * 0.15))}
                                         </span>
                                       </div>
@@ -5088,12 +5110,23 @@ export function ViewScreen() {
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {rapidoScr ? (
-                                      <div className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative">
-                                        <img src={rapidoScr.file_url} className="max-h-full object-contain cursor-pointer" onClick={() => {
-                                          setCurrentImageIndex(screenshots.indexOf(rapidoScr));
-                                          setGalleryViewMode('single');
-                                        }} alt="rapido" />
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono">Charge: ₹{d.rapido_charge}</span>
+                                      <div 
+                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                        onClick={() => {
+                                          const idx = screenshots.findIndex(s => s.id === rapidoScr.id || s.file_url === rapidoScr.file_url);
+                                          if (idx !== -1) {
+                                            setCurrentImageIndex(idx);
+                                            setGalleryViewMode('single');
+                                          }
+                                        }}
+                                      >
+                                        <img src={rapidoScr.file_url} className="max-h-full object-contain" alt="rapido" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                            <Eye className="h-5 w-5" />
+                                          </Button>
+                                        </div>
+                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Charge: ₹{d.rapido_charge}</span>
                                       </div>
                                     ) : (
                                       <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
