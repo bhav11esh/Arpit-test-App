@@ -2821,24 +2821,36 @@ export function ViewScreen() {
     witness_phone: string;
   }>>({});
 
+  const lastState = useRef({ selectedPhotographer, spreadSheetDate, viewMode });
+
   useEffect(() => {
     if (viewMode === 'audit' && selectedPhotographer && selectedPhotographer !== 'all' && spreadSheetDate) {
-      const inputs: any = {};
-      photographerDeliveries.forEach(d => {
-        inputs[d.id] = {
-          payment_date: d.payment_screenshot_date || '',
-          payment_time: d.payment_screenshot_time || '',
-          payment_amount: d.payment_screenshot_amount != null ? String(d.payment_screenshot_amount) : '',
-          platform_date: d.platform_payment_screenshot_date || '',
-          platform_time: d.platform_payment_screenshot_time || '',
-          platform_amount: d.platform_payment_screenshot_amount != null ? String(d.platform_payment_screenshot_amount) : '',
-          rapido_date: d.rapido_screenshot_date || '',
-          rapido_time: d.rapido_screenshot_time || '',
-          rapido_amount: d.rapido_screenshot_amount != null ? String(d.rapido_screenshot_amount) : '',
-          witness_phone: d.witness_phone || '',
-        };
+      const stateChanged = 
+        lastState.current.selectedPhotographer !== selectedPhotographer ||
+        lastState.current.spreadSheetDate !== spreadSheetDate ||
+        lastState.current.viewMode !== viewMode;
+      
+      lastState.current = { selectedPhotographer, spreadSheetDate, viewMode };
+
+      setVerificationInputs(prev => {
+        const inputs: any = stateChanged ? {} : { ...prev };
+        photographerDeliveries.forEach(d => {
+          const existing = stateChanged ? null : prev[d.id];
+          inputs[d.id] = {
+            payment_date: existing?.payment_date || d.payment_screenshot_date || '',
+            payment_time: existing?.payment_time || d.payment_screenshot_time || '',
+            payment_amount: existing?.payment_amount || (d.payment_screenshot_amount != null ? String(d.payment_screenshot_amount) : ''),
+            platform_date: existing?.platform_date || d.platform_payment_screenshot_date || '',
+            platform_time: existing?.platform_time || d.platform_payment_screenshot_time || '',
+            platform_amount: existing?.platform_amount || (d.platform_payment_screenshot_amount != null ? String(d.platform_payment_screenshot_amount) : ''),
+            rapido_date: existing?.rapido_date || d.rapido_screenshot_date || '',
+            rapido_time: existing?.rapido_time || d.rapido_screenshot_time || '',
+            rapido_amount: existing?.rapido_amount || (d.rapido_screenshot_amount != null ? String(d.rapido_screenshot_amount) : ''),
+            witness_phone: existing?.witness_phone || d.witness_phone || '',
+          };
+        });
+        return inputs;
       });
-      setVerificationInputs(inputs);
     }
   }, [selectedPhotographer, spreadSheetDate, viewMode, photographerDeliveries]);
 
