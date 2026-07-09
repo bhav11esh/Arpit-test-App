@@ -129,8 +129,13 @@ export function SendUpdateScreen({
   const hasDeliveries = deliveries.length > 0;
 
   // V1 SPEC: Fraud Detection Showroom Cards
-  // Calculate unique showrooms covered today
-  const uniqueShowroomCodes = Array.from(new Set(deliveries.map(d => d.showroom_code).filter(Boolean)));
+  // Calculate unique showrooms covered today that are CUSTOMER_PAID
+  const uniqueShowroomCodes = Array.from(new Set(
+    deliveries
+      .filter(d => d.payment_type === 'CUSTOMER_PAID')
+      .map(d => d.showroom_code)
+      .filter(Boolean)
+  ));
   const uniqueShowrooms = uniqueShowroomCodes.length > 0
     ? uniqueShowroomCodes.map(code => {
       const matchingDelivery = deliveries.find(d => d.showroom_code === code);
@@ -144,7 +149,7 @@ export function SendUpdateScreen({
       }
       return { code, name };
     })
-    : [{ code: 'GENERAL', name: 'Fraud Detection' }];
+    : [];
 
   const isFraudDetectionComplete = (showroomCode: string): boolean => {
     const fraudScreenshots = screenshots.get(`showroom_${showroomCode}`) || [];

@@ -371,9 +371,14 @@ function FraudAuditShowroomCard({
                   });
                   const updatedDels = await Promise.all(updatePromises);
                   
-                  // 2. Upload and attach call log screenshot to the first delivery
-                  const path = `call_logs/${updatedDels[0].id}_${Date.now()}.jpg`;
-                  const url = await screenshotsDb.uploadScreenshotFile(callLogFile, path, client);
+                  // 2. Check and Upload call log screenshot
+                  const check = await checkDuplicateAndGetPath(callLogFile, 'call_logs', updatedDels[0].id, client);
+                  if (check.isDuplicate) {
+                    toast.error('Duplicate call log screenshot detected! This screenshot has already been used.');
+                    setSubmittingFraud(false);
+                    return;
+                  }
+                  const url = await screenshotsDb.uploadScreenshotFile(callLogFile, check.path, client);
                   const typeString = isCustomerPaid ? `FRAUD_DETECTION:${witnessCount}` : 'FRAUD_DETECTION';
                   await screenshotsDb.createScreenshot({
                     delivery_id: updatedDels[0].id,
@@ -589,6 +594,33 @@ function CallLogsViewer({
       )}
     </div>
   );
+}
+
+async function checkDuplicateAndGetPath(file: File, prefix: string, deliveryIdOrKey: string, client = supabase): Promise<{ path: string; isDuplicate: boolean }> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const { data, error } = await client
+      .from('screenshots')
+      .select('id')
+      .ilike('file_url', `%${fileHash}%`)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      return { path: '', isDuplicate: true };
+    }
+
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const path = `${prefix}/${deliveryIdOrKey}_${fileHash}.${fileExt}`;
+    return { path, isDuplicate: false };
+  } catch (err) {
+    console.error('Error checking duplicate:', err);
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    return { path: `${prefix}/${deliveryIdOrKey}_${Date.now()}.${fileExt}`, isDuplicate: false };
+  }
 }
 
 export function ViewScreen() {
@@ -842,8 +874,13 @@ export function ViewScreen() {
     if (!file) return;
     setUploadingTask3CallLog(true);
     try {
-      const path = `handover_call_logs/${selectedPhotographer}_${spreadSheetDate}_${Date.now()}.jpg`;
-      const url = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
+      const check = await checkDuplicateAndGetPath(file, 'handover_call_logs', `${selectedPhotographer}_${spreadSheetDate}`);
+      if (check.isDuplicate) {
+        toast.error('Duplicate call log screenshot detected! Upload blocked.');
+        setUploadingTask3CallLog(false);
+        return;
+      }
+      const url = await screenshotsDb.uploadScreenshotFile(file, check.path, supabase);
       setTask3CallLogUrl(url);
       setTask3CallLogFile(file);
       toast.success('Call log screenshot uploaded successfully!');
@@ -2458,11 +2495,12 @@ export function ViewScreen() {
           toast.error('Rapido screenshot amount must match the rapido charge');
           setIsSubmitting(false);
           return;
-        }
       }
+        }
 
       // Fraud Detection check for this combo
       const showroomCodeForFraud = getShowroomCode(selectedDealership.name);
+      const isCustomerPaid = selectedDealership.paymentType === 'CUSTOMER_PAID';
       const fraudAlreadyVerified = !!(
         newRowData.date &&
         newRowData.assigned_user_id &&
@@ -2471,11 +2509,11 @@ export function ViewScreen() {
           d.date === newRowData.date && 
           d.assigned_user_id === newRowData.assigned_user_id && 
           getShowroomCode(d.showroom_code) === showroomCodeForFraud && 
-          (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at))
+          (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('FRAUD_DETECTION') && !s.deleted_at))
         )
       );
 
-      if (!fraudAlreadyVerified) {
+      if (isCustomerPaid && !fraudAlreadyVerified) {
         if (!newRowData.witness_phone || newRowData.witness_phone.trim().length < 10) {
           toast.error('Witness Phone Number is mandatory and must be a valid 10-digit number');
           setIsSubmitting(false);
@@ -2568,8 +2606,13 @@ export function ViewScreen() {
       const newScreenshotsList: any[] = [];
 
       if (newRowData.payment_screenshot) {
-        const path = `payments/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.payment_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.payment_screenshot, 'payments', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate payment screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.payment_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
@@ -2582,8 +2625,13 @@ export function ViewScreen() {
       }
 
       if (newRowData.rapido_screenshot) {
-        const path = `rapido/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.rapido_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.rapido_screenshot, 'rapido', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate Rapido screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.rapido_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '', // V14.0: Associate screenshot with the photographer
@@ -2596,8 +2644,13 @@ export function ViewScreen() {
       }
 
       if (newRowData.platform_payment_screenshot) {
-        const path = `platform_payments/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.platform_payment_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.platform_payment_screenshot, 'platform_payments', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate platform payment screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.platform_payment_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
@@ -2610,8 +2663,13 @@ export function ViewScreen() {
       }
 
       if (!fraudAlreadyVerified && newRowData.fraud_screenshot) {
-        const path = `fraud/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.fraud_screenshot, 'fraud', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate fraud screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
@@ -2624,8 +2682,13 @@ export function ViewScreen() {
       }
 
       if (!fraudAlreadyVerified && newRowData.fraud_call_log_screenshot) {
-        const path = `call_logs/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_call_log_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.fraud_call_log_screenshot, 'call_logs', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate call log screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.fraud_call_log_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
@@ -2638,8 +2701,13 @@ export function ViewScreen() {
       }
       
       if (selectedDealership.paymentType === 'CUSTOMER_PAID' && newRowData.customer_call_log_screenshot && newRowData.actual_amount_confirmed_by_customer) {
-        const path = `customer_call_logs/${savedDelivery.id}_${Date.now()}.jpg`;
-        const url = await screenshotsDb.uploadScreenshotFile(newRowData.customer_call_log_screenshot, path, client);
+        const check = await checkDuplicateAndGetPath(newRowData.customer_call_log_screenshot, 'customer_call_logs', savedDelivery.id, client);
+        if (check.isDuplicate) {
+          toast.error('Duplicate customer call log screenshot detected! Upload blocked.');
+          setIsSubmitting(false);
+          return;
+        }
+        const url = await screenshotsDb.uploadScreenshotFile(newRowData.customer_call_log_screenshot, check.path, client);
         const scr = await screenshotsDb.createScreenshot({
           delivery_id: savedDelivery.id,
           user_id: newRowData.assigned_user_id || user?.id || '',
@@ -3317,16 +3385,33 @@ export function ViewScreen() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <div
-                                    className={`flex items-center gap-2 p-1 rounded group ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'customer_phone', delivery.customer_phone || '')}
-                                    title={isAdmin ? "Click to edit phone number" : "Admin-only"}
-                                  >
-                                    <span>{delivery.customer_phone || <span className="text-gray-400">-</span>}</span>
-                                    {isAdmin && (
-                                      <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                                    )}
-                                  </div>
+                                  (() => {
+                                    const phone = delivery.customer_phone?.trim();
+                                    const otherMatch = phone && phone.length >= 10 ? deliveries.find(d => 
+                                      d.id !== delivery.id && 
+                                      d.customer_phone === phone && 
+                                      (d.assigned_user_id !== delivery.assigned_user_id || d.date !== delivery.date)
+                                    ) : null;
+                                    const otherPhotographer = otherMatch ? allUsers.find(p => p.id === otherMatch.assigned_user_id)?.name || 'another photographer' : '';
+                                    
+                                    return (
+                                      <div
+                                        className={`flex items-center gap-2 p-1 rounded group ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                        onClick={() => isAdmin && handleStartEdit(delivery.id, 'customer_phone', delivery.customer_phone || '')}
+                                        title={otherMatch ? `Suspicious: Customer phone used on ${otherMatch.date} by ${otherPhotographer}!` : (isAdmin ? "Click to edit phone number" : "Admin-only")}
+                                      >
+                                        <span className={otherMatch ? 'text-red-600 font-bold' : ''}>
+                                          {delivery.customer_phone || <span className="text-gray-400">-</span>}
+                                        </span>
+                                        {otherMatch && (
+                                          <AlertTriangle className="h-3.5 w-3.5 text-red-500 animate-bounce" />
+                                        )}
+                                        {isAdmin && (
+                                          <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 )}
                               </TableCell>
                               {/* Rapido Charge (Editable for Admin) */}
@@ -3546,6 +3631,22 @@ export function ViewScreen() {
                                           placeholder="Enter phone number"
                                           className={!newRowData.customer_phone ? 'border-red-300 bg-red-50' : ''}
                                         />
+                                        {(() => {
+                                          const phone = newRowData.customer_phone?.trim();
+                                          if (!phone || phone.length < 10) return null;
+                                          const duplicate = deliveries.find(d => 
+                                            d.customer_phone === phone && 
+                                            (d.assigned_user_id !== newRowData.assigned_user_id || d.date !== newRowData.date)
+                                          );
+                                          if (!duplicate) return null;
+                                          
+                                          const otherPhotographer = allUsers.find(p => p.id === duplicate.assigned_user_id)?.name || 'another photographer';
+                                          return (
+                                            <span className="text-[10px] text-red-500 font-bold block mt-1 animate-pulse">
+                                              ⚠️ Suspicious: Used on {duplicate.date} by {otherPhotographer}!
+                                            </span>
+                                          );
+                                        })()}
                                       </div>
                                     </div>
 
@@ -3768,6 +3869,9 @@ export function ViewScreen() {
                             {/* FRAUD DETECTION SECTION */}
                             {(() => {
                               const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
+                              const isCustomerPaid = selectedShowroom?.paymentType === 'CUSTOMER_PAID';
+                              if (!isCustomerPaid) return null;
+
                               const showroomCodeForFraud = selectedShowroom ? getShowroomCode(selectedShowroom.name) : '';
                               const fraudAlreadyVerified = !!(
                                 newRowData.date &&
@@ -4228,13 +4332,16 @@ export function ViewScreen() {
 
                                   try {
                                     setStandupForm(prev => ({ ...prev, submitting: true }));
-                                    
                                     let finalUrl = currentStandupCall?.call_log_screenshot_url || '';
                                     
                                     // If a new file is selected, upload it first
                                     if (standupForm.screenshotFile) {
-                                      const path = `standup_calls/${selectedPhotographer}_${spreadSheetDate}_${Date.now()}.jpg`;
-                                      finalUrl = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, supabase);
+                                      const check = await checkDuplicateAndGetPath(standupForm.screenshotFile, 'standup_calls', `${selectedPhotographer}_${spreadSheetDate}`);
+                                      if (check.isDuplicate) {
+                                        toast.error('Duplicate standup call log screenshot detected! Handover blocked.');
+                                        return;
+                                      }
+                                      finalUrl = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, check.path, supabase);
                                       
                                       // Save or update standup call record
                                       await standupDb.submitStandupCall({
@@ -4255,7 +4362,7 @@ export function ViewScreen() {
                                         });
                                       }
                                     }
-
+ 
                                     // Perform handover
                                     await handleHandoverToSuperAdmin('STANDUP');
                                   } catch (err) {
@@ -4272,7 +4379,7 @@ export function ViewScreen() {
                                 Handover to super admin
                               </Button>
                             )}
-
+ 
                             {(!handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') || user.role === 'SUPER_ADMIN') && (
                               <Button
                                 onClick={async () => {
@@ -4293,13 +4400,17 @@ export function ViewScreen() {
                                       return;
                                     }
                                   }
-
+ 
                                   setStandupForm(prev => ({ ...prev, submitting: true }));
                                   try {
                                     const client = supabase;
-                                    // Upload file
-                                    const path = `standup_call_logs/${selectedPhotographer}/${spreadSheetDate}_${Date.now()}.jpg`;
-                                    const url = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, path, client);
+                                    const check = await checkDuplicateAndGetPath(standupForm.screenshotFile, 'standup_call_logs', `${selectedPhotographer}_${spreadSheetDate}`, client);
+                                    if (check.isDuplicate) {
+                                      toast.error('Duplicate standup call log screenshot detected! Upload blocked.');
+                                      setStandupForm(prev => ({ ...prev, submitting: false }));
+                                      return;
+                                    }
+                                    const url = await screenshotsDb.uploadScreenshotFile(standupForm.screenshotFile, check.path, client);
                                     
                                     await standupDb.createStandupCall({
                                       photographer_id: selectedPhotographer,

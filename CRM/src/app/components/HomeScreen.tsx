@@ -1138,12 +1138,35 @@ export function HomeScreen() {
 
   const handleUploadScreenshot = async (id: string, type: ScreenshotType, file: File) => {
     try {
-      const fileExt = file.name.split('.').pop();
+      const client = supabase;
+      
+      // Compute SHA-256 hash of the file
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Check database for duplicates by file hash
+      const { data: duplicateCheck, error: checkError } = await client
+        .from('screenshots')
+        .select('id')
+        .ilike('file_url', `%${fileHash}%`)
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error checking duplicate screenshot:', checkError);
+      }
+
+      if (duplicateCheck && duplicateCheck.length > 0) {
+        toast.error('Duplicate file detected! This screenshot has already been used previously.');
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop() || 'jpg';
       const isFraudDetection = type === 'FRAUD_DETECTION';
-      const fileName = `${id}_${type}_${Date.now()}.${fileExt}`;
+      const fileName = `${id}_${type}_${fileHash}.${fileExt}`;
       const filePath = isFraudDetection ? `fraud/${fileName}` : `${fileName}`;
 
-      const client = supabase;
       const publicUrl = await screenshotsDb.uploadScreenshotFile(file, filePath, client);
 
       const newScreenshot = await screenshotsDb.createScreenshot({
@@ -1168,7 +1191,6 @@ export function HomeScreen() {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('Screenshot upload aborted (auth disruption)');
-        // Don't show toast for AbortError as it's usually a side effect of sign-out
       } else {
         console.error('Error uploading screenshot:', error);
         toast.error('Failed to upload screenshot');
