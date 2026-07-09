@@ -1244,6 +1244,7 @@ export function ViewScreen() {
       const isStandupHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'STANDUP');
       const isFraud2AHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD_2A');
       const isFraud2BHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'FRAUD_2B');
+      const isFraudHandedOver = isFraud2AHandedOver || isFraud2BHandedOver;
       const isDeliveriesHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'DELIVERIES');
       const isMissedUpdateHandedOver = handoverLogs.some(l => l.target_id === p.id && l.metadata?.task_type === 'MISSED_UPDATE');
 
