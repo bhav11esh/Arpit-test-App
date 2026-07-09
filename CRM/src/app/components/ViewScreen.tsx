@@ -188,15 +188,20 @@ function FraudAuditShowroomCard({
           <div className="space-y-1.5">
             <span className="text-xs font-semibold text-gray-600 block">Photographer Dealership doc screenshot:</span>
             {mainFraudScreenshot ? (
-              <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+              <div 
+                className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
+                onClick={() => {
+                  const idx = screenshots.findIndex(s => s.id === mainFraudScreenshot.id || s.file_url === mainFraudScreenshot.file_url);
+                  if (idx !== -1) {
+                    setCurrentImageIndex(idx);
+                    setGalleryViewMode('single');
+                  }
+                }}
+              >
                 <img 
                   src={mainFraudScreenshot.file_url} 
                   alt="dealership doc" 
-                  className="max-h-full object-contain cursor-pointer"
-                  onClick={() => {
-                    setCurrentImageIndex(screenshots.indexOf(mainFraudScreenshot));
-                    setGalleryViewMode('single');
-                  }}
+                  className="max-h-full object-contain"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                   <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
@@ -214,12 +219,26 @@ function FraudAuditShowroomCard({
           <div className="space-y-1.5">
             <span className="text-xs font-semibold text-gray-600 block">Witness Call Log verification screenshot:</span>
             {verifiedDelivery && callLogScreenshot ? (
-              <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+              <div 
+                className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
+                onClick={() => {
+                  const idx = screenshots.findIndex(s => s.id === callLogScreenshot.id || s.file_url === callLogScreenshot.file_url);
+                  if (idx !== -1) {
+                    setCurrentImageIndex(idx);
+                    setGalleryViewMode('single');
+                  }
+                }}
+              >
                 <img 
                   src={callLogScreenshot.file_url} 
                   alt="call log" 
                   className="max-h-full object-contain text-xs"
                 />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                    <Eye className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             ) : !verifiedDelivery ? (
               <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
