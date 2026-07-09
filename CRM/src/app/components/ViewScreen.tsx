@@ -53,6 +53,7 @@ interface FraudAuditShowroomCardProps {
   setGalleryViewMode: React.Dispatch<React.SetStateAction<'single' | 'grid'>>;
   handleTriggerSheetSync: (delivery: any, action: string, metadata: any) => Promise<void>;
   loadData: () => void;
+  setZoomImageUrl: (url: string | null) => void;
 }
 
 function FraudAuditShowroomCard({
@@ -69,7 +70,8 @@ function FraudAuditShowroomCard({
   setCurrentImageIndex,
   setGalleryViewMode,
   handleTriggerSheetSync,
-  loadData
+  loadData,
+  setZoomImageUrl
 }: FraudAuditShowroomCardProps) {
   const showroomDeliveries = deliveries.filter(d => 
     d.assigned_user_id === selectedPhotographer && 
@@ -190,13 +192,7 @@ function FraudAuditShowroomCard({
             {mainFraudScreenshot ? (
               <div 
                 className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
-                onClick={() => {
-                  const idx = screenshots.findIndex(s => s.id === mainFraudScreenshot.id || s.file_url === mainFraudScreenshot.file_url);
-                  if (idx !== -1) {
-                    setCurrentImageIndex(idx);
-                    setGalleryViewMode('single');
-                  }
-                }}
+                onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
               >
                 <img 
                   src={mainFraudScreenshot.file_url} 
@@ -221,13 +217,7 @@ function FraudAuditShowroomCard({
             {verifiedDelivery && callLogScreenshot ? (
               <div 
                 className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
-                onClick={() => {
-                  const idx = screenshots.findIndex(s => s.id === callLogScreenshot.id || s.file_url === callLogScreenshot.file_url);
-                  if (idx !== -1) {
-                    setCurrentImageIndex(idx);
-                    setGalleryViewMode('single');
-                  }
-                }}
+                onClick={() => setZoomImageUrl(callLogScreenshot.file_url)}
               >
                 <img 
                   src={callLogScreenshot.file_url} 
@@ -732,6 +722,7 @@ export function ViewScreen() {
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryViewMode, setGalleryViewMode] = useState<'single' | 'grid'>('single');
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // V1 SPEC: Gallery filters
@@ -4567,6 +4558,7 @@ export function ViewScreen() {
                                   setGalleryViewMode={setGalleryViewMode}
                                   handleTriggerSheetSync={handleTriggerSheetSync}
                                   loadData={loadData}
+                                  setZoomImageUrl={setZoomImageUrl}
                                 />
                               ))
                             )}
@@ -4966,13 +4958,7 @@ export function ViewScreen() {
                                     {paymentScr ? (
                                       <div 
                                         className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => {
-                                          const idx = screenshots.findIndex(s => s.id === paymentScr.id || s.file_url === paymentScr.file_url);
-                                          if (idx !== -1) {
-                                            setCurrentImageIndex(idx);
-                                            setGalleryViewMode('single');
-                                          }
-                                        }}
+                                        onClick={() => setZoomImageUrl(paymentScr.file_url)}
                                       >
                                         <img src={paymentScr.file_url} className="max-h-full object-contain" alt="payment" />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
@@ -5038,13 +5024,7 @@ export function ViewScreen() {
                                     {platformScr ? (
                                       <div 
                                         className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => {
-                                          const idx = screenshots.findIndex(s => s.id === platformScr.id || s.file_url === platformScr.file_url);
-                                          if (idx !== -1) {
-                                            setCurrentImageIndex(idx);
-                                            setGalleryViewMode('single');
-                                          }
-                                        }}
+                                        onClick={() => setZoomImageUrl(platformScr.file_url)}
                                       >
                                         <img src={platformScr.file_url} className="max-h-full object-contain" alt="platform payment" />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
@@ -5112,13 +5092,7 @@ export function ViewScreen() {
                                     {rapidoScr ? (
                                       <div 
                                         className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => {
-                                          const idx = screenshots.findIndex(s => s.id === rapidoScr.id || s.file_url === rapidoScr.file_url);
-                                          if (idx !== -1) {
-                                            setCurrentImageIndex(idx);
-                                            setGalleryViewMode('single');
-                                          }
-                                        }}
+                                        onClick={() => setZoomImageUrl(rapidoScr.file_url)}
                                       >
                                         <img src={rapidoScr.file_url} className="max-h-full object-contain" alt="rapido" />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
@@ -5468,6 +5442,29 @@ export function ViewScreen() {
           )}
 
 
+
+          {/* GORGEOUS SCREENSHOT ZOOM MODAL */}
+          <Dialog open={!!zoomImageUrl} onOpenChange={(open) => !open && setZoomImageUrl(null)}>
+            <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black/95 border-none shadow-2xl flex flex-col items-center justify-center h-[85vh]">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Screenshot Zoom</DialogTitle>
+                <DialogDescription>Full size preview of the screenshot</DialogDescription>
+              </DialogHeader>
+              <div className="relative w-full h-full flex items-center justify-center p-4">
+                <img 
+                  src={zoomImageUrl || ''} 
+                  alt="Screenshot Preview" 
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
+                />
+                <button 
+                  onClick={() => setZoomImageUrl(null)}
+                  className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white rounded-full p-2.5 transition-colors border border-white/10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Audit & Nudge Dialog */}
           <Dialog open={showAuditDialog} onOpenChange={setShowAuditDialog}>
