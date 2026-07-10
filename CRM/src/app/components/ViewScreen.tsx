@@ -1060,7 +1060,7 @@ export function ViewScreen() {
       return;
     }
 
-    setSubmittingFraud(true);
+    setIsSubmitting(true);
     try {
       let callLogUrl = existingScr ? existingScr.file_url : '';
       if (file) {
@@ -1091,7 +1091,7 @@ export function ViewScreen() {
       console.error('Failed to save fraud verification', err);
       toast.error('Failed to save');
     } finally {
-      setSubmittingFraud(false);
+      setIsSubmitting(false);
     }
   };
 
