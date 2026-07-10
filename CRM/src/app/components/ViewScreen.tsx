@@ -1010,6 +1010,7 @@ export function ViewScreen() {
       const { error } = await supabase.from('log_events').insert({
         type: 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED',
         actor_user_id: user?.id,
+        target_id: p.photographerId,
         metadata: {
           photographer_id: p.photographerId,
           date: spreadSheetDate,
@@ -1033,7 +1034,7 @@ export function ViewScreen() {
   };
 
   // V1 SPEC: Only ADMIN can access screenshot galleries
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   // DEBUG: Log current state values on every render
   console.log(`📊 STATE VALUES: historyIndex=${historyIndex}, editHistory.length=${editHistory.length}, deliveries.length=${deliveries.length}`);
@@ -1685,6 +1686,8 @@ export function ViewScreen() {
 
   // V1 SPEC: Cell edit handlers (Admin + Photographer can edit)
   const handleStartEdit = (deliveryId: string, field: string, currentValue: string) => {
+    // V1 FIX: Only admins can edit fields in ViewScreen
+    if (!isAdmin) return;
     setEditingCell({ deliveryId, field });
     setEditValue(currentValue || '');
   };
@@ -2201,6 +2204,7 @@ export function ViewScreen() {
 
   // Add new row handlers
   const handleStartAddRow = () => {
+    if (!isAdmin) return;
     setNewRowData({
       date: spreadSheetDate || getOperationalDateString(),
       showroom_id: '',
@@ -3176,7 +3180,7 @@ export function ViewScreen() {
                                 ) : isAdmin ? (
                                   <div
                                     className="flex items-center gap-2 p-1 rounded group cursor-pointer hover:bg-gray-50"
-                                    onClick={() => handleStartEdit(delivery.id, 'footage_link', delivery.footage_link || '')}
+                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'footage_link', delivery.footage_link || '')}
                                     title={`Click to add/edit footage link (${showroomDisplay} - ${delivery.delivery_name})`}
                                   >
                                     <span className="flex-1 truncate max-w-[200px]">
@@ -3218,7 +3222,7 @@ export function ViewScreen() {
                                 ) : isAdmin ? (
                                   <div
                                     className="flex items-center gap-2 p-1 rounded group cursor-pointer hover:bg-gray-50"
-                                    onClick={() => handleStartEdit(delivery.id, 'reel_link', (delivery as any).reel_link || '')}
+                                    onClick={() => isAdmin && handleStartEdit(delivery.id, 'reel_link', (delivery as any).reel_link || '')}
                                     title="Click to add/edit reel link"
                                   >
                                     <span className="flex-1 truncate max-w-[200px]">
