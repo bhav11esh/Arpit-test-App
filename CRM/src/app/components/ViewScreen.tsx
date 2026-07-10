@@ -684,6 +684,39 @@ export function ViewScreen() {
     setTask3CallLogFile(null);
   }, [selectedPhotographer, spreadSheetDate]);
 
+  /**
+   * Checks if an uploaded screenshot file is a duplicate (same hash already exists in storage),
+   * and returns the storage path to use for upload.
+   * @param file       - The File to upload
+   * @param folder     - The Supabase storage bucket folder (e.g. 'payments', 'standup_calls')
+   * @param pathKey    - A unique key string (e.g. deliveryId or photographerId_date)
+   * @param client     - Optional supabase client (defaults to adminSupabase)
+   */
+  const checkDuplicateAndGetPath = async (
+    file: File,
+    folder: string,
+    pathKey: string,
+    client = adminSupabase
+  ): Promise<{ isDuplicate: boolean; path: string }> => {
+    // Compute SHA-256 hash of file contents for duplicate detection
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Build the storage path: folder/pathKey_hash.ext
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${folder}/${pathKey}_${hashHex.slice(0, 16)}.${ext}`;
+
+    // Check if a file with this exact path already exists in storage
+    const { data: existingFiles } = await client.storage
+      .from('screenshots')
+      .list(folder, { search: `${pathKey}_${hashHex.slice(0, 16)}` });
+
+    const isDuplicate = !!(existingFiles && existingFiles.length > 0);
+    return { isDuplicate, path };
+  };
+
   const handleTask3CallLogChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
