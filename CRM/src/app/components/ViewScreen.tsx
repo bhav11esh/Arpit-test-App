@@ -22,7 +22,7 @@ import {
   getShowroomCode,
   getDeliverySignature,
 } from '../lib/utils';
-import { Download, Trash2, ChevronLeft, ChevronRight, Grid, FileText, Lock, Undo2, Redo2, Edit2, Check, X, Settings, Calendar, Trophy, Plus } from 'lucide-react';
+import { Download, Trash2, ChevronLeft, ChevronRight, Grid, FileText, Lock, Undo2, Redo2, Edit2, Check, X, Settings, Calendar, Trophy, Plus, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { AdminLogsViewer } from './AdminLogsViewer';
 import { EarningsTracker } from './EarningsTracker';
