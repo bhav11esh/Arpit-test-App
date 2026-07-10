@@ -84,7 +84,6 @@ function FraudAuditShowroomCard({
   const displayShowroomName = dealership ? dealership.name : showroomCode;
   const isCustomerPaid = dealership?.paymentType === 'CUSTOMER_PAID';
 
-  // Grab fraud screenshots (both photographer's dealership doc and admin's call log verification)
   const fraudScreenshots = screenshots.filter(s => 
     s.type.startsWith('FRAUD_DETECTION') && 
     !s.deleted_at && 
@@ -95,7 +94,6 @@ function FraudAuditShowroomCard({
   const mainFraudScreenshot = fraudScreenshots.find(s => s.type.startsWith('FRAUD_DETECTION') && !s.delivery_id) || deliveryFraudScreenshots[0];
   const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
-  // local state mapping
   const initialWitnessCount = callLogScreenshot && callLogScreenshot.type.startsWith('FRAUD_DETECTION:') ? callLogScreenshot.type.split(':')[1] || '' : '';
   const [witnessCount, setWitnessCount] = useState(initialWitnessCount);
   const [witnessPhone, setWitnessPhone] = useState('');
@@ -103,14 +101,15 @@ function FraudAuditShowroomCard({
   const [submittingFraud, setSubmittingFraud] = useState(false);
   const [previousWitnessPhones, setPreviousWitnessPhones] = useState<{ phone: string; date: string }[]>([]);
 
-  // Fraud verification is done once per photographer + dealership + date.
-  // Check if any of these deliveries have witness_phone or call log screenshot.
   const isCountMatch = !isCustomerPaid || (witnessCount !== '' && parseFloat(witnessCount) === showroomDeliveries.length);
   const verifiedDelivery = showroomDeliveries.find(d => 
     !!d.witness_phone && 
     screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('FRAUD_DETECTION') && !s.deleted_at) &&
     isCountMatch
   );
+
+  // COLLAPSIBLE STATE (Default to collapsed if already verified)
+  const [isExpanded, setIsExpanded] = useState(!verifiedDelivery);
 
   useEffect(() => {
     if (verifiedDelivery) {
@@ -154,482 +153,283 @@ function FraudAuditShowroomCard({
     fetchPreviousWitnessPhones();
   }, [showroomCode]);
 
+  const handleWitnessSubmit = async () => {
+    if (submittingFraud) return;
+    setSubmittingFraud(true);
+
+    try {
+      if (!isCustomerPaid) {
+        // Dealer Paid doesn't require screenshots
+        for (const d of showroomDeliveries) {
+          await supabase.from('deliveries').update({
+            witness_phone: 'DEALER_PAID_VERIFIED'
+          }).eq('id', d.id);
+        }
+
+        // Check if there is already a screenshot for dealer paid fraud
+        const existing = screenshots.find(s => s.type === `FRAUD_DETECTION:${showroomDeliveries.length}` && s.showroom_code === showroomCode);
+        if (!existing) {
+          await screenshotsDb.createScreenshot({
+            delivery_id: null,
+            user_id: user.id,
+            type: `FRAUD_DETECTION:${showroomDeliveries.length}`,
+            file_url: 'DEALER_PAID',
+            thumbnail_url: 'DEALER_PAID',
+            showroom_code: showroomCode,
+            deleted_at: null
+          }, supabase);
+        }
+
+        toast.success('Witness verification completed successfully');
+        loadData();
+        setSubmittingFraud(false);
+        return;
+      }
+
+      if (!witnessPhone || witnessPhone.trim().length < 10) {
+        toast.error('Please enter a valid 10-digit witness phone number');
+        setSubmittingFraud(false);
+        return;
+      }
+
+      if (parseFloat(witnessCount) !== showroomDeliveries.length) {
+        toast.error(`Witness count mismatch! You entered ${witnessCount} but completed deliveries are ${showroomDeliveries.length}`);
+        setSubmittingFraud(false);
+        return;
+      }
+
+      if (!callLogScreenshot && !callLogFile) {
+        toast.error('Please upload a screenshot of your verification call log');
+        setSubmittingFraud(false);
+        return;
+      }
+
+      let callLogUrl = callLogScreenshot ? callLogScreenshot.file_url : '';
+      if (callLogFile) {
+        const path = `call_logs/${Date.now()}_${callLogFile.name}`;
+        callLogUrl = await screenshotsDb.uploadScreenshotFile(callLogFile, path, supabase);
+      }
+
+      // Update all showroom deliveries
+      for (const d of showroomDeliveries) {
+        await supabase.from('deliveries').update({
+          witness_phone: witnessPhone.trim()
+        }).eq('id', d.id);
+      }
+
+      // Create or update call log screenshot
+      if (callLogScreenshot) {
+        await supabase.from('screenshots').update({
+          type: `FRAUD_DETECTION:${witnessCount}`,
+          file_url: callLogUrl,
+          thumbnail_url: callLogUrl
+        }).eq('id', callLogScreenshot.id);
+      } else {
+        await screenshotsDb.createScreenshot({
+          delivery_id: showroomDeliveries[0].id,
+          user_id: user.id,
+          type: `FRAUD_DETECTION:${witnessCount}`,
+          file_url: callLogUrl,
+          thumbnail_url: callLogUrl,
+          showroom_code: showroomCode,
+          deleted_at: null
+        }, supabase);
+      }
+
+      toast.success('Witness verification completed successfully');
+      loadData();
+      setIsExpanded(false); // Auto-collapse on save!
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to submit witness audit');
+    } finally {
+      setSubmittingFraud(false);
+    }
+  };
+
+  const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') || user?.role !== 'ADMIN';
+
   return (
-    <Card className="border-l-4 border-l-amber-500">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-bold flex items-center justify-between">
-          <span>{displayShowroomName}</span>
-          {verifiedDelivery ? (
-            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
-              Audited & Verified
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-amber-600 bg-amber-50 border-amber-200">
-              Pending
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Read-Only Info Comparison */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-3 rounded border text-xs">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Deliveries Completed:</span>
-            <span className="font-bold text-gray-900">{showroomDeliveries.length}</span>
+    <Card className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${verifiedDelivery ? 'border-l-green-600 bg-white' : 'border-l-amber-500 bg-amber-50/10'}`}>
+      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-t-xl select-none" onClick={() => setIsExpanded(!isExpanded)}>
+        <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-800">{displayShowroomName}</span>
+            <span className="text-[10px] text-slate-400 font-normal">({showroomCode})</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Morning Standup Confirmed Count:</span>
-            <span className="font-bold text-gray-900">
-              {currentStandupCall?.confirmed_count != null ? currentStandupCall.confirmed_count : 'Not logged'}
+          <div className="flex items-center gap-2.5">
+            {verifiedDelivery ? (
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold text-[10px]">
+                Audited & Verified
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-amber-600 bg-amber-50 border-amber-200 text-[10px]">
+                Pending Verification
+              </Badge>
+            )}
+            <span className="text-slate-400">
+              {isExpanded ? '▼' : '▶'}
             </span>
           </div>
-        </div>
+        </CardTitle>
+      </CardHeader>
 
-        {/* Images Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <span className="text-xs font-semibold text-gray-600 block">Photographer Dealership doc screenshot:</span>
-            {mainFraudScreenshot ? (
-              <div 
-                className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
-                onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
-              >
-                <img 
-                  src={mainFraudScreenshot.file_url} 
-                  alt="dealership doc" 
-                  className="max-h-full object-contain"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                    <Eye className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
-                No dealership document uploaded by photographer
-              </div>
-            )}
+      {isExpanded && (
+        <CardContent className="space-y-4 pt-0 px-4 pb-4 border-t border-slate-100/50 mt-2">
+          {/* Read-Only Info Comparison */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/80 p-3 rounded-lg border border-slate-100 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Deliveries Completed:</span>
+              <span className="font-bold text-slate-800">{showroomDeliveries.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Payment Type:</span>
+              <span className={`font-bold ${isCustomerPaid ? 'text-red-600' : 'text-blue-600'}`}>
+                {isCustomerPaid ? 'CUSTOMER PAID' : 'DEALER PAID'}
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <span className="text-xs font-semibold text-gray-600 block">Witness Call Log verification screenshot:</span>
-            {verifiedDelivery && callLogScreenshot ? (
-              <div 
-                className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center cursor-pointer"
-                onClick={() => setZoomImageUrl(callLogScreenshot.file_url)}
-              >
-                <img 
-                  src={callLogScreenshot.file_url} 
-                  alt="call log" 
-                  className="max-h-full object-contain text-xs"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                    <Eye className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-            ) : !verifiedDelivery ? (
-              <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
-                {callLogFile ? (
-                  <div className="p-4 text-center">
-                    <span className="text-green-600 font-semibold block">Image selected:</span>
-                    <span className="truncate max-w-[150px] block mt-1">{callLogFile.name}</span>
-                    <Button 
-                      variant="ghost" 
-                      className="mt-2 text-xs text-red-500 h-6 px-2 hover:bg-red-50"
-                      onClick={() => setCallLogFile(null)}
-                    >
-                      Remove
+          {/* Photographer's Uploaded Fraud Proof Document */}
+          {isCustomerPaid && (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Photographer Uploaded Document</label>
+              {mainFraudScreenshot ? (
+                <div 
+                  className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
+                  onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
+                >
+                  <img src={mainFraudScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="photographer proof" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                      <Eye className="h-5 w-5" />
                     </Button>
                   </div>
-                ) : (
-                  <label className={`flex flex-col items-center p-6 text-center hover:bg-gray-100/50 w-full h-full justify-center ${
-                    handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN' ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                  }`}>
-                    <Upload className="h-5 w-5 text-gray-400 mb-1" />
-                    <span>Upload Call Log Screenshot <span className="text-red-500">*</span></span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      disabled={handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN'}
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setCallLogFile(e.target.files[0]);
-                        }
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-            ) : (
-              <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
-                Screenshot not found
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Witness Phone Inputs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700 block">
-              Witness Phone Number <span className="text-red-500">*</span>
-            </label>
-            <Input
-              type="text"
-              maxLength={10}
-              placeholder="Enter 10-digit number"
-              value={witnessPhone}
-              onChange={(e) => setWitnessPhone(e.target.value.replace(/\D/g, ''))}
-              disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')}
-              className="h-9"
-            />
-            {previousWitnessPhones.length > 0 && (
-              <div className="mt-1.5 space-y-1">
-                <span className="text-[10px] uppercase font-bold text-gray-400 block">Previous Witness Numbers (Click to use):</span>
-                <div className="flex flex-wrap gap-1.5 mt-0.5">
-                  {previousWitnessPhones.map((pw, idx) => (
-                    <Badge 
-                      key={idx} 
-                      variant="secondary" 
-                      className="text-[10px] cursor-pointer hover:bg-gray-200 transition-colors font-medium"
-                      onClick={() => {
-                        if (!verifiedDelivery && !(handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')) {
-                          setWitnessPhone(pw.phone);
-                        }
-                      }}
-                    >
-                      {pw.phone} ({pw.date})
-                    </Badge>
-                  ))}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {isCustomerPaid && (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-700 block">
-                Delivery Count Reported by Witness <span className="text-red-500">*</span>
-              </label>
-              <Input
-                type="number"
-                placeholder="Enter reported count"
-                value={witnessCount}
-                onChange={async (e) => {
-                  const val = e.target.value;
-                  setWitnessCount(val);
-                  
-                  // Auto-save to Supabase if screenshot already exists!
-                  if (callLogScreenshot) {
-                    try {
-                      const typeString = `FRAUD_DETECTION:${val}`;
-                      await supabase
-                        .from('screenshots')
-                        .update({ type: typeString })
-                        .eq('id', callLogScreenshot.id);
-                      
-                      // Update screenshots state locally
-                      setScreenshots(prev => 
-                        prev.map(s => s.id === callLogScreenshot.id ? { ...s, type: typeString } : s)
-                      );
-                      toast.success('Witness count updated!');
-                    } catch (err) {
-                      console.error('Failed to update witness count:', err);
-                      toast.error('Failed to update witness count');
-                    }
-                  }
-                }}
-                disabled={!!verifiedDelivery || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && user.role === 'ADMIN')}
-                className={`h-9 ${!witnessCount ? 'border-red-300 bg-red-50' : ''}`}
-              />
+              ) : (
+                <div className="h-40 border border-dashed rounded-xl bg-slate-50 flex items-center justify-center text-xs text-slate-400 font-medium">
+                  No doc uploaded by photographer
+                </div>
+              )}
             </div>
           )}
 
-          {!verifiedDelivery && (
-            <Button
-              onClick={async () => {
-                if (submittingFraud) return;
-                if (witnessPhone.length < 10) {
-                  toast.error('Witness Phone Number must be 10 digits');
-                  return;
-                }
-                if (isCustomerPaid && (!witnessCount || parseFloat(witnessCount) < 0)) {
-                  toast.error('Witness count count is mandatory for customer paid showrooms');
-                  return;
-                }
-                if (!callLogFile) {
-                  toast.error('Please upload witness call log verification screenshot');
-                  return;
-                }
-                
-                setSubmittingFraud(true);
-                try {
-                  const client = supabase;
-                  // 1. Update witness_phone for all deliveries at this dealership
-                  const updatePromises = showroomDeliveries.map(async d => {
-                    const updated = await deliveriesDb.updateDelivery(d.id, {
-                      witness_phone: witnessPhone
-                    }, client);
-                    // Sync with Google Sheets
-                    await handleTriggerSheetSync(updated, 'sync', null);
-                    return updated;
-                  });
-                  const updatedDels = await Promise.all(updatePromises);
-                  
-                  // 2. Check and Upload call log screenshot
-                  const check = await checkDuplicateAndGetPath(callLogFile, 'call_logs', updatedDels[0].id, client);
-                  if (check.isDuplicate) {
-                    toast.error('Duplicate call log screenshot detected! This screenshot has already been used.');
-                    setSubmittingFraud(false);
-                    return;
-                  }
-                  const url = await screenshotsDb.uploadScreenshotFile(callLogFile, check.path, client);
-                  const typeString = isCustomerPaid ? `FRAUD_DETECTION:${witnessCount}` : 'FRAUD_DETECTION';
-                  await screenshotsDb.createScreenshot({
-                    delivery_id: updatedDels[0].id,
-                    user_id: selectedPhotographer,
-                    type: typeString,
-                    file_url: url,
-                    thumbnail_url: url,
-                    deleted_at: null
-                  }, client);
+          {/* Admin Verification Input Controls */}
+          {isCustomerPaid ? (
+            <div className="space-y-4 border-t border-slate-100 pt-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Witness Completed Count *</label>
+                  <Input
+                    type="number"
+                    value={witnessCount}
+                    placeholder={`Completed: ${showroomDeliveries.length}`}
+                    onChange={(e) => setWitnessCount(e.target.value)}
+                    disabled={isLocked || !!verifiedDelivery}
+                    className={`h-9 text-xs ${witnessCount !== '' && parseFloat(witnessCount) !== showroomDeliveries.length ? 'border-red-300 bg-red-50 text-red-800 font-bold' : ''}`}
+                  />
+                  {witnessCount !== '' && parseFloat(witnessCount) !== showroomDeliveries.length && (
+                    <span className="text-[9px] text-red-500 font-bold block mt-1 animate-pulse">
+                      ⚠️ Mismatch with completed count ({showroomDeliveries.length})!
+                    </span>
+                  )}
+                </div>
 
-                  toast.success(`Fraud audits verified for ${displayShowroomName}`);
-                  loadData();
-                } catch (err) {
-                  console.error('Failed to submit fraud verification:', err);
-                  toast.error('Failed to submit fraud verification');
-                } finally {
-                  setSubmittingFraud(false);
-                }
-              }}
-              disabled={submittingFraud || witnessPhone.length < 10 || !callLogFile || (isCustomerPaid && !witnessCount)}
-              className="h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
-            >
-              {submittingFraud ? 'Verifying...' : 'Submit Fraud Audit'}
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface CallLogsViewerProps {
-  spreadSheetDate: string;
-  setSpreadSheetDate: (d: string) => void;
-  selectedPhotographer: string;
-  setSelectedPhotographer: (p: string) => void;
-  photographers: any[];
-  deliveries: any[];
-  screenshots: any[];
-  dealerships: any[];
-  allStandupCalls: any[];
-  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
-  setGalleryViewMode: React.Dispatch<React.SetStateAction<'single' | 'grid'>>;
-}
-
-function CallLogsViewer({
-  spreadSheetDate,
-  setSpreadSheetDate,
-  selectedPhotographer,
-  setSelectedPhotographer,
-  photographers,
-  deliveries,
-  screenshots,
-  dealerships,
-  allStandupCalls,
-  setCurrentImageIndex,
-  setGalleryViewMode
-}: CallLogsViewerProps) {
-  // 1. Gather Morning Standup Call Logs
-  const standupLogs = allStandupCalls
-    .filter(c => c.call_log_screenshot_url && (selectedPhotographer === 'all' || c.photographer_id === selectedPhotographer))
-    .map(c => {
-      const photographer = photographers.find(p => p.id === c.photographer_id);
-      return {
-        id: `standup_${c.id}`,
-        fileUrl: c.call_log_screenshot_url,
-        photographerName: photographer ? photographer.name : 'Unknown Photographer',
-        taskType: 'Morning Standup',
-        showroom: null,
-        date: c.date
-      };
-    });
-
-  // 2. Gather Witness Call Logs
-  const fraudLogs = screenshots
-    .filter(s => s.type.startsWith('FRAUD_DETECTION') && s.delivery_id && !s.deleted_at)
-    .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
-    .map(s => {
-      const del = deliveries.find(d => d.id === s.delivery_id);
-      if (!del || del.date !== spreadSheetDate) return null;
-      
-      const photographer = photographers.find(p => p.id === s.user_id);
-      const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(del.showroom_code));
-      const displayShowroomName = dealership ? dealership.name : del.showroom_code;
-
-      const witnessCount = s.type.split(':')[1] || '';
-
-      return {
-        id: `witness_${s.id}`,
-        fileUrl: s.file_url,
-        photographerName: photographer ? photographer.name : 'Unknown Photographer',
-        taskType: `Witness Call Log${witnessCount ? ` (Count: ${witnessCount})` : ''}`,
-        showroom: displayShowroomName,
-        date: del.date
-      };
-    })
-    .filter((log): log is NonNullable<typeof log> => log !== null);
-
-  // 3. Gather Customer Call Logs
-  const customerCallLogs = screenshots
-    .filter(s => s.type.startsWith('CUSTOMER_CALL_LOG') && s.delivery_id && !s.deleted_at)
-    .filter(s => selectedPhotographer === 'all' || s.user_id === selectedPhotographer)
-    .map(s => {
-      const del = deliveries.find(d => d.id === s.delivery_id);
-      if (!del || del.date !== spreadSheetDate) return null;
-      
-      const photographer = photographers.find(p => p.id === s.user_id);
-      const dealership = dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(del.showroom_code));
-      const displayShowroomName = dealership ? dealership.name : del.showroom_code;
-
-      const confirmedAmt = s.type.split(':')[1] || '';
-
-      return {
-        id: `cust_${s.id}`,
-        fileUrl: s.file_url,
-        photographerName: photographer ? photographer.name : 'Unknown Photographer',
-        taskType: `Customer Paid Call Log${confirmedAmt ? ` (Confirmed: ₹${confirmedAmt})` : ''}`,
-        showroom: displayShowroomName,
-        date: del.date
-      };
-    })
-    .filter((log): log is NonNullable<typeof log> => log !== null);
-
-  const combinedLogs = [...standupLogs, ...fraudLogs, ...customerCallLogs];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Call Logs</h2>
-          <p className="text-sm text-gray-500">View uploaded call log verification screenshots for Morning Standups and Dealership Fraud Audits</p>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-end">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700 block">Select Audit Date</label>
-            <Input
-              type="date"
-              value={spreadSheetDate}
-              onChange={(e) => setSpreadSheetDate(e.target.value)}
-              className="h-9 w-full sm:w-48"
-            />
-          </div>
-
-          <div className="space-y-1 flex-1">
-            <label className="text-xs font-bold text-gray-700 block">Filter by Photographer</label>
-            <Select value={selectedPhotographer} onValueChange={setSelectedPhotographer}>
-              <SelectTrigger className="h-9 w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Photographers</SelectItem>
-                {photographers.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {combinedLogs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-gray-500 italic text-xs">
-            No call log screenshots found for {spreadSheetDate} with the selected filters.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {combinedLogs.map((log) => (
-            <Card key={log.id} className="overflow-hidden border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="relative aspect-[3/4] bg-gray-100 flex items-center justify-center border-b group overflow-hidden">
-                <img 
-                  src={log.fileUrl} 
-                  alt={log.taskType} 
-                  className="max-h-full max-w-full object-contain cursor-pointer"
-                  onClick={() => {
-                    window.open(log.fileUrl, '_blank');
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                    <Eye className="h-5 w-5" />
-                  </Button>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Witness Phone Number *</label>
+                  <Input
+                    type="text"
+                    value={witnessPhone}
+                    placeholder="Enter 10-digit number"
+                    onChange={(e) => setWitnessPhone(e.target.value)}
+                    disabled={isLocked || !!verifiedDelivery}
+                    className="h-9 text-xs font-mono font-bold text-slate-800"
+                  />
                 </div>
               </div>
-              <CardContent className="p-3 space-y-1 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-900">{log.photographerName}</span>
-                  <span className="text-gray-400 font-medium">{log.date}</span>
+
+              {/* Quick pre-fill from previous witness phones */}
+              {previousWitnessPhones.length > 0 && !verifiedDelivery && !isLocked && (
+                <div className="p-2.5 bg-blue-50/50 border border-blue-100/50 rounded-xl space-y-1.5 text-xs">
+                  <span className="text-[10px] font-bold text-blue-800 uppercase block">Quick Witness Contacts (Click to use)</span>
+                  <div className="flex flex-wrap gap-2">
+                    {previousWitnessPhones.map((p, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setWitnessPhone(p.phone)}
+                        className="px-2.5 py-1 bg-white hover:bg-blue-100 text-blue-700 font-mono font-semibold rounded-lg border border-blue-200 transition-colors text-[10px]"
+                      >
+                        {p.phone}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {log.showroom && (
-                  <div className="text-gray-600 font-semibold truncate">
-                    Showroom: {log.showroom}
+              )}
+
+              {/* Call Log Screenshot Upload Dropzone */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Verification Call Log Screenshot *</label>
+                {callLogScreenshot && !callLogFile ? (
+                  <div 
+                    className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
+                    onClick={() => setZoomImageUrl(callLogScreenshot.file_url)}
+                  >
+                    <img src={callLogScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="call log screenshot" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                      <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                        <Eye className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setCallLogFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id={`fraud-call-log-upload-${showroomCode}`}
+                      disabled={isLocked || !!verifiedDelivery}
+                    />
+                    <label
+                      htmlFor={`fraud-call-log-upload-${showroomCode}`}
+                      className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                        !callLogFile 
+                          ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                          : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                      }`}
+                    >
+                      {callLogFile ? '✓ Verification Screenshot Selected' : 'Upload Call Log Screenshot'}
+                    </label>
                   </div>
                 )}
-                <div className="pt-2 border-t mt-2 flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold">Audit Task Type:</span>
-                  <Badge className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                    log.taskType === 'Morning Standup' 
-                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200' 
-                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200'
-                  }`}>
-                    {log.taskType}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                {callLogFile && (
+                  <div className="text-[10px] text-green-700 font-bold mt-1 bg-green-100/50 px-2.5 py-1 rounded-lg">
+                    📄 {callLogFile.name}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs font-medium text-blue-800 text-center">
+              ℹ Dealer Paid showroom. No witness phone number or call log screenshots are required.
+            </div>
+          )}
+
+          {/* Submit Action Button */}
+          {!verifiedDelivery && !isLocked && (
+            <Button
+              onClick={handleWitnessSubmit}
+              disabled={submittingFraud}
+              className="w-full h-10 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs mt-3 shadow-md"
+            >
+              {submittingFraud ? 'Verifying...' : 'Save Witness Verification'}
+            </Button>
+          )}
+        </CardContent>
       )}
-    </div>
+    </Card>
   );
-}
-
-async function checkDuplicateAndGetPath(file: File, prefix: string, deliveryIdOrKey: string, client = supabase): Promise<{ path: string; isDuplicate: boolean }> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    const { data, error } = await client
-      .from('screenshots')
-      .select('id')
-      .ilike('file_url', `%${fileHash}%`)
-      .limit(1);
-
-    if (data && data.length > 0) {
-      return { path: '', isDuplicate: true };
-    }
-
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    const path = `${prefix}/${deliveryIdOrKey}_${fileHash}.${fileExt}`;
-    return { path, isDuplicate: false };
-  } catch (err) {
-    console.error('Error checking duplicate:', err);
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    return { path: `${prefix}/${deliveryIdOrKey}_${Date.now()}.${fileExt}`, isDuplicate: false };
-  }
 }
 
 export function ViewScreen() {
