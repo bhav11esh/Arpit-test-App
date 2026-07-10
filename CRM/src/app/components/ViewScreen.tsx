@@ -3680,24 +3680,23 @@ export function ViewScreen() {
                               const showPlatformPaymentFields = payoutModel === 'PERCENTAGE_15_DAILY';
                               const isCustomerPaid = selectedShowroom.paymentType === 'CUSTOMER_PAID';
                               
-                              const receivedAmount = parseFloat(newRowData.received_amount || '0') || (isCustomerPaid ? 0 : (selectedShowroom.dealership_rate || 0));
+                              const receivedAmount = parseFloat(newRowData.received_amount || '0') || (isCustomerPaid ? 0 : (selectedShowroom.ratePerDelivery || 0));
                               const rapido = parseFloat(newRowData.rapido_charge || '0') || 0;
                               
                               let payout = 0;
                               let platformCommission = 0;
                               const expectedPlatformAmount = Math.max(0, Math.round((receivedAmount - rapido) * 0.15));
                               
-                              if (isCustomerPaid) {
-                                if (showPlatformPaymentFields) {
-                                  platformCommission = Math.max(0, Math.round((receivedAmount - rapido) * 0.15));
-                                  payout = receivedAmount - platformCommission;
-                                } else {
-                                  const share = photographerObj?.percentage_share || 85;
-                                  payout = Math.max(0, Math.round((receivedAmount - rapido) * (share / 100)));
-                                  platformCommission = receivedAmount - payout;
-                                }
+                              if (payoutModel === 'FIXED') {
+                                payout = 0;
+                                platformCommission = receivedAmount;
+                              } else if (showPlatformPaymentFields) {
+                                platformCommission = Math.max(0, Math.round((receivedAmount - rapido) * 0.15));
+                                payout = receivedAmount - platformCommission;
                               } else {
-                                payout = photographerObj?.fixed_payout_rate || 1200;
+                                const share = photographerObj?.percentage_share || 85;
+                                payout = Math.max(0, Math.round((receivedAmount - rapido) * (share / 100)));
+                                platformCommission = receivedAmount - payout;
                               }
 
                               return (
