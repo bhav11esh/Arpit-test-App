@@ -3540,6 +3540,7 @@ export function ViewScreen() {
                               
                               let payout = 0;
                               let platformCommission = 0;
+                              const expectedPlatformAmount = Math.max(0, Math.round((receivedAmount - rapido) * 0.15));
                               
                               if (isCustomerPaid) {
                                 if (showPlatformPaymentFields) {
