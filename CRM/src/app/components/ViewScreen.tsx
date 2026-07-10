@@ -5175,6 +5175,7 @@ export function ViewScreen() {
 
                         const isCollapsed = collapsedTask3Cards[d.id] ?? isDeliveryAudited;
                         const expectedPlatformAmount = Math.max(0, Math.round((Number(d.received_amount || 0) - Number(d.rapido_charge || 0)) * 0.15));
+                        const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') || user?.role !== 'ADMIN';
 
                         return (
                           <Card key={d.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isDeliveryAudited ? 'border-l-green-600 bg-white' : 'border-l-green-400 bg-green-50/5'}`}>
