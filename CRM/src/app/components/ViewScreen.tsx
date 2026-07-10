@@ -2349,7 +2349,7 @@ export function ViewScreen() {
   // Add new row handlers
   const handleStartAddRow = () => {
     setNewRowData({
-      date: getOperationalDateString(),
+      date: spreadSheetDate || getOperationalDateString(),
       showroom_id: '',
       delivery_name: '',
       footage_link: '',
@@ -3525,488 +3525,561 @@ export function ViewScreen() {
 
                       {/* Add New Row Dialog */}
                       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                        <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                          <DialogHeader className="px-6 py-4 border-b">
-                            <DialogTitle>Add New Delivery Record</DialogTitle>
+                        <DialogContent className="sm:max-w-[580px] max-h-[92vh] flex flex-col p-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-2xl">
+                          <DialogHeader className="px-6 py-4 bg-white border-b border-slate-100 flex flex-row items-center justify-between">
+                            <div>
+                              <DialogTitle className="text-lg font-bold text-slate-800">Add New Delivery Record</DialogTitle>
+                              <p className="text-[10px] text-slate-400 mt-0.5">Fill in delivery details, links, and financial verification</p>
+                            </div>
                           </DialogHeader>
-                          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold uppercase text-gray-500">Date</label>
-                                <Input
-                                  type="date"
-                                  value={newRowData.date}
-                                  onChange={(e) => setNewRowData({ ...newRowData, date: e.target.value })}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold uppercase text-gray-500">Showroom</label>
-                                <SearchableSelect
-                                  options={dealerships.map(d => ({ 
-                                    label: getShowroomDisplayName(d.id), 
-                                    value: d.id 
-                                  }))}
-                                  value={newRowData.showroom_id}
-                                  onValueChange={(value) => setNewRowData({ ...newRowData, showroom_id: value })}
-                                  placeholder="Select showroom"
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold uppercase text-gray-500">Photographer</label>
-                              <Select
-                                value={newRowData.assigned_user_id}
-                                onValueChange={(value) => setNewRowData({ ...newRowData, assigned_user_id: value })}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select photographer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {cityIsolatedPhotographers.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      {p.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {(() => {
-                              const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
-                              if (!photographerObj || (!photographerObj.phone_number && !photographerObj.secondary_phone_number)) return null;
-                              return (
-                                <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-md flex justify-between items-center text-xs">
-                                  <span className="text-gray-600 font-semibold">Photographer Contact:</span>
-                                  <div className="flex gap-3 text-right">
-                                    {photographerObj.phone_number && (
-                                      <span>Primary: <span className="font-mono font-bold text-gray-900">{photographerObj.phone_number}</span></span>
-                                    )}
-                                    {photographerObj.secondary_phone_number && (
-                                      <span>Secondary: <span className="font-mono font-bold text-blue-800">{photographerObj.secondary_phone_number}</span></span>
-                                    )}
-                                  </div>
+                          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                            
+                            {/* SECTION 1: ASSIGNMENT & BASIC INFO */}
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/50 space-y-4 shadow-sm">
+                              <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                <span className="p-1 bg-blue-50 text-blue-600 rounded-md text-[10px]">01</span>
+                                Assignment Info
+                              </h3>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase text-slate-400">Date</label>
+                                  <Input
+                                    type="date"
+                                    value={newRowData.date}
+                                    onChange={(e) => setNewRowData({ ...newRowData, date: e.target.value })}
+                                    className="h-9 text-xs"
+                                  />
                                 </div>
-                              );
-                            })()}
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold uppercase text-gray-500">Reference ID (Internal)</label>
-                              <Input
-                                value={newRowData.delivery_name}
-                                onChange={(e) => setNewRowData({ ...newRowData, delivery_name: e.target.value })}
-                                placeholder="Leave blank to auto-generate"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold uppercase text-gray-500">Footage Link</label>
-                              <Input
-                                value={newRowData.footage_link}
-                                onChange={(e) => setNewRowData({ ...newRowData, footage_link: e.target.value })}
-                                placeholder="https://drive.google.com/..."
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold uppercase text-gray-500">Reel Link</label>
-                              <Input
-                                value={newRowData.reel_link}
-                                onChange={(e) => setNewRowData({ ...newRowData, reel_link: e.target.value })}
-                                placeholder="https://instagram.com/reel/..."
-                              />
-                            </div>
-
-                            {/* CONDITIONAL PAYMENT & PLATFORM PAYMENT FIELDS */}
-                            {(() => {
-                              const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
-                              if (!selectedShowroom) return null;
-
-                              const selectedPhotographer = allUsers.find(p => p.id === newRowData.assigned_user_id);
-                              const payoutModel = selectedPhotographer ? getPhotographerRawPayoutModel(selectedPhotographer.id, newRowData.date) : 'PERCENTAGE';
-                              
-                              if (selectedShowroom.paymentType === 'DEALER_PAID') {
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase text-slate-400">Showroom</label>
+                                  <SearchableSelect
+                                    options={dealerships.map(d => ({ 
+                                      label: getShowroomDisplayName(d.id), 
+                                      value: d.id 
+                                    }))}
+                                    value={newRowData.showroom_id}
+                                    onValueChange={(value) => setNewRowData({ ...newRowData, showroom_id: value })}
+                                    placeholder="Select showroom"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase text-slate-400">Photographer</label>
+                                <Select
+                                  value={newRowData.assigned_user_id}
+                                  onValueChange={(value) => setNewRowData({ ...newRowData, assigned_user_id: value })}
+                                >
+                                  <SelectTrigger className="w-full h-9 text-xs">
+                                    <SelectValue placeholder="Select photographer" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {cityIsolatedPhotographers.map(p => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        {p.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {(() => {
+                                const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
+                                if (!photographerObj || (!photographerObj.phone_number && !photographerObj.secondary_phone_number)) return null;
                                 return (
-                                  <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                                    <div className="space-y-2">
-                                      <label className="text-xs font-semibold uppercase text-blue-500">Payment Amount (Optional)</label>
-                                      <Input
-                                        type="number"
-                                        value={newRowData.received_amount}
-                                        onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
-                                        placeholder="Defaults to dealership rate"
-                                      />
+                                  <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg flex justify-between items-center text-xs font-medium">
+                                    <span className="text-slate-500">Contact Details:</span>
+                                    <div className="flex gap-3 text-right">
+                                      {photographerObj.phone_number && (
+                                        <span>Primary: <span className="font-mono font-bold text-slate-800">{photographerObj.phone_number}</span></span>
+                                      )}
+                                      {photographerObj.secondary_phone_number && (
+                                        <span>Secondary: <span className="font-mono font-bold text-blue-700">{photographerObj.secondary_phone_number}</span></span>
+                                      )}
                                     </div>
                                   </div>
                                 );
+                              })()}
+                            </div>
+
+                            {/* SECTION 2: DELIVERABLES & MEDIA LINKS */}
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/50 space-y-4 shadow-sm">
+                              <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                <span className="p-1 bg-purple-50 text-purple-600 rounded-md text-[10px]">02</span>
+                                Media Links
+                              </h3>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase text-slate-400">Reference ID (Internal)</label>
+                                <Input
+                                  value={newRowData.delivery_name}
+                                  onChange={(e) => setNewRowData({ ...newRowData, delivery_name: e.target.value })}
+                                  placeholder="Leave blank to auto-generate"
+                                  className="h-9 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase text-slate-400">Footage Link</label>
+                                <Input
+                                  value={newRowData.footage_link}
+                                  onChange={(e) => setNewRowData({ ...newRowData, footage_link: e.target.value })}
+                                  placeholder="https://drive.google.com/..."
+                                  className="h-9 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase text-slate-400">Reel Link</label>
+                                <Input
+                                  value={newRowData.reel_link}
+                                  onChange={(e) => setNewRowData({ ...newRowData, reel_link: e.target.value })}
+                                  placeholder="https://instagram.com/reel/..."
+                                  className="h-9 text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            {/* SECTION 3: FINANCIALS & SCREENSHOTS */}
+                            {(() => {
+                              const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
+                              if (!selectedShowroom || !newRowData.assigned_user_id) return null;
+                              
+                              const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
+                              const payoutModel = photographerObj ? getPhotographerRawPayoutModel(photographerObj.id, newRowData.date) : 'PERCENTAGE';
+                              const showPlatformPaymentFields = payoutModel === 'PERCENTAGE_15_DAILY';
+                              const isCustomerPaid = selectedShowroom.paymentType === 'CUSTOMER_PAID';
+                              
+                              const receivedAmount = parseFloat(newRowData.received_amount || '0') || (isCustomerPaid ? 0 : (selectedShowroom.dealership_rate || 0));
+                              const rapido = parseFloat(newRowData.rapido_charge || '0') || 0;
+                              
+                              let payout = 0;
+                              let platformCommission = 0;
+                              
+                              if (isCustomerPaid) {
+                                if (showPlatformPaymentFields) {
+                                  platformCommission = Math.max(0, Math.round((receivedAmount - rapido) * 0.15));
+                                  payout = receivedAmount - platformCommission;
+                                } else {
+                                  const share = photographerObj?.percentage_share || 85;
+                                  payout = Math.max(0, Math.round((receivedAmount - rapido) * (share / 100)));
+                                  platformCommission = receivedAmount - payout;
+                                }
+                              } else {
+                                payout = photographerObj?.fixed_payout_rate || 1200;
                               }
 
-                              const showPlatformPaymentFields = payoutModel === 'PERCENTAGE_15_DAILY';
-                              const expectedPlatformAmount = Math.max(0, Math.round((Number(newRowData.received_amount || 0) - Number(newRowData.rapido_charge || 0)) * 0.15));
-
                               return (
-                                <div className="space-y-4 border-t pt-4">
-                                  {/* CUSTOMER PAYMENT SECTION */}
-                                  <div className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-red-600">Customer Payment Proof</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <label className="text-xs font-semibold uppercase text-red-500">Payment Amount <span className="text-red-500">*</span></label>
+                                <div className="space-y-5">
+                                  {/* Live Payout Preview Banner */}
+                                  <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20 rounded-xl space-y-2 shadow-sm text-xs font-semibold">
+                                    <div className="flex justify-between items-center border-b border-emerald-500/10 pb-2">
+                                      <span className="text-emerald-800 flex items-center gap-1">
+                                        💰 Live Audit Preview
+                                      </span>
+                                      <Badge className={isCustomerPaid ? "bg-red-100 text-red-800 border-red-200" : "bg-blue-100 text-blue-800 border-blue-200"}>
+                                        {isCustomerPaid ? "Customer Paid" : "Dealer Paid"}
+                                      </Badge>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-emerald-900 pt-1.5 font-medium">
+                                      <div className="flex justify-between">
+                                        <span>Received Amount:</span>
+                                        <span className="font-bold">₹{receivedAmount}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Photographer Payout:</span>
+                                        <span className="font-bold text-emerald-700">₹{payout}</span>
+                                      </div>
+                                      {isCustomerPaid && (
+                                        <div className="flex justify-between col-span-2">
+                                          <span>Platform Share ({showPlatformPaymentFields ? "15% Cut" : "Standard Share"}):</span>
+                                          <span className="font-bold text-teal-700">₹{platformCommission}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-white p-4 rounded-xl border border-slate-200/50 space-y-4 shadow-sm">
+                                    <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                      <span className="p-1 bg-emerald-50 text-emerald-600 rounded-md text-[10px]">03</span>
+                                      Financials & Audit
+                                    </h3>
+                                    
+                                    {/* Dealer Paid Payout Rate */}
+                                    {!isCustomerPaid && (
+                                      <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold uppercase text-slate-400">Received Amount (Optional)</label>
                                         <Input
                                           type="number"
                                           value={newRowData.received_amount}
                                           onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
-                                          placeholder="Enter amount"
-                                          className={!newRowData.received_amount ? 'border-red-300 bg-red-50' : ''}
+                                          placeholder="Defaults to dealership rate"
+                                          className="h-9 text-xs"
                                         />
                                       </div>
-                                      <div className="space-y-2">
-                                        <label className="text-xs font-semibold uppercase text-red-500">Customer Phone <span className="text-red-500">*</span></label>
-                                        <Input
-                                          value={newRowData.customer_phone}
-                                          onChange={(e) => setNewRowData({ ...newRowData, customer_phone: e.target.value })}
-                                          placeholder="Enter phone number"
-                                          className={!newRowData.customer_phone ? 'border-red-300 bg-red-50' : ''}
-                                        />
-                                        {(() => {
-                                          const phone = newRowData.customer_phone?.trim();
-                                          if (!phone || phone.length < 10) return null;
-                                          const duplicate = deliveries.find(d => 
-                                            d.customer_phone === phone && 
-                                            (d.assigned_user_id !== newRowData.assigned_user_id || d.date !== newRowData.date)
-                                          );
-                                          if (!duplicate) return null;
-                                          
-                                          const otherPhotographer = allUsers.find(p => p.id === duplicate.assigned_user_id)?.name || 'another photographer';
-                                          return (
-                                            <span className="text-[10px] text-red-500 font-bold block mt-1 animate-pulse">
-                                              ⚠️ Suspicious: Used on {duplicate.date} by {otherPhotographer}!
-                                            </span>
-                                          );
-                                        })()}
-                                      </div>
-                                    </div>
+                                    )}
 
-                                    <div className="space-y-2">
-                                      <label className="text-xs font-semibold uppercase text-red-500">Payment Screenshot <span className="text-red-500">*</span></label>
-                                      <div className="flex gap-2 items-center">
-                                        <Input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot: e.target.files?.[0] || null })}
-                                          className="hidden"
-                                          id="payment-upload"
-                                        />
-                                        <label
-                                          htmlFor="payment-upload"
-                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                            !newRowData.payment_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                          }`}
-                                        >
-                                          <Upload className="h-4 w-4 text-red-400" />
-                                          <span className="text-sm font-medium">
-                                            {newRowData.payment_screenshot ? newRowData.payment_screenshot.name : 'Upload Payment Proof'}
-                                          </span>
-                                        </label>
-                                      </div>
-                                    </div>
-
-                                    {/* Screenshot metadata */}
-                                    <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="date"
-                                          value={newRowData.payment_screenshot_date}
-                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_date: e.target.value })}
-                                          className="h-8 text-xs"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="time"
-                                          value={newRowData.payment_screenshot_time}
-                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_time: e.target.value })}
-                                          className="h-8 text-xs"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="number"
-                                          value={newRowData.payment_screenshot_amount}
-                                          onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_amount: e.target.value })}
-                                          className="h-8 text-xs"
-                                          placeholder="On photo"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* PLATFORM PAYMENT SECTION (15% Payout Model Only) */}
-                                  {showPlatformPaymentFields && (
-                                    <div className="space-y-3 border-t pt-3">
-                                      <div className="flex justify-between items-center">
-                                        <h4 className="text-xs font-bold uppercase text-green-700">Platform Payment (Yourphotocrew Cut)</h4>
-                                        <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                                          Expected Cut: ₹{expectedPlatformAmount} (15%)
-                                        </span>
-                                      </div>
-
-                                      <div className="space-y-2">
-                                        <label className="text-xs font-semibold uppercase text-green-600">Platform Payment Amount <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="number"
-                                          value={newRowData.platform_payment_amount}
-                                          onChange={(e) => setNewRowData({ ...newRowData, platform_payment_amount: e.target.value })}
-                                          placeholder={`Expected: ₹${expectedPlatformAmount}`}
-                                          className={!newRowData.platform_payment_amount || parseInt(newRowData.platform_payment_amount) !== expectedPlatformAmount ? 'border-red-300 bg-red-50 text-red-700 font-medium' : 'border-green-300 bg-green-50 text-green-700'}
-                                        />
-                                      </div>
-
-                                      <div className="space-y-2">
-                                        <label className="text-xs font-semibold uppercase text-green-600">Platform Payment Screenshot <span className="text-red-500">*</span></label>
-                                        <div className="flex gap-2 items-center">
-                                          <Input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot: e.target.files?.[0] || null })}
-                                            className="hidden"
-                                            id="platform-payment-upload"
-                                          />
-                                          <label
-                                            htmlFor="platform-payment-upload"
-                                            className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                              !newRowData.platform_payment_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                            }`}
-                                          >
-                                            <Upload className="h-4 w-4 text-green-500" />
-                                            <span className="text-sm font-medium">
-                                              {newRowData.platform_payment_screenshot ? newRowData.platform_payment_screenshot.name : 'Upload Platform Proof'}
-                                            </span>
-                                          </label>
+                                    {/* Customer Paid Fields */}
+                                    {isCustomerPaid && (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold uppercase text-red-500">Received Amount *</label>
+                                            <Input
+                                              type="number"
+                                              value={newRowData.received_amount}
+                                              onChange={(e) => setNewRowData({ ...newRowData, received_amount: e.target.value })}
+                                              placeholder="Enter amount"
+                                              className="h-9 text-xs"
+                                            />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold uppercase text-red-500">Customer Phone *</label>
+                                            <Input
+                                              value={newRowData.customer_phone}
+                                              onChange={(e) => setNewRowData({ ...newRowData, customer_phone: e.target.value })}
+                                              placeholder="Enter phone"
+                                              className="h-9 text-xs"
+                                            />
+                                            {(() => {
+                                              const phone = newRowData.customer_phone?.trim();
+                                              if (!phone || phone.length < 10) return null;
+                                              const duplicate = deliveries.find(d => 
+                                                d.customer_phone === phone && 
+                                                (d.assigned_user_id !== newRowData.assigned_user_id || d.date !== newRowData.date)
+                                              );
+                                              if (!duplicate) return null;
+                                              const otherPhotographer = allUsers.find(p => p.id === duplicate.assigned_user_id)?.name || 'another photographer';
+                                              return (
+                                                <span className="text-[9px] text-red-600 font-bold block mt-1 animate-pulse">
+                                                  ⚠️ Suspicious: Used on {duplicate.date.split('-').reverse().join('/')} by {otherPhotographer}!
+                                                </span>
+                                              );
+                                            })()}
+                                          </div>
                                         </div>
-                                      </div>
 
-                                      {/* Platform Screenshot metadata */}
-                                      <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
-                                        <div className="space-y-1">
-                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
-                                          <Input
-                                            type="date"
-                                            value={newRowData.platform_payment_screenshot_date}
-                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_date: e.target.value })}
-                                            className="h-8 text-xs"
-                                          />
+                                        {/* Payment Screenshot File */}
+                                        <div className="space-y-1.5">
+                                          <label className="text-[10px] font-bold uppercase text-red-500">Payment Screenshot *</label>
+                                          <div className="flex gap-2 items-center">
+                                            <Input
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot: e.target.files?.[0] || null })}
+                                              className="hidden"
+                                              id="payment-upload"
+                                            />
+                                            <label
+                                              htmlFor="payment-upload"
+                                              className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2.5 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                !newRowData.payment_screenshot 
+                                                  ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                  : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                              }`}
+                                            >
+                                              {newRowData.payment_screenshot ? '✓ Payment Proof Selected' : 'Upload Payment Screenshot'}
+                                            </label>
+                                          </div>
+                                          {newRowData.payment_screenshot && (
+                                            <div className="text-[10px] text-green-700 font-bold mt-1 bg-green-100/50 px-2 py-1 rounded">
+                                              📄 {newRowData.payment_screenshot.name}
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="space-y-1">
-                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
-                                          <Input
-                                            type="time"
-                                            value={newRowData.platform_payment_screenshot_time}
-                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_time: e.target.value })}
-                                            className="h-8 text-xs"
-                                          />
+
+                                        {/* Customer Payment Details */}
+                                        <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Date</label>
+                                            <Input
+                                              placeholder="DD-MM-YYYY"
+                                              value={newRowData.payment_screenshot_date}
+                                              onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_date: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Time</label>
+                                            <Input
+                                              placeholder="HH:MM"
+                                              value={newRowData.payment_screenshot_time}
+                                              onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_time: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Amount</label>
+                                            <Input
+                                              placeholder="Amount ₹"
+                                              value={newRowData.payment_screenshot_amount}
+                                              onChange={(e) => setNewRowData({ ...newRowData, payment_screenshot_amount: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold font-mono"
+                                            />
+                                          </div>
                                         </div>
-                                        <div className="space-y-1">
-                                          <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
+
+                                        {/* Platform Payout Fields */}
+                                        {showPlatformPaymentFields && (
+                                          <div className="space-y-3 border-t border-slate-100 pt-3">
+                                            <div className="grid grid-cols-2 gap-4">
+                                              <div className="space-y-1.5">
+                                                <label className="text-[10px] font-bold uppercase text-slate-400">15% Payout Cut *</label>
+                                                <Input
+                                                  type="number"
+                                                  value={newRowData.platform_payment_amount}
+                                                  onChange={(e) => setNewRowData({ ...newRowData, platform_payment_amount: e.target.value })}
+                                                  placeholder={`Expected ₹${expectedPlatformAmount}`}
+                                                  className={`h-9 text-xs font-mono font-bold ${
+                                                    !newRowData.platform_payment_amount || parseInt(newRowData.platform_payment_amount) !== expectedPlatformAmount 
+                                                      ? 'border-red-300 bg-red-50/50 text-red-700' 
+                                                      : 'border-green-300 bg-green-50/50 text-green-700'
+                                                  }`}
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[10px] font-bold uppercase text-slate-400">Platform Proof *</label>
+                                                <div className="flex gap-2 items-center">
+                                                  <Input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot: e.target.files?.[0] || null })}
+                                                    className="hidden"
+                                                    id="platform-upload"
+                                                  />
+                                                  <label
+                                                    htmlFor="platform-upload"
+                                                    className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                      !newRowData.platform_payment_screenshot 
+                                                        ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                        : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                    }`}
+                                                  >
+                                                    {newRowData.platform_payment_screenshot ? '✓ Proof Selected' : 'Upload Screenshot'}
+                                                  </label>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            {newRowData.platform_payment_screenshot && (
+                                              <div className="text-[10px] text-green-700 font-bold mt-1 bg-green-100/50 px-2 py-1 rounded">
+                                                📄 {newRowData.platform_payment_screenshot.name}
+                                              </div>
+                                            )}
+
+                                            {/* Platform Proof Details */}
+                                            <div className="grid grid-cols-3 gap-2 pt-2">
+                                              <div className="space-y-1">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Date</label>
+                                                <Input
+                                                  placeholder="DD-MM-YYYY"
+                                                  value={newRowData.platform_payment_screenshot_date}
+                                                  onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_date: e.target.value })}
+                                                  className="h-8 text-[11px] font-semibold"
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Time</label>
+                                                <Input
+                                                  placeholder="HH:MM"
+                                                  value={newRowData.platform_payment_screenshot_time}
+                                                  onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_time: e.target.value })}
+                                                  className="h-8 text-[11px] font-semibold"
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Amount</label>
+                                                <Input
+                                                  placeholder="Amount ₹"
+                                                  value={newRowData.platform_payment_screenshot_amount}
+                                                  onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_amount: e.target.value })}
+                                                  className="h-8 text-[11px] font-semibold font-mono"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Transport Charges (Rapido) */}
+                                    <div className="space-y-3 border-t border-slate-100 pt-3">
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                          <label className="text-[10px] font-bold uppercase text-slate-400">Rapido Charge</label>
                                           <Input
                                             type="number"
-                                            value={newRowData.platform_payment_screenshot_amount}
-                                            onChange={(e) => setNewRowData({ ...newRowData, platform_payment_screenshot_amount: e.target.value })}
-                                            className="h-8 text-xs"
-                                            placeholder="On photo"
+                                            value={newRowData.rapido_charge}
+                                            onChange={(e) => setNewRowData({ ...newRowData, rapido_charge: e.target.value })}
+                                            placeholder="Enter charge"
+                                            className={`h-9 text-xs font-semibold ${newRowData.rapido_charge === '' ? 'border-red-300 bg-red-50/50' : ''}`}
                                           />
                                         </div>
+                                        <div className="space-y-1.5">
+                                          <label className="text-[10px] font-bold uppercase text-slate-400">Rapido Screenshot</label>
+                                          <div className="flex gap-2 items-center">
+                                            <Input
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot: e.target.files?.[0] || null })}
+                                              className="hidden"
+                                              id="rapido-upload"
+                                              disabled={newRowData.rapido_charge === '' || parseFloat(newRowData.rapido_charge) === 0}
+                                            />
+                                            <label
+                                              htmlFor="rapido-upload"
+                                              className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                newRowData.rapido_charge === '' || parseFloat(newRowData.rapido_charge) === 0
+                                                  ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                                                  : !newRowData.rapido_screenshot 
+                                                    ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                    : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                              }`}
+                                            >
+                                              {newRowData.rapido_screenshot ? '✓ Bill Selected' : 'Upload Rapido Bill'}
+                                            </label>
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                                      {newRowData.rapido_screenshot && (
+                                        <div className="text-[10px] text-green-700 font-bold mt-1 bg-green-100/50 px-2 py-1 rounded">
+                                          📄 {newRowData.rapido_screenshot.name}
+                                        </div>
+                                      )}
 
-                            {/* RAPIDO FIELDS */}
-                            {newRowData.assigned_user_id && (
-                              <div className="space-y-4 border-t pt-4">
-                                <div className="space-y-2">
-                                  <label className="text-xs font-semibold uppercase text-blue-600">
-                                    Rapido Charge (Cross-Cluster / Same-Cluster) <span className="text-red-500">*</span>
-                                  </label>
-                                  <Input
-                                    type="number"
-                                    value={newRowData.rapido_charge}
-                                    onChange={(e) => setNewRowData({ ...newRowData, rapido_charge: e.target.value })}
-                                    placeholder="Enter rapido charge (put 0 if none)"
-                                    className={newRowData.rapido_charge === '' ? 'border-red-300 bg-red-50' : ''}
-                                  />
-                                </div>
-                                {newRowData.rapido_charge !== '' && parseFloat(newRowData.rapido_charge) > 0 && (
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-semibold uppercase text-red-500">
-                                      Rapido Screenshot (MANDATORY)
-                                    </label>
-                                    <div className="flex gap-2 items-center">
-                                      <Input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot: e.target.files?.[0] || null })}
-                                        className="hidden"
-                                        id="rapido-upload"
-                                      />
-                                      <label
-                                        htmlFor="rapido-upload"
-                                        className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                          !newRowData.rapido_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                        }`}
-                                      >
-                                        <Upload className="h-4 w-4 text-red-400" />
-                                        <span className="text-sm font-medium">
-                                          {newRowData.rapido_screenshot ? newRowData.rapido_screenshot.name : 'Upload Rapido Bill'}
-                                        </span>
-                                      </label>
-                                    </div>
-                                    
-                                    {/* Rapido Screenshot metadata */}
-                                    <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-lg border">
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Date <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="date"
-                                          value={newRowData.rapido_screenshot_date}
-                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_date: e.target.value })}
-                                          className="h-8 text-xs"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Time <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="time"
-                                          value={newRowData.rapido_screenshot_time}
-                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_time: e.target.value })}
-                                          className="h-8 text-xs"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold uppercase text-gray-500">Scr. Amount <span className="text-red-500">*</span></label>
-                                        <Input
-                                          type="number"
-                                          value={newRowData.rapido_screenshot_amount}
-                                          onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_amount: e.target.value })}
-                                          className="h-8 text-xs"
-                                          placeholder="On photo"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* FRAUD DETECTION SECTION */}
-                            {(() => {
-                              const selectedShowroom = dealerships.find(d => d.id === newRowData.showroom_id);
-                              const isCustomerPaid = selectedShowroom?.paymentType === 'CUSTOMER_PAID';
-                              if (!isCustomerPaid) return null;
-
-                              const showroomCodeForFraud = selectedShowroom ? getShowroomCode(selectedShowroom.name) : '';
-                              const fraudAlreadyVerified = !!(
-                                newRowData.date &&
-                                newRowData.assigned_user_id &&
-                                showroomCodeForFraud &&
-                                deliveries.some(d => 
-                                  d.date === newRowData.date && 
-                                  d.assigned_user_id === newRowData.assigned_user_id && 
-                                  getShowroomCode(d.showroom_code) === showroomCodeForFraud && 
-                                  (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type === 'FRAUD_DETECTION' && !s.deleted_at))
-                                )
-                              );
-
-                              if (!newRowData.assigned_user_id || !newRowData.showroom_id || fraudAlreadyVerified) return null;
-
-                              return (
-                                <div className="space-y-4 border-t pt-4">
-                                  <h4 className="text-xs font-bold uppercase text-amber-600">Fraud Detection Verification</h4>
-                                  
-                                  {newRowStandupCall && (
-                                    <div className="p-2.5 bg-amber-50/50 border border-amber-200 rounded-md flex justify-between items-center text-xs">
-                                      <span className="text-gray-600 font-semibold">Morning Standup Confirmed Count:</span>
-                                      <span className="font-bold text-amber-900 bg-amber-100/50 px-2 py-0.5 rounded border border-amber-200">
-                                        {newRowStandupCall.status === 'CONFIRMED' 
-                                          ? `${newRowStandupCall.confirmed_count} deliveries` 
-                                          : 'On Leave'}
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-semibold uppercase text-gray-500">
-                                      Witness Phone Number (Dealership Team member) <span className="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                      value={newRowData.witness_phone}
-                                      onChange={(e) => setNewRowData({ ...newRowData, witness_phone: e.target.value })}
-                                      placeholder="Enter witness phone number"
-                                      className={!newRowData.witness_phone ? 'border-red-300 bg-red-50' : ''}
-                                    />
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                      <label className="text-xs font-semibold uppercase text-gray-500">
-                                        Fraud Screenshot <span className="text-red-500">*</span>
-                                      </label>
-                                      <div className="flex gap-2 items-center">
-                                        <Input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => setNewRowData({ ...newRowData, fraud_screenshot: e.target.files?.[0] || null })}
-                                          className="hidden"
-                                          id="fraud-upload"
-                                        />
-                                        <label
-                                          htmlFor="fraud-upload"
-                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                            !newRowData.fraud_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                          }`}
-                                        >
-                                          <Upload className="h-4 w-4 text-amber-500" />
-                                          <span className="text-xs font-medium truncate max-w-[120px]">
-                                            {newRowData.fraud_screenshot ? newRowData.fraud_screenshot.name : 'Upload Screenshot'}
-                                          </span>
-                                        </label>
-                                      </div>
+                                      {/* Rapido Details */}
+                                      {newRowData.rapido_charge !== '' && parseFloat(newRowData.rapido_charge) > 0 && (
+                                        <div className="grid grid-cols-3 gap-2 pt-2">
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Date</label>
+                                            <Input
+                                              placeholder="DD-MM-YYYY"
+                                              value={newRowData.rapido_screenshot_date}
+                                              onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_date: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Time</label>
+                                            <Input
+                                              placeholder="HH:MM"
+                                              value={newRowData.rapido_screenshot_time}
+                                              onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_time: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Scr. Amount</label>
+                                            <Input
+                                              placeholder="Amount ₹"
+                                              value={newRowData.rapido_screenshot_amount}
+                                              onChange={(e) => setNewRowData({ ...newRowData, rapido_screenshot_amount: e.target.value })}
+                                              className="h-8 text-[11px] font-semibold font-mono"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
 
-                                    <div className="space-y-2">
-                                      <label className="text-xs font-semibold uppercase text-gray-500">
-                                        Witness Call Log Screenshot <span className="text-red-500">*</span>
-                                      </label>
-                                      <div className="flex gap-2 items-center">
-                                        <Input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => setNewRowData({ ...newRowData, fraud_call_log_screenshot: e.target.files?.[0] || null })}
-                                          className="hidden"
-                                          id="fraud-call-log-upload"
-                                        />
-                                        <label
-                                          htmlFor="fraud-call-log-upload"
-                                          className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-md transition-colors ${
-                                            !newRowData.fraud_call_log_screenshot ? 'border-red-300 bg-red-50' : 'hover:bg-gray-50'
-                                          }`}
-                                        >
-                                          <Upload className="h-4 w-4 text-amber-500" />
-                                          <span className="text-xs font-medium truncate max-w-[120px]">
-                                            {newRowData.fraud_call_log_screenshot ? newRowData.fraud_call_log_screenshot.name : 'Upload Call Log'}
-                                          </span>
-                                        </label>
-                                      </div>
-                                    </div>
+                                    {/* Dealership Witness Verification Banners & Fields */}
+                                    {(() => {
+                                      const fraudAlreadyVerified = !!(
+                                        newRowData.date &&
+                                        newRowData.assigned_user_id &&
+                                        getShowroomCode(selectedShowroom.name) &&
+                                        deliveries.some(d => 
+                                          d.date === newRowData.date && 
+                                          d.assigned_user_id === newRowData.assigned_user_id && 
+                                          getShowroomCode(d.showroom_code) === getShowroomCode(selectedShowroom.name) && 
+                                          (!!d.witness_phone || screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('FRAUD_DETECTION') && !s.deleted_at))
+                                        )
+                                      );
+
+                                      if (fraudAlreadyVerified) {
+                                        return (
+                                          <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-[10px] text-green-800 font-bold text-center mt-3 shadow-sm">
+                                            ✓ Fraud Detection / Witness verification is already completed for this photographer & showroom today.
+                                          </div>
+                                        );
+                                      }
+
+                                      if (!isCustomerPaid) return null;
+
+                                      return (
+                                        <div className="space-y-3 border-t border-slate-100 pt-3">
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400">Witness Phone (Dealership Member) *</label>
+                                            <Input
+                                              value={newRowData.witness_phone}
+                                              onChange={(e) => setNewRowData({ ...newRowData, witness_phone: e.target.value })}
+                                              placeholder="Enter 10-digit number"
+                                              className="h-9 text-xs"
+                                            />
+                                          </div>
+
+                                          <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                              <label className="text-[10px] font-bold uppercase text-slate-400">Fraud Doc photo *</label>
+                                              <div className="flex gap-2 items-center">
+                                                <Input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  onChange={(e) => setNewRowData({ ...newRowData, fraud_screenshot: e.target.files?.[0] || null })}
+                                                  className="hidden"
+                                                  id="fraud-upload"
+                                                />
+                                                <label
+                                                  htmlFor="fraud-upload"
+                                                  className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                    !newRowData.fraud_screenshot 
+                                                      ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                      : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                  }`}
+                                                >
+                                                  {newRowData.fraud_screenshot ? '✓ Doc Doc Uploaded' : 'Upload Doc'}
+                                                </label>
+                                              </div>
+                                              {newRowData.fraud_screenshot && (
+                                                <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
+                                                  📄 {newRowData.fraud_screenshot.name}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                              <label className="text-[10px] font-bold uppercase text-slate-400">Call Log Photo *</label>
+                                              <div className="flex gap-2 items-center">
+                                                <Input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  onChange={(e) => setNewRowData({ ...newRowData, fraud_call_log_screenshot: e.target.files?.[0] || null })}
+                                                  className="hidden"
+                                                  id="fraud-calllog-upload-new"
+                                                />
+                                                <label
+                                                  htmlFor="fraud-calllog-upload-new"
+                                                  className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                    !newRowData.fraud_call_log_screenshot 
+                                                      ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                      : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                  }`}
+                                                >
+                                                  {newRowData.fraud_call_log_screenshot ? '✓ Log Log Uploaded' : 'Upload Log'}
+                                                </label>
+                                              </div>
+                                              {newRowData.fraud_call_log_screenshot && (
+                                                <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
+                                                  📄 {newRowData.fraud_call_log_screenshot.name}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               );
                             })()}
                           </div>
 
-                          <DialogFooter className="px-6 py-4 border-t flex justify-end gap-2 bg-gray-50/50">
-                            <Button variant="outline" onClick={handleCancelAddRow} disabled={isSubmitting}>Cancel</Button>
-                            <Button onClick={handleSaveNewRow} disabled={isSubmitting}>
+                          <DialogFooter className="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-2">
+                            <Button variant="outline" onClick={handleCancelAddRow} disabled={isSubmitting} className="h-9 text-xs rounded-lg">Cancel</Button>
+                            <Button onClick={handleSaveNewRow} disabled={isSubmitting} className="h-9 text-xs rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold">
                               {isSubmitting ? 'Saving...' : 'Save Record'}
                             </Button>
                           </DialogFooter>
