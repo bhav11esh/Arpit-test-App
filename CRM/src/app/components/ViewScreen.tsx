@@ -231,7 +231,7 @@ function FraudAuditShowroomCard({
           type: `FRAUD_DETECTION:${witnessCount}`,
           file_url: callLogUrl,
           thumbnail_url: callLogUrl,
-          showroom_code: showroomCode,
+          showroom_code: null as any,
           deleted_at: null
         }, supabase);
       }
@@ -670,7 +670,7 @@ export function ViewScreen() {
   const [missedUpdateClosedPhotographers, setMissedUpdateClosedPhotographers] = useState<Set<string>>(new Set());
   const [sentUpdateUserIds, setSentUpdateUserIds] = useState<Set<string>>(new Set());
   const [confirmedAmounts, setConfirmedAmounts] = useState<Record<string, string>>({});
-
+  const [task2bCallLogFiles, setTask2bCallLogFiles] = useState<Record<string, File>>({});
   const [task3CallLogFile, setTask3CallLogFile] = useState<File | null>(null);
   const [task3CallLogUrl, setTask3CallLogUrl] = useState<string>('');
   const [uploadingTask3CallLog, setUploadingTask3CallLog] = useState(false);
@@ -1004,15 +1004,111 @@ export function ViewScreen() {
     }
   };
 
+  const handleSaveCustomerPaymentVerification = async (deliveryId: string) => {
+    const inputs = verificationInputs[deliveryId];
+    if (!inputs?.payment_date || !inputs?.payment_time || !inputs?.payment_amount) {
+      toast.error('Please fill in date, time and amount');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('deliveries').update({
+        payment_screenshot_date: inputs.payment_date,
+        payment_screenshot_time: inputs.payment_time,
+        payment_screenshot_amount: parseFloat(inputs.payment_amount)
+      }).eq('id', deliveryId);
+      if (error) throw error;
+      toast.success('Customer payment verified');
+      loadData();
+    } catch (err) {
+      console.error('Failed to save customer payment verification', err);
+      toast.error('Failed to save');
+    }
+  };
+
+  const handleSavePlatformCutVerification = async (deliveryId: string) => {
+    const inputs = verificationInputs[deliveryId];
+    if (!inputs?.platform_date || !inputs?.platform_time || !inputs?.platform_amount) {
+      toast.error('Please fill in date, time and amount');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('deliveries').update({
+        platform_payment_screenshot_date: inputs.platform_date,
+        platform_payment_screenshot_time: inputs.platform_time,
+        platform_payment_screenshot_amount: parseFloat(inputs.platform_amount)
+      }).eq('id', deliveryId);
+      if (error) throw error;
+      toast.success('Platform payment verified');
+      loadData();
+    } catch (err) {
+      console.error('Failed to save platform payment verification', err);
+      toast.error('Failed to save');
+    }
+  };
+
+  const handleCustomerFraudVerification = async (deliveryId: string) => {
+    const amount = confirmedAmounts[deliveryId];
+    const file = task2bCallLogFiles[deliveryId];
+    const existingScr = screenshots.find(s => s.delivery_id === deliveryId && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at);
+
+    if (!amount) {
+      toast.error('Please enter the confirmed amount');
+      return;
+    }
+    if (!existingScr && !file) {
+      toast.error('Please upload a screenshot');
+      return;
+    }
+
+    setSubmittingFraud(true);
+    try {
+      let callLogUrl = existingScr ? existingScr.file_url : '';
+      if (file) {
+        const path = `call_logs/${Date.now()}_${file.name}`;
+        callLogUrl = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
+      }
+      
+      if (existingScr) {
+        await supabase.from('screenshots').update({
+          type: `CUSTOMER_CALL_LOG:${amount}`,
+          file_url: callLogUrl,
+          thumbnail_url: callLogUrl
+        }).eq('id', existingScr.id);
+      } else {
+        await screenshotsDb.createScreenshot({
+          delivery_id: deliveryId,
+          user_id: user?.id || '',
+          type: `CUSTOMER_CALL_LOG:${amount}`,
+          file_url: callLogUrl,
+          thumbnail_url: callLogUrl,
+          showroom_code: null as any,
+          deleted_at: null
+        }, supabase);
+      }
+      toast.success('Fraud verification saved');
+      loadData();
+    } catch (err) {
+      console.error('Failed to save fraud verification', err);
+      toast.error('Failed to save');
+    } finally {
+      setSubmittingFraud(false);
+    }
+  };
+
   const handleCloseMissedSendUpdateTask = async (p: any) => {
     try {
-      const count = parseInt(enteredCounts[p.photographerId]);
+      const targetId = p.photographerId || selectedPhotographer;
+      if (!targetId) {
+        toast.error('Missing target ID');
+        return;
+      }
+      const count = parseInt(enteredCounts[targetId]);
       const { error } = await supabase.from('log_events').insert({
         type: 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED',
         actor_user_id: user?.id,
-        target_id: p.photographerId,
+        target_id: targetId,
         metadata: {
-          photographer_id: p.photographerId,
+          photographer_id: targetId,
           date: spreadSheetDate,
           reported_count: count,
           saved_count: p.totalCount
@@ -1020,13 +1116,13 @@ export function ViewScreen() {
       });
       if (error) throw error;
       
-      toast.success(`Audit task for ${p.name} completed successfully`);
+      toast.success(`Audit task for ${p.name || 'Photographer'} completed successfully`);
       
       // Update local closed set immediately so Send Update button reacts
-      setMissedUpdateClosedPhotographers(prev => new Set([...prev, p.photographerId]));
+      setMissedUpdateClosedPhotographers(prev => new Set([...prev, targetId]));
       
       // Remove from list locally
-      setMissedSendUpdateData(prev => prev.filter(item => item.photographerId !== p.photographerId));
+      setMissedSendUpdateData(prev => prev.filter(item => item.photographerId !== targetId));
     } catch (err) {
       console.error('Failed to close audit task:', err);
       toast.error('Failed to close audit task');
@@ -5020,8 +5116,26 @@ export function ViewScreen() {
                                                   <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Confirmed: ₹{confirmedAmount}</span>
                                                 </div>
                                               ) : (
-                                                <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
-                                                  No screenshot uploaded
+                                                <div className="relative overflow-hidden group">
+                                                  <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    onChange={(e) => {
+                                                      if (e.target.files && e.target.files[0]) {
+                                                        setTask2bCallLogFiles(prev => ({ ...prev, [d.id]: e.target.files![0] }));
+                                                      }
+                                                    }}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                  />
+                                                  <label 
+                                                    className={`flex flex-col items-center justify-center w-full h-44 border border-dashed rounded-lg text-xs font-bold transition-all duration-200 ${
+                                                      !task2bCallLogFiles[d.id] 
+                                                        ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                        : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                    }`}
+                                                  >
+                                                    {task2bCallLogFiles[d.id] ? '✓ Verification Screenshot Selected' : '+ Upload Call Log Screenshot'}
+                                                  </label>
                                                 </div>
                                               )}
                                             </div>
