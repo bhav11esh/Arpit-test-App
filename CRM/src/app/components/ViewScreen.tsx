@@ -677,6 +677,7 @@ export function ViewScreen() {
   const [collapsed2BCards, setCollapsed2BCards] = useState<Record<string, boolean>>({});
   const [collapsedTask3Cards, setCollapsedTask3Cards] = useState<Record<string, boolean>>({});
   const [collapsedTask1Card, setCollapsedTask1Card] = useState<boolean>(true);
+  const [filterPendingAuditsOnly, setFilterPendingAuditsOnly] = useState<boolean>(false);
 
   useEffect(() => {
     setTask3CallLogUrl('');
@@ -1567,9 +1568,25 @@ export function ViewScreen() {
           if (currentCode !== targetCode) return false;
         }
       }
+
+      // Filter pending audits only
+      if (filterPendingAuditsOnly) {
+        const photographerObj = allUsers.find(p => p.id === d.assigned_user_id);
+        const is15PercentModel = photographerObj && getPhotographerRawPayoutModel(d.assigned_user_id, d.date) === 'PERCENTAGE_15_DAILY';
+        const isCustomerPaid = d.received_amount != null && parseFloat(d.received_amount) > 0;
+        const hasRapido = d.rapido_charge != null && d.rapido_charge > 0;
+
+        const isCustomerPayVerified = !isCustomerPaid || (!!d.payment_screenshot_date && !!d.payment_screenshot_time && !!d.payment_screenshot_amount);
+        const isPlatformPayVerified = !is15PercentModel || !isCustomerPaid || (!!d.platform_payment_screenshot_date && !!d.platform_payment_screenshot_time && !!d.platform_payment_screenshot_amount);
+        const isRapidoVerified = !hasRapido || (!!d.rapido_screenshot_date && !!d.rapido_screenshot_time && !!d.rapido_screenshot_amount);
+
+        const isDeliveryAudited = isCustomerPayVerified && isPlatformPayVerified && isRapidoVerified;
+        if (isDeliveryAudited) return false;
+      }
+
       return true;
     });
-  }, [deliveries, selectedShowroom, cityIsolatedDealerships, user, spreadSheetDate, showAllTime]);
+  }, [deliveries, selectedShowroom, cityIsolatedDealerships, user, spreadSheetDate, showAllTime, filterPendingAuditsOnly]);
 
   const handleExportCSV = () => {
     const csv = [
@@ -2903,17 +2920,31 @@ export function ViewScreen() {
 
                     {/* V9.0: Date Filter */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700">Filter by Date</label>
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            id="showAllTime" 
-                            checked={showAllTime} 
-                            onChange={(e) => setShowAllTime(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <label htmlFor="showAllTime" className="text-sm text-gray-600 cursor-pointer">Show All Time</label>
+                      <div className="flex flex-col gap-1.5 mb-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold text-slate-700">Filter by Date</label>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <input 
+                                type="checkbox" 
+                                id="showAllTime" 
+                                checked={showAllTime} 
+                                onChange={(e) => setShowAllTime(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <label htmlFor="showAllTime" className="text-xs text-gray-600 cursor-pointer select-none font-medium">All Time</label>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <input 
+                                type="checkbox" 
+                                id="filterPendingAuditsOnly" 
+                                checked={filterPendingAuditsOnly} 
+                                onChange={(e) => setFilterPendingAuditsOnly(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                              />
+                              <label htmlFor="filterPendingAuditsOnly" className="text-xs font-semibold text-amber-600 cursor-pointer select-none">Pending Audits</label>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <Input
@@ -2923,6 +2954,51 @@ export function ViewScreen() {
                         disabled={showAllTime}
                         className={showAllTime ? 'opacity-50' : ''}
                       />
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAllTime(false);
+                            setSpreadSheetDate(getLocalDateString(new Date()));
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all duration-150 ${
+                            !showAllTime && spreadSheetDate === getLocalDateString(new Date())
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-800'
+                          }`}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAllTime(false);
+                            const yesterday = new Date();
+                            yesterday.setDate(yesterday.getDate() - 1);
+                            setSpreadSheetDate(getLocalDateString(yesterday));
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all duration-150 ${
+                            !showAllTime && spreadSheetDate === getLocalDateString(new Date(Date.now() - 86400000))
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-800'
+                          }`}
+                        >
+                          Yesterday
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAllTime(true);
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all duration-150 ${
+                            showAllTime
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-800'
+                          }`}
+                        >
+                          All Time
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -2939,25 +3015,35 @@ export function ViewScreen() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto overflow-y-auto max-h-[600px] relative border border-slate-100 rounded-xl">
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Delivery Name</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Footage Link</TableHead>
-                        <TableHead>Reel Link</TableHead>
-                        <TableHead>Photographer Name</TableHead>
-                        <TableHead>Amount Received</TableHead>
-                        <TableHead>Phone Number</TableHead>
-                        <TableHead>Rapido Charge</TableHead>
-                        <TableHead className="w-[80px] text-center">Sync</TableHead>
-                        {isAdmin && <TableHead className="w-[50px] text-right text-gray-400">Actions</TableHead>}
+                    <TableHeader className="sticky top-0 bg-slate-900 z-20">
+                      <TableRow className="border-b-0 hover:bg-transparent">
+                        <TableHead className="sticky left-0 bg-slate-900 text-white font-bold z-30 shadow-[2px_0_5px_rgba(0,0,0,0.1)]">Delivery Name</TableHead>
+                        <TableHead className="text-white font-bold">Date</TableHead>
+                        <TableHead className="text-white font-bold">Footage Link</TableHead>
+                        <TableHead className="text-white font-bold">Reel Link</TableHead>
+                        <TableHead className="text-white font-bold">Photographer Name</TableHead>
+                        <TableHead className="text-white font-bold">Amount Received</TableHead>
+                        <TableHead className="text-white font-bold">Phone Number</TableHead>
+                        <TableHead className="text-white font-bold">Rapido Charge</TableHead>
+                        <TableHead className="w-[80px] text-center text-white font-bold">Sync</TableHead>
+                        {isAdmin && <TableHead className="w-[50px] text-right text-slate-300 font-bold">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredDeliveries
-                        .map(delivery => {
+                      {filteredDeliveries.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={isAdmin ? 10 : 9} className="h-40 text-center text-slate-500">
+                            <div className="flex flex-col items-center justify-center gap-2 py-8">
+                              <ClipboardCheck className="h-10 w-10 text-slate-300 animate-pulse" />
+                              <p className="font-semibold text-slate-700">No deliveries found</p>
+                              <p className="text-xs text-slate-400">Try changing your filters or add a new delivery record.</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredDeliveries.map(delivery => {
                           const photographer = allUsers.find(p => p.id === delivery.assigned_user_id);
 
                           // V1 SPEC: Showroom = "Dealership Name + Cluster Name"
@@ -2981,9 +3067,9 @@ export function ViewScreen() {
                           const isEditingReel = editingCell?.deliveryId === delivery.id && editingCell?.field === 'reel_link';
 
                           return (
-                            <TableRow key={delivery.id}>
+                            <TableRow key={delivery.id} className="transition-all hover:bg-slate-50/70">
                               {/* Delivery Name (Editable for Admin) */}
-                              <TableCell className="text-sm font-medium">
+                              <TableCell className="text-sm font-medium sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.03)] z-10">
                                 {editingCell?.deliveryId === delivery.id && editingCell?.field === 'delivery_name' ? (
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -3324,7 +3410,8 @@ export function ViewScreen() {
                               )}
                             </TableRow>
                           );
-                        })}
+                        })
+                      )}
 
                       {/* Add New Row Dialog */}
                       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -3894,7 +3981,18 @@ export function ViewScreen() {
 
                 {/* Mobile-Responsive Collapsible Delivery Cards */}
                 <div className="block md:hidden space-y-4">
-                  {filteredDeliveries.map(delivery => {
+                  {filteredDeliveries.length === 0 ? (
+                    <Card className="border border-dashed border-slate-200 bg-slate-50/50">
+                      <CardContent className="py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <ClipboardCheck className="h-10 w-10 text-slate-300 animate-pulse" />
+                          <p className="font-semibold text-slate-700">No deliveries found</p>
+                          <p className="text-xs text-slate-400">Try changing your filters or add a new delivery record.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredDeliveries.map(delivery => {
                     const photographer = allUsers.find(p => p.id === delivery.assigned_user_id);
                     const showroomName = delivery.showroom_code ? getShowroomDisplayName(dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(delivery.showroom_code))?.id || '') : 'Unknown Showroom';
                     const isSuspiciousCustomerPhone = (() => {
@@ -4096,7 +4194,8 @@ export function ViewScreen() {
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                  )}
                 </div>
 
 
