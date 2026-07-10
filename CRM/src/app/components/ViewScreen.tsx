@@ -2642,7 +2642,7 @@ export function ViewScreen() {
     witness_phone: string;
   }>>({});
 
-  const lastState = useRef({ selectedPhotographer, spreadSheetDate, viewMode });
+  const lastState = React.useRef({ selectedPhotographer, spreadSheetDate, viewMode });
 
   useEffect(() => {
     if (viewMode === 'audit' && selectedPhotographer && selectedPhotographer !== 'all' && spreadSheetDate) {
