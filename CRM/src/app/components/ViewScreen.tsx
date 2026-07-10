@@ -723,6 +723,7 @@ export function ViewScreen() {
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryViewMode, setGalleryViewMode] = useState<'single' | 'grid'>('single');
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [activeAuditTab, setActiveAuditTab] = useState<'standup' | 'witness' | 'customer' | 'deliveries'>('standup');
   const [loading, setLoading] = useState(true);
 
   // V1 SPEC: Gallery filters
@@ -3135,7 +3136,7 @@ export function ViewScreen() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -4015,6 +4016,213 @@ export function ViewScreen() {
                   </Table>
                 </div>
 
+                {/* Mobile-Responsive Collapsible Delivery Cards */}
+                <div className="block md:hidden space-y-4">
+                  {filteredDeliveries.map(delivery => {
+                    const photographer = allUsers.find(p => p.id === delivery.assigned_user_id);
+                    const showroomName = delivery.showroom_code ? getShowroomDisplayName(dealerships.find(d => getShowroomCode(d.name) === getShowroomCode(delivery.showroom_code))?.id || '') : 'Unknown Showroom';
+                    const isSuspiciousCustomerPhone = (() => {
+                      const phone = delivery.customer_phone?.trim();
+                      if (!phone || phone.length < 10) return false;
+                      return deliveries.some(d => 
+                        d.id !== delivery.id && 
+                        d.customer_phone === phone && 
+                        (d.assigned_user_id !== delivery.assigned_user_id || d.date !== delivery.date)
+                      );
+                    })();
+                    
+                    return (
+                      <div 
+                        key={delivery.id} 
+                        className="bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-xl p-4 shadow-sm space-y-3 transition-all duration-200 hover:shadow-md hover:scale-[1.01]"
+                      >
+                        {/* Header: Showroom & Date */}
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <h4 className="font-bold text-slate-800 text-sm">{showroomName}</h4>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">{delivery.delivery_name}</p>
+                          </div>
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-mono">
+                            {delivery.date.split('-').reverse().join('/')}
+                          </span>
+                        </div>
+
+                        {/* Mid Info: Photographer & Phone */}
+                        <div className="grid grid-cols-2 gap-3 text-xs border-t border-slate-100 pt-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase text-slate-400 font-semibold block">Photographer</span>
+                            <span className="font-medium text-slate-700">{photographer ? photographer.name : 'Unassigned'}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase text-slate-400 font-semibold block">Customer Phone</span>
+                            {editingCell?.deliveryId === delivery.id && editingCell?.field === 'customer_phone' ? (
+                              <div className="flex items-center gap-1 mt-1">
+                                <Input
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="h-7 text-xs w-full min-w-[100px]"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit();
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleSaveEdit}>
+                                  <Check className="h-3 w-3 text-green-600" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={handleCancelEdit}>
+                                  <X className="h-3 w-3 text-red-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div 
+                                className={`flex items-center gap-1 cursor-pointer hover:bg-slate-50 rounded p-0.5 -ml-0.5 ${isSuspiciousCustomerPhone ? 'text-red-600 font-bold' : 'text-slate-700 font-mono'}`}
+                                onClick={() => isAdmin && handleStartEdit(delivery.id, 'customer_phone', delivery.customer_phone || '')}
+                              >
+                                <span>{delivery.customer_phone || '-'}</span>
+                                {isSuspiciousCustomerPhone && <AlertTriangle className="h-3 w-3 text-red-500 animate-bounce" />}
+                                {isAdmin && <Edit2 className="h-2.5 w-2.5 text-slate-400" />}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Financials: Received & Payout */}
+                        <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] uppercase text-slate-400 font-semibold block">Received</span>
+                            {editingCell?.deliveryId === delivery.id && editingCell?.field === 'received_amount' ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="h-6 text-xs w-16"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit();
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={handleSaveEdit}>
+                                  <Check className="h-2.5 w-2.5 text-green-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div 
+                                className="flex items-center gap-1 font-semibold text-slate-700 cursor-pointer"
+                                onClick={() => isAdmin && handleStartEdit(delivery.id, 'received_amount', delivery.received_amount?.toString() || '')}
+                              >
+                                <span>₹{delivery.received_amount ?? '0'}</span>
+                                {isAdmin && <Edit2 className="h-2.5 w-2.5 text-slate-400" />}
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] uppercase text-slate-400 font-semibold block">Payout</span>
+                            <span className="font-semibold text-slate-700">₹{delivery.payout_amount ?? '0'}</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] uppercase text-slate-400 font-semibold block">Rapido</span>
+                            {editingCell?.deliveryId === delivery.id && editingCell?.field === 'rapido_charge' ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  className="h-6 text-xs w-16"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit();
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={handleSaveEdit}>
+                                  <Check className="h-2.5 w-2.5 text-green-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div 
+                                className="flex items-center gap-1 font-semibold text-slate-700 cursor-pointer"
+                                onClick={() => isAdmin && handleStartEdit(delivery.id, 'rapido_charge', delivery.rapido_charge?.toString() || '')}
+                              >
+                                <span className={delivery.rapido_charge ? 'text-blue-600' : 'text-slate-400'}>
+                                  {delivery.rapido_charge ? `₹${delivery.rapido_charge}` : '-'}
+                                </span>
+                                {isAdmin && <Edit2 className="h-2.5 w-2.5 text-slate-400" />}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Media Links */}
+                        <div className="flex gap-2 text-xs border-t border-slate-100 pt-3">
+                          <div className="flex-1 flex gap-2">
+                            {delivery.footage_link ? (
+                              <a 
+                                href={delivery.footage_link} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="flex-1 py-1.5 px-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-md font-medium text-center hover:bg-blue-100 transition-colors"
+                              >
+                                Footage 📂
+                              </a>
+                            ) : (
+                              <span className="flex-1 py-1.5 px-3 bg-slate-50 text-slate-400 border border-slate-100 rounded-md text-center">
+                                No Footage
+                              </span>
+                            )}
+                            {delivery.reel_link ? (
+                              <a 
+                                href={delivery.reel_link} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="flex-1 py-1.5 px-3 bg-purple-50 text-purple-700 border border-purple-100 rounded-md font-medium text-center hover:bg-purple-100 transition-colors"
+                              >
+                                Reel 🎬
+                              </a>
+                            ) : (
+                              <span className="flex-1 py-1.5 px-3 bg-slate-50 text-slate-400 border border-slate-100 rounded-md text-center">
+                                No Reel
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Sync Button & Admin Delete */}
+                          <div className="flex gap-1.5 items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-8 w-8 p-0 rounded-full border ${pendingSyncs.has(delivery.id) ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+                              onClick={() => handleTriggerSheetSync(delivery, 'sync')}
+                              disabled={isSyncingBulk}
+                            >
+                              {pendingSyncs.has(delivery.id) ? (
+                                <AlertTriangle className="h-4 w-4 animate-pulse" />
+                              ) : (
+                                <RefreshCw className={`h-4 w-4 ${isSyncingBulk ? 'opacity-50' : ''}`} />
+                              )}
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-500 border border-red-100 bg-red-50 hover:bg-red-100 hover:text-red-700 rounded-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDelivery(delivery.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
 
                 {/* Add New Row Button */}
                 <div className="mt-4">
@@ -4161,8 +4369,61 @@ export function ViewScreen() {
               {selectedPhotographer && selectedPhotographer !== 'all' ? (
                 <div className="space-y-6">
                   
+                  {/* TABS SELECTOR BAR FOR MOBILE & DESKTOP AUDITS */}
+                  <div className="flex border border-slate-200/60 overflow-x-auto scrollbar-hide py-1 gap-2 bg-slate-50/80 backdrop-blur-sm p-1.5 rounded-xl shadow-sm">
+                    <button
+                      onClick={() => setActiveAuditTab('standup')}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        activeAuditTab === 'standup'
+                          ? 'bg-white text-blue-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Morning Standups (Task 1)
+                    </button>
+                    <button
+                      onClick={() => setActiveAuditTab('witness')}
+                      disabled={!showTask2And3}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        !showTask2And3 ? 'opacity-40 cursor-not-allowed' : ''
+                      } ${
+                        activeAuditTab === 'witness'
+                          ? 'bg-white text-amber-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Witness Audits (Task 2A)
+                    </button>
+                    <button
+                      onClick={() => setActiveAuditTab('customer')}
+                      disabled={!showTask2And3}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        !showTask2And3 ? 'opacity-40 cursor-not-allowed' : ''
+                      } ${
+                        activeAuditTab === 'customer'
+                          ? 'bg-white text-orange-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Customer Confirms (Task 2B)
+                    </button>
+                    <button
+                      onClick={() => setActiveAuditTab('deliveries')}
+                      disabled={!showTask2And3}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        !showTask2And3 ? 'opacity-40 cursor-not-allowed' : ''
+                      } ${
+                        activeAuditTab === 'deliveries'
+                          ? 'bg-white text-green-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Deliveries checklist (Task 3)
+                    </button>
+                  </div>
+                  
                   {/* Task 1: Morning Standup Call Card */}
-                  <Card className="border-l-4 border-l-blue-500">
+                  <Card className={`border-l-4 border-l-blue-500 ${activeAuditTab === 'standup' ? '' : 'hidden'}`}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base font-bold flex items-center justify-between">
                         <span className="flex items-center gap-2">
@@ -4489,7 +4750,7 @@ export function ViewScreen() {
                   {showTask2And3 && (
                     <>
                       {/* Task 2: Fraud Detection Audits */}
-                      <div className="space-y-6">
+                      <div className={`space-y-6 ${(activeAuditTab === 'witness' || activeAuditTab === 'customer') ? '' : 'hidden'}`}>
                         <div className="space-y-4">
                           <h3 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b pb-2">
                             <ShieldCheck className="h-5 w-5 text-amber-600" />
@@ -4497,7 +4758,7 @@ export function ViewScreen() {
                           </h3>
 
                           {/* Task 2A: Dealership Witness Call Audits */}
-                          <div className="space-y-4">
+                          <div className={`space-y-4 ${activeAuditTab === 'witness' ? '' : 'hidden'}`}>
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
@@ -4585,7 +4846,7 @@ export function ViewScreen() {
                           </div>
 
                           {/* Task 2B: Customer Payment Fraud Audits */}
-                          <div className="space-y-4 border-t pt-4 mt-6">
+                          <div className={`space-y-4 border-t pt-4 mt-6 ${activeAuditTab === 'customer' ? '' : 'hidden'}`}>
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
@@ -4795,7 +5056,7 @@ export function ViewScreen() {
                       </div>
 
                   {/* Task 3: Deliveries Verification Cards */}
-                  <div className="space-y-4">
+                  <div className={`space-y-4 ${activeAuditTab === 'deliveries' ? '' : 'hidden'}`}>
                     <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-green-600" />
