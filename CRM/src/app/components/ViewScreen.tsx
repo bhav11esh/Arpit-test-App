@@ -674,6 +674,9 @@ export function ViewScreen() {
   const [task3CallLogFile, setTask3CallLogFile] = useState<File | null>(null);
   const [task3CallLogUrl, setTask3CallLogUrl] = useState<string>('');
   const [uploadingTask3CallLog, setUploadingTask3CallLog] = useState(false);
+  const [collapsed2BCards, setCollapsed2BCards] = useState<Record<string, boolean>>({});
+  const [collapsedTask3Cards, setCollapsedTask3Cards] = useState<Record<string, boolean>>({});
+  const [collapsedTask1Card, setCollapsedTask1Card] = useState<boolean>(true);
 
   useEffect(() => {
     setTask3CallLogUrl('');
@@ -4297,24 +4300,31 @@ export function ViewScreen() {
                   
                   {/* Task 1: Morning Standup Call Card */}
                   <Card className={`border-l-4 border-l-blue-500 ${activeAuditTab === 'standup' ? '' : 'hidden'}`}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base font-bold flex items-center justify-between">
+                    <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-t-xl select-none" onClick={() => setCollapsedTask1Card(!collapsedTask1Card)}>
+                      <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
                         <span className="flex items-center gap-2">
-                          <Clock className="h-5 w-5 text-blue-500" />
+                          <Clock className="h-4.5 w-4.5 text-blue-500" />
                           Task 1: Morning Standup Call Verification
                         </span>
-                        {currentStandupCall ? (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 font-semibold border-green-200">
-                            Verified & Saved
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-gray-500 bg-gray-50">
-                            Pending
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2.5">
+                          {currentStandupCall ? (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 font-semibold border-green-200 text-[10px]">
+                              Verified & Saved
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-gray-500 bg-gray-50 text-[10px]">
+                              Pending
+                            </Badge>
+                          )}
+                          <span className="text-slate-400">
+                            {collapsedTask1Card ? '▶' : '▼'}
+                          </span>
+                        </div>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    {!collapsedTask1Card && (
+                      <CardContent className="pt-4 border-t border-slate-100/50">
+                        
                       {/* Secondary Contact Number Display */}
                       {selectedPhotographerObj && (selectedPhotographerObj.phone_number || selectedPhotographerObj.secondary_phone_number) && (
                         <div className="mb-4 p-3 bg-blue-50/60 border border-blue-100 rounded-lg flex items-center justify-between text-xs">
@@ -4617,7 +4627,9 @@ export function ViewScreen() {
                           </div>
                         </div>
                       )}
-                    </CardContent>
+                    
+                      </CardContent>
+                    )}
                   </Card>
 
                   {showTask2And3 && (
@@ -4788,137 +4800,118 @@ export function ViewScreen() {
 
                                   const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') || user?.role !== 'ADMIN';
 
+                                  const isCollapsed = collapsed2BCards[d.id] ?? isVerified;
+                                  const enteredAmount = confirmedAmounts[d.id] || '';
+                                  const hasMismatch = enteredAmount !== '' && parseFloat(enteredAmount) !== parseFloat(d.received_amount || '0');
+
                                   return (
-                                    <Card key={d.id} className="border-l-4 border-l-orange-500">
-                                      <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-bold flex items-center justify-between">
-                                          <span>{d.delivery_name}</span>
-                                          {isVerified ? (
-                                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
-                                              Audited & Verified
-                                            </Badge>
-                                          ) : (
-                                            <Badge variant="outline" className="text-orange-600 bg-orange-50 border-orange-200">
-                                              Pending
-                                            </Badge>
-                                          )}
+                                    <Card key={d.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isVerified ? 'border-l-green-600' : 'border-l-orange-500 bg-orange-50/5'}`}>
+                                      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-t-xl select-none" onClick={() => setCollapsed2BCards(prev => ({ ...prev, [d.id]: !isCollapsed }))}>
+                                        <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
+                                          <span className="text-slate-800">{d.delivery_name}</span>
+                                          <div className="flex items-center gap-2.5">
+                                            {isVerified ? (
+                                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold text-[10px]">
+                                                Audited & Verified
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="outline" className="text-orange-600 bg-orange-50 border-orange-200 text-[10px]">
+                                                Pending Verification
+                                              </Badge>
+                                            )}
+                                            <span className="text-slate-400">
+                                              {isCollapsed ? '▶' : '▼'}
+                                            </span>
+                                          </div>
                                         </CardTitle>
                                       </CardHeader>
-                                      <CardContent className="space-y-4">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-gray-50 p-3 rounded border text-xs items-center">
-                                          <div className="flex flex-col gap-0.5">
-                                            <span className="text-gray-500 font-medium">Dealership:</span>
-                                            <span className="font-bold text-gray-900 truncate">{displayShowroomName}</span>
-                                          </div>
-                                          <div className="flex flex-col gap-0.5">
-                                            <span className="text-gray-500 font-medium">Cluster:</span>
-                                            <span className="font-bold text-gray-900 truncate">{displayClusterName}</span>
-                                          </div>
-                                          <div className="flex flex-col gap-0.5">
-                                            <span className="text-gray-500 font-medium">Customer Phone:</span>
-                                            <span className="font-mono font-bold text-blue-900">{d.customer_phone || 'N/A'}</span>
-                                          </div>
-                                          <div className="flex flex-col gap-0.5">
-                                            <span className="text-gray-500 font-medium">Collection (Send Update):</span>
-                                            <span className="font-bold text-green-700">₹{d.received_amount || '0'}</span>
-                                          </div>
-                                          <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
-                                            <span className="text-gray-500 font-medium uppercase text-[10px]">Confirmed Amount *</span>
-                                            {isLocked ? (
-                                              <span className="font-bold text-blue-700">{confirmedAmount ? `₹${confirmedAmount}` : 'N/A'}</span>
-                                            ) : (
-                                              <Input
-                                                type="number"
-                                                placeholder="Enter amount"
-                                                value={confirmedAmounts[d.id] ?? confirmedAmount}
-                                                onChange={async (e) => {
-                                                  const val = e.target.value;
-                                                  setConfirmedAmounts(prev => ({ ...prev, [d.id]: val }));
-                                                  
-                                                  // Auto-save to Supabase if screenshot already exists!
-                                                  if (callLogScr) {
-                                                    try {
-                                                      await supabase
-                                                        .from('screenshots')
-                                                        .update({ type: `CUSTOMER_CALL_LOG:${val}` })
-                                                        .eq('id', callLogScr.id);
-                                                      
-                                                      // Update screenshots state locally
-                                                      setScreenshots(prev => 
-                                                        prev.map(s => s.id === callLogScr.id ? { ...s, type: `CUSTOMER_CALL_LOG:${val}` } : s)
-                                                      );
-                                                      toast.success('Confirmed amount updated!');
-                                                    } catch (err) {
-                                                      console.error('Failed to update confirmed amount:', err);
-                                                      toast.error('Failed to update confirmed amount');
-                                                    }
-                                                  }
-                                                }}
-                                                className={`h-7 text-xs ${!confirmedAmount && !(confirmedAmounts[d.id]) ? 'border-red-300 bg-red-50' : ''}`}
-                                              />
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {/* Call Log Screenshot Uploader / Viewer */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div className="space-y-1.5">
-                                            <span className="text-xs font-semibold text-gray-600 block">Customer Call Log Screenshot:</span>
-                                            {callLogScr ? (
-                                              <div className="relative group border rounded-lg overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
-                                                <img 
-                                                  src={callLogScr.file_url} 
-                                                  alt="customer call log" 
-                                                  className="max-h-full object-contain cursor-pointer"
-                                                  onClick={() => {
-                                                    window.open(callLogScr.file_url, '_blank');
-                                                  }}
-                                                />
-                                              </div>
-                                            ) : (
-                                              <div className="h-40 border-2 border-dashed rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs text-gray-400">
-                                                No customer call log uploaded
-                                              </div>
-                                            )}
-                                          </div>
-
-                                          {!isLocked && (
-                                            <div className="flex flex-col justify-center space-y-2">
-                                              <span className="text-xs font-semibold text-gray-600 block">Upload Call Log:</span>
-                                              <Input
-                                                type="file"
-                                                accept="image/*"
-                                                disabled={!(confirmedAmounts[d.id] ?? confirmedAmount) || parseFloat(confirmedAmounts[d.id] ?? confirmedAmount) <= 0}
-                                                onChange={async (e) => {
-                                                  const file = e.target.files?.[0];
-                                                  const amount = confirmedAmounts[d.id] ?? confirmedAmount;
-                                                  if (!file || !amount) return;
-                                                  try {
-                                                    const path = `customer_fraud_logs/${d.id}_${Date.now()}.jpg`;
-                                                    const url = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
-                                                    const scr = await screenshotsDb.createScreenshot({
-                                                      delivery_id: d.id,
-                                                      user_id: selectedPhotographer,
-                                                      type: `CUSTOMER_CALL_LOG:${amount}`,
-                                                      file_url: url,
-                                                      thumbnail_url: url,
-                                                      deleted_at: null
-                                                    }, supabase);
-                                                    if (scr) {
-                                                      setScreenshots(prev => [scr, ...prev]);
-                                                      toast.success('Customer call log uploaded successfully!');
-                                                    }
-                                                  } catch (err) {
-                                                    console.error(err);
-                                                    toast.error('Failed to upload customer call log');
-                                                  }
-                                                }}
-                                                className="text-xs"
-                                              />
+                                      {!isCollapsed && (
+                                        <CardContent className="space-y-4 pt-4 border-t border-slate-100/50">
+                                          <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <div>
+                                              <span className="text-slate-500">Showroom / Cluster:</span>
+                                              <div className="font-bold text-slate-800 mt-0.5">{displayShowroomName} ({displayClusterName})</div>
                                             </div>
-                                          )}
-                                        </div>
-                                      </CardContent>
+                                            <div>
+                                              <span className="text-slate-500 flex items-center gap-1">
+                                                Customer Phone:
+                                                <button 
+                                                  onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    navigator.clipboard.writeText(d.customer_phone || ''); 
+                                                    toast.success('Phone number copied!'); 
+                                                  }}
+                                                  className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                                                  title="Copy Phone"
+                                                >
+                                                  <Copy className="h-3 w-3" />
+                                                </button>
+                                              </span>
+                                              <div className="font-mono font-bold text-slate-900 mt-0.5">{d.customer_phone}</div>
+                                            </div>
+                                          </div>
+
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-3">
+                                            {/* Call Log Image */}
+                                            <div className="space-y-2">
+                                              <label className="text-[10px] font-bold text-slate-400 uppercase">Customer Call Log Screenshot</label>
+                                              {callLogScr ? (
+                                                <div 
+                                                  className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
+                                                  onClick={() => setZoomImageUrl(callLogScr.file_url)}
+                                                >
+                                                  <img src={callLogScr.file_url} className="max-h-full object-contain rounded-lg" alt="customer call log" />
+                                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                                                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                                      <Eye className="h-5 w-5" />
+                                                    </Button>
+                                                  </div>
+                                                  <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Confirmed: ₹{confirmedAmount}</span>
+                                                </div>
+                                              ) : (
+                                                <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                                  No screenshot uploaded
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* Confirmed Amount Verification input */}
+                                            <div className="space-y-4">
+                                              <div className="space-y-2">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Verification Input</label>
+                                                <div className="flex gap-3 items-end">
+                                                  <div className="space-y-1 flex-1">
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase font-semibold">Confirmed Amount *</label>
+                                                    <Input
+                                                      type="number"
+                                                      placeholder="Enter confirmed amount"
+                                                      value={confirmedAmounts[d.id] || ''}
+                                                      disabled={isLocked || isVerified}
+                                                      onChange={(e) => setConfirmedAmounts(prev => ({ ...prev, [d.id]: e.target.value }))}
+                                                      className={`h-8 text-xs font-mono font-bold ${hasMismatch ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
+                                                    />
+                                                    {hasMismatch && (
+                                                      <span className="text-[9px] text-red-500 font-bold block mt-1 animate-pulse">
+                                                        ⚠️ Mismatch with received amount (₹{d.received_amount})!
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Action button */}
+                                              {!isVerified && !isLocked && (
+                                                <Button
+                                                  onClick={() => handleCustomerFraudVerification(d.id)}
+                                                  className="w-full h-8 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs"
+                                                >
+                                                  Save Verification
+                                                </Button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </CardContent>
+                                      )}
                                     </Card>
                                   );
                                 })}
@@ -5081,302 +5074,285 @@ export function ViewScreen() {
                         const platformScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
                         const rapidoScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'RAPIDO' && !s.deleted_at);
 
+                        const isCollapsed = collapsedTask3Cards[d.id] ?? isDeliveryAudited;
+                        const expectedPlatformAmount = Math.max(0, Math.round((Number(d.received_amount || 0) - Number(d.rapido_charge || 0)) * 0.15));
+
                         return (
-                          <Card key={d.id} className="border-l-4 border-l-green-600">
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-sm font-bold flex items-center justify-between">
-                                <div>
-                                  <span className="text-gray-900">{d.delivery_name}</span>
-                                  <span className="text-xs text-gray-500 font-normal ml-2">({d.showroom_code})</span>
+                          <Card key={d.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isDeliveryAudited ? 'border-l-green-600 bg-white' : 'border-l-green-400 bg-green-50/5'}`}>
+                            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-t-xl select-none" onClick={() => setCollapsedTask3Cards(prev => ({ ...prev, [d.id]: !isCollapsed }))}>
+                              <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-800">{d.delivery_name}</span>
+                                  <span className="text-xs text-slate-400 font-normal ml-2">({d.showroom_code})</span>
                                 </div>
-                                {isDeliveryAudited ? (
-                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold">
-                                    Audited & Verified
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
-                                    Pending Verification
-                                  </Badge>
-                                )}
+                                <div className="flex items-center gap-2.5">
+                                  {isDeliveryAudited ? (
+                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 font-semibold text-[10px]">
+                                      Audited & Verified
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200 text-[10px]">
+                                      Pending Verification
+                                    </Badge>
+                                  )}
+                                  <span className="text-slate-400">
+                                    {isCollapsed ? '▶' : '▼'}
+                                  </span>
+                                </div>
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-6">
-                              {/* 1. Customer Payment Auditing */}
-                              {isCustomerPaid && (
-                                <div className="border-b pb-4 space-y-4">
-                                  <div className="flex justify-between items-center">
-                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">1. Customer Payment Screenshot</h4>
-                                    {isCustomerPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {paymentScr ? (
-                                      <div 
-                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => setZoomImageUrl(paymentScr.file_url)}
-                                      >
-                                        <img src={paymentScr.file_url} className="max-h-full object-contain" alt="payment" />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                                            <Eye className="h-5 w-5" />
-                                          </Button>
+                            {!isCollapsed && (
+                              <CardContent className="space-y-6 pt-4 border-t border-slate-100/50">
+                                {/* 1. Customer Payment Auditing */}
+                                {isCustomerPaid && (
+                                  <div className="border-b pb-4 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">1. Customer Payment Screenshot</h4>
+                                      {isCustomerPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {paymentScr ? (
+                                        <div 
+                                          className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                          onClick={() => setZoomImageUrl(paymentScr.file_url)}
+                                        >
+                                          <img src={paymentScr.file_url} className="max-h-full object-contain" alt="payment" />
+                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                              <Eye className="h-5 w-5" />
+                                            </Button>
+                                          </div>
+                                          <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Collection: ₹{d.received_amount}</span>
                                         </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Collection: ₹{d.received_amount}</span>
-                                      </div>
-                                    ) : (
-                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
-                                        No screenshot uploaded
-                                      </div>
-                                    )}
+                                      ) : (
+                                        <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                          No screenshot uploaded
+                                        </div>
+                                      )}
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="DD-MM-YYYY"
-                                          value={inputs.payment_date}
-                                          onChange={(e) => updateInput('payment_date', e.target.value)}
-                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="HH:MM"
-                                          value={inputs.payment_time}
-                                          onChange={(e) => updateInput('payment_time', e.target.value)}
-                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="Amount ₹"
-                                          value={inputs.payment_amount}
-                                          onChange={(e) => updateInput('payment_amount', e.target.value)}
-                                          disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold font-mono"
-                                        />
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="DD-MM-YYYY"
+                                            value={inputs.payment_date}
+                                            onChange={(e) => updateInput('payment_date', e.target.value)}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="HH:MM"
+                                            value={inputs.payment_time}
+                                            onChange={(e) => updateInput('payment_time', e.target.value)}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="Amount ₹"
+                                            value={inputs.payment_amount}
+                                            onChange={(e) => updateInput('payment_amount', e.target.value)}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className={`h-8 text-xs font-mono font-bold ${inputs.payment_amount !== '' && parseFloat(inputs.payment_amount) !== parseFloat(d.received_amount || '0') ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
+                                          />
+                                          {inputs.payment_amount !== '' && parseFloat(inputs.payment_amount) !== parseFloat(d.received_amount || '0') && (
+                                            <span className="text-[9px] text-red-500 font-bold block mt-1 animate-pulse">
+                                              ⚠️ Mismatch with received amount (₹{d.received_amount})!
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                </div>
-                              )}
 
-                              {/* 2. Platform Payment Auditing */}
-                              {isCustomerPaid && is15PercentModel && (
-                                <div className="border-b pb-4 space-y-4">
-                                  <div className="flex justify-between items-center">
-                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">2. Yourphotocrew Platform Payment Screenshot</h4>
-                                    {isPlatformPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {platformScr ? (
-                                      <div 
-                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => setZoomImageUrl(platformScr.file_url)}
-                                      >
-                                        <img src={platformScr.file_url} className="max-h-full object-contain" alt="platform payment" />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                                            <Eye className="h-5 w-5" />
-                                          </Button>
-                                        </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">
-                                          Expected cut (15%): ₹{Math.max(0, Math.round((parseFloat(String(d.received_amount || '0')) - parseFloat(String(d.rapido_charge || '0'))) * 0.15))}
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
-                                        No screenshot uploaded
+                                    {!isCustomerPayVerified && !isLocked && (
+                                      <div className="flex justify-end pt-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleSaveCustomerPaymentVerification(d.id)}
+                                          className="text-xs h-8 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg"
+                                        >
+                                          Save Customer Payment Proof
+                                        </Button>
                                       </div>
                                     )}
+                                  </div>
+                                )}
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="DD-MM-YYYY"
-                                          value={inputs.platform_date}
-                                          onChange={(e) => updateInput('platform_date', e.target.value)}
-                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="HH:MM"
-                                          value={inputs.platform_time}
-                                          onChange={(e) => updateInput('platform_time', e.target.value)}
-                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="Amount ₹"
-                                          value={inputs.platform_amount}
-                                          onChange={(e) => updateInput('platform_amount', e.target.value)}
-                                          disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold font-mono"
-                                        />
+                                {/* 2. Platform Payout Auditing */}
+                                {is15PercentModel && isCustomerPaid && (
+                                  <div className="border-b pb-4 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">2. Flat 15% Platform Payout cut screenshot</h4>
+                                      {isPlatformPayVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {platformScr ? (
+                                        <div 
+                                          className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                          onClick={() => setZoomImageUrl(platformScr.file_url)}
+                                        >
+                                          <img src={platformScr.file_url} className="max-h-full object-contain" alt="platform cut" />
+                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                              <Eye className="h-5 w-5" />
+                                            </Button>
+                                          </div>
+                                          <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Expected Cut: ₹{expectedPlatformAmount}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                          No screenshot uploaded
+                                        </div>
+                                      )}
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="DD-MM-YYYY"
+                                            value={inputs.platform_date}
+                                            onChange={(e) => updateInput('platform_date', e.target.value)}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="HH:MM"
+                                            value={inputs.platform_time}
+                                            onChange={(e) => updateInput('platform_time', e.target.value)}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="Amount ₹"
+                                            value={inputs.platform_amount}
+                                            onChange={(e) => updateInput('platform_amount', e.target.value)}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className={`h-8 text-xs font-mono font-bold ${inputs.platform_amount !== '' && parseFloat(inputs.platform_amount) !== expectedPlatformAmount ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
+                                          />
+                                          {inputs.platform_amount !== '' && parseFloat(inputs.platform_amount) !== expectedPlatformAmount && (
+                                            <span className="text-[9px] text-red-500 font-bold block mt-1 animate-pulse">
+                                              ⚠️ Mismatch with expected (₹{expectedPlatformAmount})!
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                </div>
-                              )}
 
-                              {/* 3. Rapido Auditing */}
-                              {hasRapido && (
-                                <div className="border-b pb-4 space-y-4">
-                                  <div className="flex justify-between items-center">
-                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">3. Rapido Ride Screenshot</h4>
-                                    {isRapidoVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {rapidoScr ? (
-                                      <div 
-                                        className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
-                                        onClick={() => setZoomImageUrl(rapidoScr.file_url)}
-                                      >
-                                        <img src={rapidoScr.file_url} className="max-h-full object-contain" alt="rapido" />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-                                          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                                            <Eye className="h-5 w-5" />
-                                          </Button>
-                                        </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Charge: ₹{d.rapido_charge}</span>
-                                      </div>
-                                    ) : (
-                                      <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
-                                        No screenshot uploaded
+                                    {!isPlatformPayVerified && !isLocked && (
+                                      <div className="flex justify-end pt-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleSavePlatformCutVerification(d.id)}
+                                          className="text-xs h-8 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg"
+                                        >
+                                          Save Platform Cut Proof
+                                        </Button>
                                       </div>
                                     )}
+                                  </div>
+                                )}
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="DD-MM-YYYY"
-                                          value={inputs.rapido_date}
-                                          onChange={(e) => updateInput('rapido_date', e.target.value)}
-                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="HH:MM"
-                                          value={inputs.rapido_time}
-                                          onChange={(e) => updateInput('rapido_time', e.target.value)}
-                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
-                                        <Input
-                                          type="text"
-                                          placeholder="Amount ₹"
-                                          value={inputs.rapido_amount}
-                                          onChange={(e) => updateInput('rapido_amount', e.target.value)}
-                                          disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
-                                          className="h-8 text-xs font-semibold font-mono"
-                                        />
+                                {/* 3. Rapido Charge Auditing */}
+                                {hasRapido && (
+                                  <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">3. Transport charge (Rapido screenshot)</h4>
+                                      {isRapidoVerified && <Badge className="bg-green-50 text-green-700 border border-green-200 font-medium">Verified</Badge>}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {rapidoScr ? (
+                                        <div 
+                                          className="flex flex-col items-center bg-gray-50 border rounded-lg p-2 h-44 justify-center relative group cursor-pointer"
+                                          onClick={() => setZoomImageUrl(rapidoScr.file_url)}
+                                        >
+                                          <img src={rapidoScr.file_url} className="max-h-full object-contain" alt="rapido" />
+                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                                            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                                              <Eye className="h-5 w-5" />
+                                            </Button>
+                                          </div>
+                                          <span className="absolute bottom-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded font-mono z-10">Rapido Bill: ₹{d.rapido_charge}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="h-44 border border-dashed rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                          No screenshot uploaded
+                                        </div>
+                                      )}
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Date *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="DD-MM-YYYY"
+                                            value={inputs.rapido_date}
+                                            onChange={(e) => updateInput('rapido_date', e.target.value)}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Time *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="HH:MM"
+                                            value={inputs.rapido_time}
+                                            onChange={(e) => updateInput('rapido_time', e.target.value)}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className="h-8 text-xs font-semibold"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] font-bold text-gray-500 uppercase">Scr. Amount *</label>
+                                          <Input
+                                            type="text"
+                                            placeholder="Amount ₹"
+                                            value={inputs.rapido_amount}
+                                            onChange={(e) => updateInput('rapido_amount', e.target.value)}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            className={`h-8 text-xs font-mono font-bold ${inputs.rapido_amount !== '' && parseFloat(inputs.rapido_amount) !== parseFloat(d.rapido_charge || '0') ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
+                                          />
+                                          {inputs.rapido_amount !== '' && parseFloat(inputs.rapido_amount) !== parseFloat(d.rapido_charge || '0') && (
+                                            <span className="text-[9px] text-red-500 font-bold block mt-1 animate-pulse">
+                                              ⚠️ Mismatch with rapido charge (₹{d.rapido_charge})!
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
+
+                                    {!isRapidoVerified && !isLocked && (
+                                      <div className="flex justify-end pt-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleSaveRapidoVerification(d.id)}
+                                          className="text-xs h-8 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg"
+                                        >
+                                          Save Rapido Bill Proof
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                              )}
-
-                              {/* Submit delivery verification details */}
-                              {!isDeliveryAudited && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
-                                <Button
-                                  onClick={async () => {
-                                    // 1. Validate Customer Pay
-                                    if (isCustomerPaid && !isCustomerPayVerified) {
-                                      if (!inputs.payment_date || !inputs.payment_time || !inputs.payment_amount) {
-                                        toast.error('Please fill all Customer Payment screenshot fields');
-                                        return;
-                                      }
-                                      if (parseFloat(inputs.payment_amount) !== parseFloat(String(d.received_amount))) {
-                                        toast.error('can you check with the photographer about this discrepancy?');
-                                        return;
-                                      }
-                                    }
-
-                                    // 2. Validate Platform Payment
-                                    if (isCustomerPaid && is15PercentModel && !isPlatformPayVerified) {
-                                      if (!inputs.platform_date || !inputs.platform_time || !inputs.platform_amount) {
-                                        toast.error('Please fill all Yourphotocrew Platform Payment screenshot fields');
-                                        return;
-                                      }
-                                      const expectedCut = Math.max(0, Math.round((parseFloat(String(d.received_amount || '0')) - parseFloat(String(d.rapido_charge || '0'))) * 0.15));
-                                      if (parseFloat(inputs.platform_amount) !== expectedCut) {
-                                        toast.error('have you collected the correct amount from photographer?');
-                                        return;
-                                      }
-                                    }
-
-                                    // 3. Validate Rapido
-                                    if (hasRapido && !isRapidoVerified) {
-                                      if (!inputs.rapido_date || !inputs.rapido_time || !inputs.rapido_amount) {
-                                        toast.error('Please fill all Rapido Ride screenshot fields');
-                                        return;
-                                      }
-                                      if (parseFloat(inputs.rapido_amount) !== parseFloat(String(d.rapido_charge))) {
-                                        toast.error('the amount is not matching call photographer');
-                                        return;
-                                      }
-                                    }
-
-                                    // Build update payload
-                                    const updateData: Partial<Delivery> = {};
-                                    if (isCustomerPaid && !isCustomerPayVerified) {
-                                      updateData.payment_screenshot_date = inputs.payment_date;
-                                      updateData.payment_screenshot_time = inputs.payment_time;
-                                      updateData.payment_screenshot_amount = parseFloat(inputs.payment_amount);
-                                    }
-                                    if (isCustomerPaid && is15PercentModel && !isPlatformPayVerified) {
-                                      updateData.platform_payment_screenshot_date = inputs.platform_date;
-                                      updateData.platform_payment_screenshot_time = inputs.platform_time;
-                                      updateData.platform_payment_screenshot_amount = parseFloat(inputs.platform_amount);
-                                    }
-                                    if (hasRapido && !isRapidoVerified) {
-                                      updateData.rapido_screenshot_date = inputs.rapido_date;
-                                      updateData.rapido_screenshot_time = inputs.rapido_time;
-                                      updateData.rapido_screenshot_amount = parseFloat(inputs.rapido_amount);
-                                    }
-
-                                    try {
-                                      const client = supabase;
-                                      const updated = await deliveriesDb.updateDelivery(d.id, updateData, client);
-                                      await handleTriggerSheetSync(updated, 'sync', null);
-                                      toast.success('Delivery audit submitted and closed!');
-                                      loadData();
-                                    } catch (err) {
-                                      console.error('Failed to submit delivery audit:', err);
-                                      toast.error('Failed to save audit details');
-                                    }
-                                  }}
-                                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold text-sm h-10"
-                                >
-                                  Submit Delivery Audit
-                                </Button>
-                              )}
-                            </CardContent>
+                                )}
+                              </CardContent>
+                            )}
                           </Card>
                         );
                       })
