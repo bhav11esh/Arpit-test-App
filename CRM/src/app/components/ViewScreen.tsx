@@ -3140,7 +3140,7 @@ export function ViewScreen() {
                                       <X className="h-3 w-3 text-red-600" />
                                     </Button>
                                   </div>
-                                ) : (
+                                ) : isAdmin ? (
                                   <div
                                     className="flex items-center gap-2 p-1 rounded group cursor-pointer hover:bg-gray-50"
                                     onClick={() => handleStartEdit(delivery.id, 'footage_link', delivery.footage_link || '')}
@@ -3151,6 +3151,12 @@ export function ViewScreen() {
                                     </span>
                                     <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
                                   </div>
+                                ) : (
+                                  <span className="flex-1 truncate max-w-[200px] text-sm">
+                                    {delivery.footage_link
+                                      ? <a href={delivery.footage_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-[200px]">{delivery.footage_link}</a>
+                                      : <span className="text-gray-400">—</span>}
+                                  </span>
                                 )}
                               </TableCell>
 
@@ -3176,7 +3182,7 @@ export function ViewScreen() {
                                       <X className="h-3 w-3 text-red-600" />
                                     </Button>
                                   </div>
-                                ) : (
+                                ) : isAdmin ? (
                                   <div
                                     className="flex items-center gap-2 p-1 rounded group cursor-pointer hover:bg-gray-50"
                                     onClick={() => handleStartEdit(delivery.id, 'reel_link', (delivery as any).reel_link || '')}
@@ -3187,6 +3193,12 @@ export function ViewScreen() {
                                     </span>
                                     <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
                                   </div>
+                                ) : (
+                                  <span className="flex-1 truncate max-w-[200px] text-sm">
+                                    {(delivery as any).reel_link
+                                      ? <a href={(delivery as any).reel_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-[200px]">{(delivery as any).reel_link}</a>
+                                      : <span className="text-gray-400">—</span>}
+                                  </span>
                                 )}
                               </TableCell>
 
@@ -4200,13 +4212,15 @@ export function ViewScreen() {
                 </div>
 
 
-                {/* Add New Row Button */}
+                {/* Add New Row Button - Admin Only */}
+                {isAdmin && (
                 <div className="mt-4">
                   <Button onClick={handleStartAddRow} variant="outline" className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50">
                     <Plus className="h-4 w-4" />
                     Add New Delivery Row
                   </Button>
                 </div>
+                )}
               </CardContent>
             </Card>
           )}
