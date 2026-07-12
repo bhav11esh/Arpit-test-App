@@ -450,10 +450,20 @@ export function ViewScreen() {
       if (model === 'FIXED') return 'Fixed Payout';
       return 'Percentage Based (10/30/50)';
     }
+
+    // Convert dateStr (DD-MM-YYYY) to ISO (YYYY-MM-DD) for alphabetical comparison
+    let formattedDate = dateStr;
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        const [dd, mm, yyyy] = parts;
+        formattedDate = `${yyyy}-${mm}-${dd}`;
+      }
+    }
     
     // Check if within fixed window
-    const inFixedWindow = dateStr >= photographer.fixed_start_date && 
-      (!photographer.fixed_end_date || dateStr < photographer.fixed_end_date);
+    const inFixedWindow = formattedDate >= photographer.fixed_start_date && 
+      (!photographer.fixed_end_date || formattedDate < photographer.fixed_end_date);
       
     if (inFixedWindow) {
       return 'Fixed Payout';
@@ -473,10 +483,20 @@ export function ViewScreen() {
     if (!photographer.fixed_start_date) {
       return model;
     }
+
+    // Convert dateStr (DD-MM-YYYY) to ISO (YYYY-MM-DD) for alphabetical comparison
+    let formattedDate = dateStr;
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        const [dd, mm, yyyy] = parts;
+        formattedDate = `${yyyy}-${mm}-${dd}`;
+      }
+    }
     
     // Check if within fixed window
-    const inFixedWindow = dateStr >= photographer.fixed_start_date && 
-      (!photographer.fixed_end_date || dateStr < photographer.fixed_end_date);
+    const inFixedWindow = formattedDate >= photographer.fixed_start_date && 
+      (!photographer.fixed_end_date || formattedDate < photographer.fixed_end_date);
       
     if (inFixedWindow) {
       return 'FIXED';
