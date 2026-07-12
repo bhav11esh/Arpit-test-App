@@ -2301,8 +2301,7 @@ export function ViewScreen() {
   };
 
   // Add new row handlers
-  const handleStartAddRow = () => {
-    if (!isAdmin) return;
+  const handleOpenAddDialog = () => {
     setNewRowData({
       date: spreadSheetDate || getOperationalDateString(),
       showroom_id: '',
@@ -2329,6 +2328,8 @@ export function ViewScreen() {
       witness_phone: '',
       fraud_screenshot: null,
       fraud_call_log_screenshot: null,
+      customer_call_log_screenshot: null,
+      actual_amount_confirmed_by_customer: '',
     });
     setIsAddDialogOpen(true);
   };
@@ -2731,7 +2732,23 @@ export function ViewScreen() {
         rapido_charge: '',
         payment_screenshot: null,
         rapido_screenshot: null,
-        assigned_user_id: ''
+        rapido_screenshot_date: '',
+        rapido_screenshot_time: '',
+        rapido_screenshot_amount: '',
+        assigned_user_id: '',
+        payment_screenshot_date: '',
+        payment_screenshot_time: '',
+        payment_screenshot_amount: '',
+        platform_payment_screenshot: null,
+        platform_payment_amount: '',
+        platform_payment_screenshot_date: '',
+        platform_payment_screenshot_time: '',
+        platform_payment_screenshot_amount: '',
+        witness_phone: '',
+        fraud_screenshot: null,
+        fraud_call_log_screenshot: null,
+        customer_call_log_screenshot: null,
+        actual_amount_confirmed_by_customer: '',
       });
 
       toast.success('Delivery row saved and synced successfully');
@@ -4104,6 +4121,45 @@ export function ViewScreen() {
                                                 </div>
                                               )}
                                             </div>
+                                          </div>
+
+                                          <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400">Customer Confirmed Amount *</label>
+                                            <Input
+                                              type="number"
+                                              value={newRowData.actual_amount_confirmed_by_customer}
+                                              onChange={(e) => setNewRowData({ ...newRowData, actual_amount_confirmed_by_customer: e.target.value })}
+                                              placeholder="Enter customer confirmed amount"
+                                              className="h-9 text-xs"
+                                            />
+                                          </div>
+
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400">Customer Call Log Photo *</label>
+                                            <div className="flex gap-2 items-center">
+                                              <Input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => setNewRowData({ ...newRowData, customer_call_log_screenshot: e.target.files?.[0] || null })}
+                                                className="hidden"
+                                                id="customer-calllog-upload-new"
+                                              />
+                                              <label
+                                                htmlFor="customer-calllog-upload-new"
+                                                className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                  !newRowData.customer_call_log_screenshot 
+                                                    ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                    : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                }`}
+                                              >
+                                                {newRowData.customer_call_log_screenshot ? '✓ Customer Log Uploaded' : 'Upload Customer Call Log'}
+                                              </label>
+                                            </div>
+                                            {newRowData.customer_call_log_screenshot && (
+                                              <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
+                                                📄 {newRowData.customer_call_log_screenshot.name}
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       );
