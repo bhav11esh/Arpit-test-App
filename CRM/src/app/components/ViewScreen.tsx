@@ -3758,15 +3758,24 @@ export function ViewScreen() {
                                         <span>Received Amount:</span>
                                         <span className="font-bold">₹{receivedAmount}</span>
                                       </div>
-                                      <div className="flex justify-between">
-                                        <span>Photographer Payout:</span>
-                                        <span className="font-bold text-emerald-700">₹{payout}</span>
-                                      </div>
-                                      {isCustomerPaid && (
-                                        <div className="flex justify-between col-span-2">
-                                          <span>Platform Share ({showPlatformPaymentFields ? "15% Cut" : "Standard Share"}):</span>
-                                          <span className="font-bold text-teal-700">₹{platformCommission}</span>
+                                      {payoutModel === 'FIXED' ? (
+                                        <div className="flex justify-between text-emerald-700 font-bold">
+                                          <span>Payout Model:</span>
+                                          <span>Fixed Payout</span>
                                         </div>
+                                      ) : (
+                                        <>
+                                          <div className="flex justify-between">
+                                            <span>Photographer Payout:</span>
+                                            <span className="font-bold text-emerald-700">₹{payout}</span>
+                                          </div>
+                                          {isCustomerPaid && (
+                                            <div className="flex justify-between col-span-2">
+                                              <span>Platform Share ({showPlatformPaymentFields ? "15% Cut" : "Standard Share"}):</span>
+                                              <span className="font-bold text-teal-700">₹{platformCommission}</span>
+                                            </div>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   </div>
