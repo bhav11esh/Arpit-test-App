@@ -2303,7 +2303,8 @@ export function ViewScreen() {
   };
 
   // Add new row handlers
-  const handleOpenAddDialog = () => {
+  const handleStartAddRow = () => {
+    if (!isAdmin) return;
     setNewRowData({
       date: spreadSheetDate || getOperationalDateString(),
       showroom_id: '',
