@@ -232,7 +232,18 @@ export function UserManagement() {
     setSubmitting(true);
     try {
       await usersDb.adminUpdateUserPassword(editingUser.id, newPassword);
-      toast.success(`Password updated for ${editingUser.name}`);
+      
+      // Force instantaneous logout for the user across all devices
+      // We do this by temporarily toggling their active status, which triggers the realtime 
+      // listener in AuthContext.tsx to instantly sign them out.
+      if (editingUser.active) {
+        await usersDb.updateUser(editingUser.id, { active: false });
+        // Wait briefly for the realtime event to propagate to the user's browser
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await usersDb.updateUser(editingUser.id, { active: true });
+      }
+
+      toast.success(`Password updated for ${editingUser.name} & all active sessions logged out.`);
       setIsPasswordDialogOpen(false);
       setNewPassword('');
     } catch (err) {

@@ -1334,7 +1334,7 @@ export function ViewScreen() {
 
       const auditedUserIds = new Set(
         (logs || [])
-          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && le.metadata?.date === dateStr)
           .map(le => le.metadata?.photographer_id)
       );
       
@@ -1374,9 +1374,11 @@ export function ViewScreen() {
         return { photographerId: p.id, name: p.name, completedCount, totalCount, hasSentUpdate, isAuditClosed, leaveText };
       });
       
-      // 6. Filter: missed update or 0 completions AND not yet closed
+      // 6. Filter: missed update or 0 completions AND not yet closed, excluding those on Full Day Leave
       const filteredResults = results.filter(r => 
-        !r.isAuditClosed && (r.completedCount === 0 || !r.hasSentUpdate)
+        !r.isAuditClosed && 
+        r.leaveText !== 'Full Day Leave' && 
+        (r.completedCount === 0 || !r.hasSentUpdate)
       );
       
       setMissedSendUpdateData(filteredResults);
@@ -1384,7 +1386,7 @@ export function ViewScreen() {
       // Also sync closed IDs into local state so Send Update gate is accurate
       setMissedUpdateClosedPhotographers(new Set(
         (logs || [])
-          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && getOperationalDateString(new Date(le.created_at)) === dateStr)
+          .filter(le => le.type === 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED' && le.metadata?.date === dateStr)
           .map((le: any) => le.metadata?.photographer_id as string)
           .filter(Boolean)
       ));

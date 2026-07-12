@@ -38,3 +38,25 @@ export const createStandupCall = async (
   if (error) throw error;
   return data as StandupCall;
 };
+
+export const submitStandupCall = async (
+  call: Omit<StandupCall, 'id' | 'created_at' | 'updated_at'>,
+  supabaseClient: SupabaseClient<Database> = supabase
+): Promise<StandupCall> => {
+  const { data, error } = await (supabaseClient.from('standup_calls') as any)
+    .upsert(
+      {
+        photographer_id: call.photographer_id,
+        date: call.date,
+        status: call.status,
+        confirmed_count: call.confirmed_count,
+        call_log_screenshot_url: call.call_log_screenshot_url,
+      },
+      { onConflict: 'photographer_id,date' }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as StandupCall;
+};
