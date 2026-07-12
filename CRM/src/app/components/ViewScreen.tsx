@@ -435,7 +435,7 @@ function FraudAuditShowroomCard({
 export function ViewScreen() {
   const { user } = useAuth();
   const { dealerships, clusters, mappings, photographers, allUsers } = useConfig();
-  const { isPhotographerOnLeave, leaves } = useLeave();
+  const { isPhotographerOnLeave, leaves, isFullDayLeave } = useLeave();
   const navigate = useNavigate();
 
   // Helper to determine payout model for a photographer on a given date
@@ -1181,6 +1181,7 @@ export function ViewScreen() {
     return targetPhotographers.map(p => {
       const pDeliveries = deliveries.filter(d => d.assigned_user_id === p.id && d.date === spreadSheetDate);
       const standupCall = allStandupCalls.find(c => c.photographer_id === p.id);
+      const onFullDayLeave = isFullDayLeave(p.id, spreadSheetDate);
       
       // A photographer's audits are complete if:
       // - Either ALL 3 tasks are completed (standup verified, fraud verified, deliveries verified)
@@ -1281,7 +1282,7 @@ export function ViewScreen() {
       const missedUpdateEntry = missedSendUpdateData.find(m => m.photographerId === p.id);
       const isMissedUpdateDone = !missedUpdateEntry || missedUpdateClosedPhotographers.has(p.id) || isMissedUpdateHandedOver;
 
-      const completed = standupDone && fraudDone && deliveriesDone && isMissedUpdateDone;
+      const completed = onFullDayLeave || (standupDone && fraudDone && deliveriesDone && isMissedUpdateDone);
 
       return {
         id: p.id,
@@ -1293,10 +1294,11 @@ export function ViewScreen() {
         isMissedUpdateHandedOver,
         isMissedUpdateDone,
         missedUpdateEntry: missedUpdateEntry || null,
-        hasSentUpdate
+        hasSentUpdate,
+        onFullDayLeave
       };
     });
-  }, [cityIsolatedPhotographers, deliveries, allStandupCalls, handoverLogs, spreadSheetDate, screenshots, allUsers, missedSendUpdateData, missedUpdateClosedPhotographers, sentUpdateUserIds]);
+  }, [cityIsolatedPhotographers, deliveries, allStandupCalls, handoverLogs, spreadSheetDate, screenshots, allUsers, missedSendUpdateData, missedUpdateClosedPhotographers, sentUpdateUserIds, leaves]);
 
   const allPhotographersCleared = React.useMemo(() => {
     return photographerStatusList.length > 0 && photographerStatusList.every(p => p.completed);
@@ -4471,7 +4473,9 @@ export function ViewScreen() {
                             const isPHandedOver = handoverLogs.some(l => l.target_id === p.id);
                             
                             let suffix = ' (Pending)';
-                            if (isPHandedOver) {
+                            if (pStatus?.onFullDayLeave) {
+                              suffix = ' (Leave)';
+                            } else if (isPHandedOver) {
                               suffix = ' (Handed Over)';
                             } else if (isDone) {
                               suffix = ' (Done)';
@@ -4548,6 +4552,15 @@ export function ViewScreen() {
               {/* Main Content Areas */}
               {selectedPhotographer && selectedPhotographer !== 'all' ? (
                 <div className="space-y-6">
+                  {selectedPhotographerStatus?.onFullDayLeave && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 flex items-center gap-3">
+                      <ShieldCheck className="h-5 w-5 text-green-600 shrink-0" />
+                      <div>
+                        <div className="font-bold text-sm">On Full Day Leave</div>
+                        <div className="text-xs mt-0.5">This photographer was on an approved Full Day Leave for this date. No daily audit tasks are expected.</div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* TABS SELECTOR BAR FOR MOBILE & DESKTOP AUDITS */}
                   <div className="flex border border-slate-200/60 overflow-x-auto scrollbar-hide py-1 gap-2 bg-slate-50/80 backdrop-blur-sm p-1.5 rounded-xl shadow-sm">
