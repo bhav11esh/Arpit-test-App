@@ -38,6 +38,18 @@ import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw, Clock,
 import { SearchableSelect } from './ui/searchable-select';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
+const getYesterdayDateString = (dateStr: string): string => {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  dateObj.setDate(dateObj.getDate() - 1);
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+
 interface FraudAuditShowroomCardProps {
   showroomCode: string;
   selectedPhotographer: string;
@@ -841,7 +853,8 @@ export function ViewScreen() {
   useEffect(() => {
     if ((viewMode === 'audit' || viewMode === 'call_logs') && spreadSheetDate && user) {
       fetchHandoverAndSentLogs();
-      fetchMissedSendUpdateData(spreadSheetDate);
+      const yesterdayDateStr = getYesterdayDateString(spreadSheetDate);
+      fetchMissedSendUpdateData(yesterdayDateStr);
       
       // Fetch all standup calls for the selected date
       const fetchStandupCalls = async () => {
@@ -1218,9 +1231,10 @@ export function ViewScreen() {
     
     // For calculating checklist completeness, only active photographers for this date are relevant
     const targetPhotographers = cityIsolatedPhotographers.filter(p => p.active);
+    const yesterdayDateStr = getYesterdayDateString(spreadSheetDate);
     
     return targetPhotographers.map(p => {
-      const pDeliveries = deliveries.filter(d => d.assigned_user_id === p.id && d.date === spreadSheetDate);
+      const pDeliveries = deliveries.filter(d => d.assigned_user_id === p.id && d.date === yesterdayDateStr);
       const standupCall = allStandupCalls.find(c => c.photographer_id === p.id);
       const onFullDayLeave = isFullDayLeave(p.id, spreadSheetDate);
       
@@ -2814,7 +2828,8 @@ export function ViewScreen() {
 
   const photographerDeliveries = React.useMemo(() => {
     if (!selectedPhotographer || selectedPhotographer === 'all') return [];
-    return deliveries.filter(d => d.assigned_user_id === selectedPhotographer && d.date === spreadSheetDate && d.status === 'DONE');
+    const yesterdayDateStr = getYesterdayDateString(spreadSheetDate);
+    return deliveries.filter(d => d.assigned_user_id === selectedPhotographer && d.date === yesterdayDateStr && d.status === 'DONE');
   }, [deliveries, selectedPhotographer, spreadSheetDate]);
 
   const uniqueShowroomCodesForPhotographer = React.useMemo(() => {
@@ -5055,7 +5070,7 @@ export function ViewScreen() {
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
-                                Task 2A: Dealership Witness Call Audits
+                                Task 2A: Dealership Witness Call Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
                               {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && uniqueShowroomCodesForPhotographer.length > 0 && (
                                 <Button
@@ -5111,7 +5126,7 @@ export function ViewScreen() {
                             {uniqueShowroomCodesForPhotographer.length === 0 ? (
                               <Card>
                                 <CardContent className="py-6 text-center text-gray-500 text-xs italic">
-                                  No deliveries completed today to verify.
+                                  No completed customer-paid deliveries found for this shift.
                                 </CardContent>
                               </Card>
                             ) : (
@@ -5120,7 +5135,7 @@ export function ViewScreen() {
                                   key={showroomCode}
                                   showroomCode={showroomCode}
                                   selectedPhotographer={selectedPhotographer}
-                                  spreadSheetDate={spreadSheetDate}
+                                  spreadSheetDate={getYesterdayDateString(spreadSheetDate)}
                                   deliveries={deliveries}
                                   screenshots={screenshots}
                                   setScreenshots={setScreenshots}
@@ -5143,7 +5158,7 @@ export function ViewScreen() {
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
-                                Task 2B: Customer Payment Fraud Audits
+                                Task 2B: Customer Payment Fraud Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
                               {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && customerPaidDeliveries.length > 0 && (
                                 <Button
@@ -5352,7 +5367,7 @@ export function ViewScreen() {
                     <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-green-600" />
-                        Task 3: Deliveries Verification checklist
+                        Task 3: Deliveries Verification checklist (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                       </span>
                       {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
                         <div className="flex items-center gap-2">
