@@ -206,7 +206,8 @@ function FraudAuditShowroomCard({
 
       let callLogUrl = callLogScreenshot ? callLogScreenshot.file_url : '';
       if (callLogFile) {
-        const path = `call_logs/${Date.now()}_${callLogFile.name}`;
+        const cleanName = callLogFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `call_logs/${Date.now()}_${cleanName}`;
         callLogUrl = await screenshotsDb.uploadScreenshotFile(callLogFile, path, supabase);
       }
 
@@ -1084,7 +1085,8 @@ export function ViewScreen() {
     try {
       let callLogUrl = existingScr ? existingScr.file_url : '';
       if (file) {
-        const path = `call_logs/${Date.now()}_${file.name}`;
+        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `call_logs/${Date.now()}_${cleanName}`;
         callLogUrl = await screenshotsDb.uploadScreenshotFile(file, path, supabase);
       }
       
