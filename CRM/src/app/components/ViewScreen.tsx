@@ -73,6 +73,7 @@ function FraudAuditShowroomCard({
   loadData,
   setZoomImageUrl
 }: FraudAuditShowroomCardProps) {
+  const { clusters } = useConfig();
   const showroomDeliveries = deliveries.filter(d => 
     d.assigned_user_id === selectedPhotographer && 
     d.date === spreadSheetDate && 
@@ -117,18 +118,34 @@ function FraudAuditShowroomCard({
     }
   }, [verifiedDelivery]);
 
+  const firstDeliveryClusterCode = showroomDeliveries[0]?.cluster_code;
+
   useEffect(() => {
     const fetchPreviousWitnessPhones = async () => {
       try {
         const { data, error } = await supabase
           .from('deliveries')
-          .select('witness_phone, date, showroom_code')
+          .select('witness_phone, date, showroom_code, cluster_code')
           .not('witness_phone', 'is', null)
           .neq('witness_phone', '')
           .order('date', { ascending: false });
 
         if (!error && data) {
-          const matching = data.filter(d => getShowroomCode(d.showroom_code) === showroomCode);
+          const currentCluster = clusters.find(
+            c => c.id === firstDeliveryClusterCode || c.name === firstDeliveryClusterCode
+          );
+          const currentClusterId = currentCluster?.id;
+          const currentClusterName = currentCluster?.name;
+
+          const matching = data.filter(d => {
+            const isShowroomMatch = getShowroomCode(d.showroom_code) === showroomCode;
+            const isClusterMatch = d.cluster_code && (
+              d.cluster_code === currentClusterId ||
+              d.cluster_code === currentClusterName ||
+              (firstDeliveryClusterCode && d.cluster_code === firstDeliveryClusterCode)
+            );
+            return isShowroomMatch && isClusterMatch;
+          });
           
           const phoneList: { phone: string; date: string }[] = [];
           const seen = new Set<string>();
@@ -151,7 +168,7 @@ function FraudAuditShowroomCard({
     };
 
     fetchPreviousWitnessPhones();
-  }, [showroomCode]);
+  }, [showroomCode, firstDeliveryClusterCode, clusters]);
 
   const handleWitnessSubmit = async () => {
     if (submittingFraud) return;
@@ -575,6 +592,7 @@ export function ViewScreen() {
   const [newRowData, setNewRowData] = useState<{
     date: string;
     showroom_id: string;
+    cluster_code: string;
     delivery_name: string;
     footage_link: string;
     reel_link: string;
@@ -603,6 +621,7 @@ export function ViewScreen() {
   }>({
     date: '',
     showroom_id: '',
+    cluster_code: '',
     delivery_name: '',
     footage_link: '',
     reel_link: '',
@@ -2365,8 +2384,8 @@ export function ViewScreen() {
 
     try {
       // Validate required fields
-      if (!newRowData.date || !newRowData.showroom_id) {
-        toast.error('Please fill in required fields: Date and Showroom');
+      if (!newRowData.date || !newRowData.showroom_id || !newRowData.cluster_code) {
+        toast.error('Please fill in required fields: Date, Dealership, and Cluster');
         return;
       }
 
@@ -2542,12 +2561,15 @@ export function ViewScreen() {
       // Extract showroom code from dealership name (e.g., "Khatri Wheels (KHTR_WH)" -> "KHTR_WH")
       const showroomCode = getShowroomCode(selectedDealership.name);
 
-      // Find the mapping to get cluster_code
-      const mapping = mappings.find(m => m.dealershipId === selectedDealership.id);
-      const cluster = clusters.find(c => c.id === mapping?.clusterId);
+      // Find the selected cluster to get its ID
+      const selectedClusterObj = clusters.find(c => c.name === newRowData.cluster_code);
 
-      // Use cluster name as code if explicit code not available (centralized with HomeScreen logic)
-      const clusterCode = cluster?.name || 'UNKNOWN';
+      // Find the mapping to get showroom_type (PRIMARY/SECONDARY)
+      const mapping = mappings.find(m => m.dealershipId === selectedDealership.id && m.clusterId === selectedClusterObj?.id)
+        || mappings.find(m => m.dealershipId === selectedDealership.id);
+
+      // Use selected cluster name
+      const clusterCode = newRowData.cluster_code || selectedClusterObj?.name || 'UNKNOWN';
 
       // Create new delivery object
       const newDelivery: Delivery = {
@@ -2749,6 +2771,7 @@ export function ViewScreen() {
       setNewRowData({
         date: '',
         showroom_id: '',
+        cluster_code: '',
         delivery_name: '',
         footage_link: '',
         reel_link: '',
@@ -3630,35 +3653,71 @@ export function ViewScreen() {
                                   />
                                 </div>
                                 <div className="space-y-1.5">
-                                  <label className="text-[10px] font-bold uppercase text-slate-400">Showroom</label>
+                                  <label className="text-[10px] font-bold uppercase text-slate-400">Dealership</label>
                                   <SearchableSelect
                                     options={dealerships.map(d => ({ 
-                                      label: getShowroomDisplayName(d.id), 
+                                      label: d.name, 
                                       value: d.id 
                                     }))}
                                     value={newRowData.showroom_id}
-                                    onValueChange={(value) => setNewRowData({ ...newRowData, showroom_id: value })}
-                                    placeholder="Select showroom"
+                                    onValueChange={(value) => {
+                                      const defaultMapping = mappings.find(m => m.dealershipId === value);
+                                      const defaultCluster = defaultMapping ? clusters.find(c => c.id === defaultMapping.clusterId) : null;
+                                      setNewRowData({ 
+                                        ...newRowData, 
+                                        showroom_id: value,
+                                        cluster_code: defaultCluster ? defaultCluster.name : ''
+                                      });
+                                    }}
+                                    placeholder="Select dealership"
                                   />
                                 </div>
                               </div>
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold uppercase text-slate-400">Photographer</label>
-                                <Select
-                                  value={newRowData.assigned_user_id}
-                                  onValueChange={(value) => setNewRowData({ ...newRowData, assigned_user_id: value })}
-                                >
-                                  <SelectTrigger className="w-full h-9 text-xs">
-                                    <SelectValue placeholder="Select photographer" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {cityIsolatedPhotographers.map(p => (
-                                      <SelectItem key={p.id} value={p.id}>
-                                        {p.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase text-slate-400">Cluster</label>
+                                  <Select
+                                    value={newRowData.cluster_code}
+                                    onValueChange={(value) => setNewRowData({ ...newRowData, cluster_code: value })}
+                                  >
+                                    <SelectTrigger className="w-full h-9 text-xs">
+                                      <SelectValue placeholder="Select cluster" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {cityIsolatedClusters.map(c => (
+                                        <SelectItem key={c.id} value={c.name}>
+                                          {c.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase text-slate-400">Photographer</label>
+                                  <Select
+                                    value={newRowData.assigned_user_id}
+                                    onValueChange={(value) => {
+                                      const photographerObj = allUsers.find(p => p.id === value);
+                                      const photogClusterCode = photographerObj?.cluster_code;
+                                      setNewRowData(prev => ({ 
+                                        ...prev, 
+                                        assigned_user_id: value,
+                                        cluster_code: prev.cluster_code || photogClusterCode || ''
+                                      }));
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-full h-9 text-xs">
+                                      <SelectValue placeholder="Select photographer" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {cityIsolatedPhotographers.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                          {p.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
                               {(() => {
                                 const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
