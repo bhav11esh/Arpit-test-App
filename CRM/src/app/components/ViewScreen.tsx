@@ -1101,6 +1101,27 @@ export function ViewScreen() {
     }
   };
 
+  const handleSaveRapidoVerification = async (deliveryId: string) => {
+    const inputs = verificationInputs[deliveryId];
+    if (!inputs?.rapido_date || !inputs?.rapido_time || !inputs?.rapido_amount) {
+      toast.error('Please fill in date, time and amount');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('deliveries').update({
+        rapido_screenshot_date: inputs.rapido_date,
+        rapido_screenshot_time: inputs.rapido_time,
+        rapido_screenshot_amount: parseFloat(inputs.rapido_amount)
+      }).eq('id', deliveryId);
+      if (error) throw error;
+      toast.success('Rapido bill verified');
+      loadData();
+    } catch (err) {
+      console.error('Failed to save Rapido verification', err);
+      toast.error('Failed to save');
+    }
+  };
+
   const handleCustomerFraudVerification = async (deliveryId: string) => {
     const amount = confirmedAmounts[deliveryId];
     const file = task2bCallLogFiles[deliveryId];
