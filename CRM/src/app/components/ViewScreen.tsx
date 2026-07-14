@@ -1589,9 +1589,13 @@ export function ViewScreen() {
           // 1. Prepare filters for deliveries
           const filters: any = { status: 'DONE' };
 
+          const targetDeliveryDate = (viewMode === 'audit' || viewMode === 'call_logs') 
+            ? getYesterdayDateString(spreadSheetDate) 
+            : spreadSheetDate;
+
           // Apply date filter at the database level if not showing all time
-          if (!showAllTime && spreadSheetDate) {
-            filters.date = spreadSheetDate;
+          if (!showAllTime && targetDeliveryDate) {
+            filters.date = targetDeliveryDate;
           }
           
           // V5.5: Always filter by showroom if one is selected to save memory/bandwidth
@@ -1637,9 +1641,9 @@ export function ViewScreen() {
               }
             }
             
-            if (!showAllTime && spreadSheetDate) {
-              const startOfDay = `${spreadSheetDate}T00:00:00.000Z`;
-              const endOfDay = `${spreadSheetDate}T23:59:59.999Z`;
+            if (!showAllTime && targetDeliveryDate) {
+              const startOfDay = `${targetDeliveryDate}T00:00:00.000Z`;
+              const endOfDay = `${targetDeliveryDate}T23:59:59.999Z`;
               showroomQuery = showroomQuery.gte('uploaded_at', startOfDay).lte('uploaded_at', endOfDay);
             } else {
               showroomQuery = showroomQuery.limit(500);
@@ -1708,13 +1712,13 @@ export function ViewScreen() {
     }
   };
 
-  // V5.5 Scalability: Reload data when showroom, date, or showAllTime selection changes
+  // V5.5 Scalability: Reload data when showroom, date, viewMode, or showAllTime selection changes
   useEffect(() => {
     if (user) {
-      console.log(`🎯 Filters changed (showroom: ${selectedShowroom}, date: ${spreadSheetDate}, showAllTime: ${showAllTime}), reloading data...`);
+      console.log(`🎯 Filters changed (showroom: ${selectedShowroom}, date: ${spreadSheetDate}, viewMode: ${viewMode}, showAllTime: ${showAllTime}), reloading data...`);
       loadData(selectedShowroom);
     }
-  }, [selectedShowroom, user?.id, spreadSheetDate, showAllTime]);
+  }, [selectedShowroom, user?.id, spreadSheetDate, showAllTime, viewMode]);
 
   // V1 SPEC: Refresh data when switching to spreadsheet view to pick up reel link changes
   // Use a ref to track previous viewMode to only load when actually switching
