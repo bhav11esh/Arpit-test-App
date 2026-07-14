@@ -862,6 +862,7 @@ export function ViewScreen() {
         try {
           const { data, error } = await supabase
             .from('standup_calls')
+            .select('*')
             .eq('date', spreadSheetDate);
           if (!error && data) {
             setAllStandupCalls(data);
