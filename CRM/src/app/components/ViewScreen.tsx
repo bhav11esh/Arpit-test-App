@@ -684,6 +684,7 @@ export function ViewScreen() {
       try {
         const { data, error } = await supabase
           .from('standup_calls')
+          .select('*')
           .eq('photographer_id', newRowData.assigned_user_id)
           .eq('date', newRowData.date)
           .maybeSingle();
@@ -4151,85 +4152,85 @@ export function ViewScreen() {
                                         )
                                       );
 
-                                      if (fraudAlreadyVerified) {
-                                        return (
-                                          <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-[10px] text-green-800 font-bold text-center mt-3 shadow-sm">
-                                            ✓ Fraud Detection / Witness verification is already completed for this photographer & showroom today.
-                                          </div>
-                                        );
-                                      }
-
                                       if (!isCustomerPaid) return null;
 
                                       return (
                                         <div className="space-y-3 border-t border-slate-100 pt-3">
-                                          <div className="space-y-1.5">
-                                            <label className="text-[10px] font-bold uppercase text-slate-400">Witness Phone (Dealership Member) *</label>
-                                            <Input
-                                              value={newRowData.witness_phone}
-                                              onChange={(e) => setNewRowData({ ...newRowData, witness_phone: e.target.value })}
-                                              placeholder="Enter 10-digit number"
-                                              className="h-9 text-xs"
-                                            />
-                                          </div>
-
-                                          <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                              <label className="text-[10px] font-bold uppercase text-slate-400">Fraud Doc photo *</label>
-                                              <div className="flex gap-2 items-center">
-                                                <Input
-                                                  type="file"
-                                                  accept="image/*"
-                                                  onChange={(e) => setNewRowData({ ...newRowData, fraud_screenshot: e.target.files?.[0] || null })}
-                                                  className="hidden"
-                                                  id="fraud-upload"
-                                                />
-                                                <label
-                                                  htmlFor="fraud-upload"
-                                                  className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
-                                                    !newRowData.fraud_screenshot 
-                                                      ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
-                                                      : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
-                                                  }`}
-                                                >
-                                                  {newRowData.fraud_screenshot ? '✓ Doc Doc Uploaded' : 'Upload Doc'}
-                                                </label>
-                                              </div>
-                                              {newRowData.fraud_screenshot && (
-                                                <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
-                                                  📄 {newRowData.fraud_screenshot.name}
-                                                </div>
-                                              )}
+                                          {fraudAlreadyVerified ? (
+                                            <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-[10px] text-green-800 font-bold text-center mb-3 shadow-sm">
+                                              ✓ Fraud Detection / Witness verification is already completed for this photographer & showroom today.
                                             </div>
-
-                                            <div className="space-y-1.5">
-                                              <label className="text-[10px] font-bold uppercase text-slate-400">Call Log Photo *</label>
-                                              <div className="flex gap-2 items-center">
+                                          ) : (
+                                            <>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[10px] font-bold uppercase text-slate-400">Witness Phone (Dealership Member) *</label>
                                                 <Input
-                                                  type="file"
-                                                  accept="image/*"
-                                                  onChange={(e) => setNewRowData({ ...newRowData, fraud_call_log_screenshot: e.target.files?.[0] || null })}
-                                                  className="hidden"
-                                                  id="fraud-calllog-upload-new"
+                                                  value={newRowData.witness_phone}
+                                                  onChange={(e) => setNewRowData({ ...newRowData, witness_phone: e.target.value })}
+                                                  placeholder="Enter 10-digit number"
+                                                  className="h-9 text-xs"
                                                 />
-                                                <label
-                                                  htmlFor="fraud-calllog-upload-new"
-                                                  className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
-                                                    !newRowData.fraud_call_log_screenshot 
-                                                      ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
-                                                      : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
-                                                  }`}
-                                                >
-                                                  {newRowData.fraud_call_log_screenshot ? '✓ Log Log Uploaded' : 'Upload Log'}
-                                                </label>
                                               </div>
-                                              {newRowData.fraud_call_log_screenshot && (
-                                                <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
-                                                  📄 {newRowData.fraud_call_log_screenshot.name}
+
+                                              <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1.5">
+                                                  <label className="text-[10px] font-bold uppercase text-slate-400">Fraud Doc photo *</label>
+                                                  <div className="flex gap-2 items-center">
+                                                    <Input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      onChange={(e) => setNewRowData({ ...newRowData, fraud_screenshot: e.target.files?.[0] || null })}
+                                                      className="hidden"
+                                                      id="fraud-upload"
+                                                    />
+                                                    <label
+                                                      htmlFor="fraud-upload"
+                                                      className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                        !newRowData.fraud_screenshot 
+                                                          ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                          : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                      }`}
+                                                    >
+                                                      {newRowData.fraud_screenshot ? '✓ Doc Doc Uploaded' : 'Upload Doc'}
+                                                    </label>
+                                                  </div>
+                                                  {newRowData.fraud_screenshot && (
+                                                    <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
+                                                      📄 {newRowData.fraud_screenshot.name}
+                                                    </div>
+                                                  )}
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
+
+                                                <div className="space-y-1.5">
+                                                  <label className="text-[10px] font-bold uppercase text-slate-400">Call Log Photo *</label>
+                                                  <div className="flex gap-2 items-center">
+                                                    <Input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      onChange={(e) => setNewRowData({ ...newRowData, fraud_call_log_screenshot: e.target.files?.[0] || null })}
+                                                      className="hidden"
+                                                      id="fraud-calllog-upload-new"
+                                                    />
+                                                    <label
+                                                      htmlFor="fraud-calllog-upload-new"
+                                                      className={`flex-1 cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-xl transition-all text-xs font-bold ${
+                                                        !newRowData.fraud_call_log_screenshot 
+                                                          ? 'border-red-300 bg-red-50/50 text-red-600 hover:bg-red-50' 
+                                                          : 'border-green-300 bg-green-50/50 text-green-700 hover:bg-green-50'
+                                                      }`}
+                                                    >
+                                                      {newRowData.fraud_call_log_screenshot ? '✓ Log Log Uploaded' : 'Upload Log'}
+                                                    </label>
+                                                  </div>
+                                                  {newRowData.fraud_call_log_screenshot && (
+                                                    <div className="text-[9px] text-green-700 font-bold truncate max-w-full">
+                                                      📄 {newRowData.fraud_call_log_screenshot.name}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </>
+                                          )}
 
                                           <div className="space-y-1.5 border-t border-slate-100 pt-3">
                                             <label className="text-[10px] font-bold uppercase text-slate-400">Customer Confirmed Amount *</label>
