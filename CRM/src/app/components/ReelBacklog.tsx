@@ -46,6 +46,7 @@ export function ReelBacklog() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [relinquishing, setRelinquishing] = useState<string | null>(null);
   const [bountyFilter, setBountyFilter] = useState<'mine' | 'others'>('others');
+  const [isResolving, setIsResolving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -133,24 +134,22 @@ export function ReelBacklog() {
       return;
     }
 
+    setIsResolving(true);
     try {
       // V1 FIX: Use admin client to allow resolving reassigned tasks (bypass RLS)
       const client = supabase;
-
-      await reelsDb.updateReelTask(taskId, {
-        reel_link: reelLinkInput,
-        status: 'RESOLVED',
-      }, client);
-
-      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
-      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
-      // Using the same privileged client to ensure permissions
       const currentTask = reelTasks.find(t => t.id === taskId);
-      if (currentTask && currentTask.delivery_id) {
-        await deliveriesDb.updateDelivery(currentTask.delivery_id, {
-          reel_link: reelLinkInput
-        }, client);
-      }
+
+      // Run database updates in parallel to halve network latency
+      await Promise.all([
+        reelsDb.updateReelTask(taskId, {
+          reel_link: reelLinkInput,
+          status: 'RESOLVED',
+        }, client),
+        currentTask && currentTask.delivery_id
+          ? deliveriesDb.updateDelivery(currentTask.delivery_id, { reel_link: reelLinkInput }, client)
+          : Promise.resolve()
+      ]);
 
       // Update local state
       setReelTasks(prev => prev.map(t =>
@@ -166,6 +165,8 @@ export function ReelBacklog() {
     } catch (error) {
       console.error('Failed to resolve reel task:', error);
       toast.error('Failed to resolve reel task');
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -423,6 +424,7 @@ export function ReelBacklog() {
                                   placeholder="https://drive.google.com/..."
                                   value={reelLinkInput}
                                   onChange={(e) => setReelLinkInput(e.target.value)}
+                                  disabled={isResolving}
                                 />
                               </div>
                             </div>
@@ -430,12 +432,21 @@ export function ReelBacklog() {
                               <Button variant="outline" onClick={() => {
                                 setSelectedTask(null);
                                 setReelLinkInput('');
-                              }}>
+                              }} disabled={isResolving}>
                                 Cancel
                               </Button>
-                              <Button onClick={() => handleResolve(task.id)}>
-                                <Check className="h-4 w-4 mr-2" />
-                                Resolve
+                              <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
+                                {isResolving ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Resolving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Resolve
+                                  </>
+                                )}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -593,19 +604,33 @@ export function ReelBacklog() {
                                   placeholder="https://drive.google.com/..."
                                   value={reelLinkInput}
                                   onChange={(e) => setReelLinkInput(e.target.value)}
+                                  disabled={isResolving}
                                 />
                               </div>
                             </div>
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => {
-                                setSelectedTask(null);
-                                setReelLinkInput('');
-                              }}>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => {
+                                  setSelectedTask(null);
+                                  setReelLinkInput('');
+                                }}
+                                disabled={isResolving}
+                              >
                                 Cancel
                               </Button>
-                              <Button onClick={() => handleResolve(task.id)}>
-                                <Check className="h-4 w-4 mr-2" />
-                                Resolve
+                              <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
+                                {isResolving ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Resolving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Resolve
+                                  </>
+                                )}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
