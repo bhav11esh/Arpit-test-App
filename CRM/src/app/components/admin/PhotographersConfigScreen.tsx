@@ -67,7 +67,7 @@ export function PhotographersConfigScreen() {
     password: '',
     active: true,
     city: '',
-    payout_model: 'PERCENTAGE',
+    payout_model: 'PERCENTAGE_15_DAILY',
     fixed_start_date: '',
     fixed_end_date: '',
     profile_image_file: null,
@@ -116,7 +116,7 @@ export function PhotographersConfigScreen() {
         password: '', // Password is only for new photographers
         active: photographer.active,
         city: (photographer as any).city || '',
-        payout_model: (photographer as any).payout_model || 'PERCENTAGE',
+        payout_model: (photographer as any).payout_model || 'PERCENTAGE_15_DAILY',
         fixed_start_date: (photographer as any).fixed_start_date || '',
         fixed_end_date: (photographer as any).fixed_end_date || '',
         profile_image_file: null,
@@ -132,7 +132,7 @@ export function PhotographersConfigScreen() {
         password: '', 
         active: true,
         city: user?.city || '',
-        payout_model: 'PERCENTAGE',
+        payout_model: 'PERCENTAGE_15_DAILY',
         fixed_start_date: '',
         fixed_end_date: '',
         profile_image_file: null,
@@ -153,7 +153,7 @@ export function PhotographersConfigScreen() {
       password: '', 
       active: true, 
       city: '',
-      payout_model: 'PERCENTAGE',
+      payout_model: 'PERCENTAGE_15_DAILY',
       fixed_start_date: '',
       fixed_end_date: '',
       profile_image_file: null,
@@ -416,7 +416,7 @@ export function PhotographersConfigScreen() {
                                 ? 'Flat 15% Daily Settlement'
                                 : photographer.payout_model === 'FIXED'
                                   ? 'Fixed Salary'
-                                  : 'Percentage Based (10/30/50)'}
+                                  : 'Percentage Based (10/30/50) [Legacy]'}
                             </span>
                             {photographer.fixed_start_date && (
                               <span className="text-gray-500 ml-1.5 font-mono">
@@ -605,9 +605,11 @@ export function PhotographersConfigScreen() {
                 onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="PERCENTAGE">Percentage Based (10/30/50)</option>
-                <option value="FIXED">Fixed Salary (per Working Day)</option>
+                {formData.payout_model === 'PERCENTAGE' && (
+                  <option value="PERCENTAGE">Percentage Based (10/30/50) [Legacy]</option>
+                )}
                 <option value="PERCENTAGE_15_DAILY">Flat 15% Daily Settlement</option>
+                <option value="FIXED">Fixed Salary (per Working Day)</option>
               </select>
             </div>
 
