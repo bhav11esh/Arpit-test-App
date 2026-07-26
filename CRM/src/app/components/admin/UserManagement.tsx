@@ -253,7 +253,7 @@ export function UserManagement() {
     }
   };
 
-  if (currentUser?.role !== 'ADMIN') {
+  if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
     return (
       <div className="p-6">
         <Alert variant="destructive">

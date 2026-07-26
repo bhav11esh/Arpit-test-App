@@ -14,7 +14,7 @@ export function AdminNotifier() {
 
     useEffect(() => {
         // Only admins should receive these specialized system alerts
-        if (user?.role !== 'ADMIN') return;
+        if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') return;
 
         // 1. Request permission on mount
         requestNotificationPermission();

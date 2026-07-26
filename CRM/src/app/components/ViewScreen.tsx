@@ -1639,7 +1639,7 @@ export function ViewScreen() {
           // 3. Fetch screenshots (Admin View Only) - V5.5 SCALABILITY FIX
           let realScreenshots: any[] = [];
           
-          if (user?.role === 'ADMIN') {
+          if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
             const { getScreenshotsByDeliveries, getAllScreenshots } = await import('../lib/db/screenshots');
             
             // If showAllTime is false, or if a showroom is selected, only fetch screenshots for the loaded deliveries.
@@ -4945,7 +4945,7 @@ export function ViewScreen() {
                           </div>
 
                           <div className="flex gap-3">
-                            {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
+                            {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'STANDUP') && (
                               <Button
                                 onClick={async () => {
                                   // 1. Check if call log is uploaded
@@ -5099,7 +5099,7 @@ export function ViewScreen() {
                                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
                                 Task 2A: Dealership Witness Call Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
-                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && uniqueShowroomCodesForPhotographer.length > 0 && (
+                              {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && uniqueShowroomCodesForPhotographer.length > 0 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -5187,7 +5187,7 @@ export function ViewScreen() {
                                 <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
                                 Task 2B: Customer Payment Fraud Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
-                              {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && customerPaidDeliveries.length > 0 && (
+                              {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && customerPaidDeliveries.length > 0 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -5248,7 +5248,7 @@ export function ViewScreen() {
                                   const cluster = clusters.find(c => c.id === mapping?.clusterId);
                                   const displayClusterName = cluster ? cluster.name : 'Unknown Cluster';
 
-                                  const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD') || user?.role !== 'ADMIN';
+                                  const isLocked = (user?.role === 'ADMIN' && handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD')) || !isAdmin;
 
                                   const isCollapsed = collapsed2BCards[d.id] ?? isVerified;
                                   const enteredAmount = confirmedAmounts[d.id] || '';
@@ -5396,7 +5396,7 @@ export function ViewScreen() {
                         <FileText className="h-5 w-5 text-green-600" />
                         Task 3: Deliveries Verification checklist (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                       </span>
-                      {user.role === 'ADMIN' && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
+                      {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
                         <div className="flex items-center gap-2">
                           <Input
                             type="file"
@@ -5544,7 +5544,7 @@ export function ViewScreen() {
 
                         const isCollapsed = collapsedTask3Cards[d.id] ?? isDeliveryAudited;
                         const expectedPlatformAmount = Math.max(0, Math.round((Number(d.received_amount || 0) - Number(d.rapido_charge || 0)) * 0.15));
-                        const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') || user?.role !== 'ADMIN';
+                        const isLocked = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') || (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN');
 
                         return (
                           <Card key={d.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isDeliveryAudited ? 'border-l-green-600 bg-white' : 'border-l-green-400 bg-green-50/5'}`}>
@@ -5607,7 +5607,7 @@ export function ViewScreen() {
                                             placeholder="DD-MM-YYYY"
                                             value={inputs.payment_date}
                                             onChange={(e) => updateInput('payment_date', e.target.value)}
-                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5618,7 +5618,7 @@ export function ViewScreen() {
                                             placeholder="HH:MM"
                                             value={inputs.payment_time}
                                             onChange={(e) => updateInput('payment_time', e.target.value)}
-                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5629,7 +5629,7 @@ export function ViewScreen() {
                                             placeholder="Amount ₹"
                                             value={inputs.payment_amount}
                                             onChange={(e) => updateInput('payment_amount', e.target.value)}
-                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isCustomerPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className={`h-8 text-xs font-mono font-bold ${inputs.payment_amount !== '' && parseFloat(inputs.payment_amount) !== parseFloat(d.received_amount || '0') ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
                                           />
                                           {inputs.payment_amount !== '' && parseFloat(inputs.payment_amount) !== parseFloat(d.received_amount || '0') && (
@@ -5690,7 +5690,7 @@ export function ViewScreen() {
                                             placeholder="DD-MM-YYYY"
                                             value={inputs.platform_date}
                                             onChange={(e) => updateInput('platform_date', e.target.value)}
-                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5701,7 +5701,7 @@ export function ViewScreen() {
                                             placeholder="HH:MM"
                                             value={inputs.platform_time}
                                             onChange={(e) => updateInput('platform_time', e.target.value)}
-                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5712,7 +5712,7 @@ export function ViewScreen() {
                                             placeholder="Amount ₹"
                                             value={inputs.platform_amount}
                                             onChange={(e) => updateInput('platform_amount', e.target.value)}
-                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isPlatformPayVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className={`h-8 text-xs font-mono font-bold ${inputs.platform_amount !== '' && parseFloat(inputs.platform_amount) !== expectedPlatformAmount ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
                                           />
                                           {inputs.platform_amount !== '' && parseFloat(inputs.platform_amount) !== expectedPlatformAmount && (
@@ -5773,7 +5773,7 @@ export function ViewScreen() {
                                             placeholder="DD-MM-YYYY"
                                             value={inputs.rapido_date}
                                             onChange={(e) => updateInput('rapido_date', e.target.value)}
-                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5784,7 +5784,7 @@ export function ViewScreen() {
                                             placeholder="HH:MM"
                                             value={inputs.rapido_time}
                                             onChange={(e) => updateInput('rapido_time', e.target.value)}
-                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className="h-8 text-xs font-semibold"
                                           />
                                         </div>
@@ -5795,7 +5795,7 @@ export function ViewScreen() {
                                             placeholder="Amount ₹"
                                             value={inputs.rapido_amount}
                                             onChange={(e) => updateInput('rapido_amount', e.target.value)}
-                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role === 'ADMIN')}
+                                            disabled={isRapidoVerified || (handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && user.role !== 'SUPER_ADMIN')}
                                             className={`h-8 text-xs font-mono font-bold ${inputs.rapido_amount !== '' && parseFloat(inputs.rapido_amount) !== parseFloat(d.rapido_charge || '0') ? 'border-red-300 bg-red-50 text-red-800' : ''}`}
                                           />
                                           {inputs.rapido_amount !== '' && parseFloat(inputs.rapido_amount) !== parseFloat(d.rapido_charge || '0') && (
@@ -5954,7 +5954,7 @@ export function ViewScreen() {
                   </div>
 
                   {/* Send Update for Audit Tasks today */}
-                  {user.role === 'ADMIN' && (
+                  {isAdmin && (
                     <div className="pt-2">
                       {adminUpdateSent ? (
                         <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-400 px-4 py-3 text-sm font-semibold text-green-800">

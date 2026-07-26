@@ -29,7 +29,7 @@ export function AdminConfigScreen() {
   const navigate = useNavigate();
 
   // Admin-only access guard
-  if (user?.role !== 'ADMIN') {
+  if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
     toast.error('Access denied. Admin privileges required.');
     navigate('/');
     return null;
