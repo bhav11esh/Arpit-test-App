@@ -80,7 +80,7 @@ export function MappingsConfigScreen() {
   });
 
   // Admin-only access guard (Defensive: AppRoutes handles primary auth redirect)
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
     return (
       <div className="p-8 text-center text-gray-500">
         Authenticating admin session...

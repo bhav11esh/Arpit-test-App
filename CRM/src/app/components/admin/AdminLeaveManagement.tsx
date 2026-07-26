@@ -57,7 +57,7 @@ export function AdminLeaveManagement() {
   const [formHalf, setFormHalf] = useState<LeaveHalf>('FIRST_HALF');
 
   // Admin-only access guard
-  if (user?.role !== 'ADMIN') {
+  if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
     toast.error('Access denied. Admin privileges required.');
     navigate('/');
     return null;
