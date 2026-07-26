@@ -68,6 +68,14 @@ export function AdminConfigScreen() {
       color: 'bg-orange-100 text-orange-600',
       route: '/admin/config/mappings',
     },
+    {
+      id: 'city-weekoffs',
+      title: 'City Week-offs',
+      description: 'Configure city-level default week-off days',
+      icon: Calendar,
+      color: 'bg-red-100 text-red-600',
+      route: '/admin/config/city-weekoffs',
+    },
   ];
 
   return (

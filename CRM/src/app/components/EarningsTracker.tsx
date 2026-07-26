@@ -33,7 +33,7 @@ export function EarningsTracker() {
 
     const [selectedPhotographerId, setSelectedPhotographerId] = useState<string | null>(null);
     const [photographers, setPhotographers] = useState<User[]>([]);
-    const isAdmin = user?.role === 'ADMIN';
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
     const isOrgImpact = selectedPhotographerId === 'YOURPHOTOCREW_IMPACT';
 
     const [forgivenPenalties, setForgivenPenalties] = useState<string[]>([]);
@@ -75,7 +75,7 @@ export function EarningsTracker() {
         postItBonus: number;
         postItPenalty: number;
         postItPenalty: number;
-        payoutModel: 'PERCENTAGE' | 'FIXED';
+        payoutModel: 'PERCENTAGE' | 'FIXED' | 'HYBRID' | 'PERCENTAGE_15_DAILY';
         unpaidLeavesDeduction: number;
         totalWorkingDays: number;
         breakdown: { name: string; count: number; rate: number; rapido: number; total: number }[];
@@ -168,7 +168,15 @@ export function EarningsTracker() {
                     .gte('date', fromStr)
                     .lte('date', toStr);
                 if (leavesError) throw leavesError;
-                allLeaves = leavesData || [];
+                allLeaves = (leavesData || []).map((row: any) => ({
+                    id: row.id,
+                    photographerId: row.photographer_id,
+                    date: row.date,
+                    half: row.half,
+                    appliedBy: row.applied_by,
+                    appliedAt: row.applied_at,
+                    convertedToWorkingDay: row.converted_to_working_day
+                }));
             } else {
                 const leavesData = await leavesDb.getLeaves(selectedPhotographerId || user?.id, fromStr, toStr);
                 allLeaves = leavesData || [];
@@ -229,11 +237,16 @@ export function EarningsTracker() {
 
             // Single photographer model detection
             const targetUser = isAdmin ? photographers.find(p => p.id === (selectedPhotographerId || user?.id)) : user;
-            const getPayoutModelForDateSingle = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
-                if (!targetUser?.fixed_start_date) return 'PERCENTAGE';
-                if (dateStr < targetUser.fixed_start_date) return 'PERCENTAGE';
-                if (targetUser.fixed_end_date && dateStr >= targetUser.fixed_end_date) return 'PERCENTAGE';
-                return 'FIXED';
+            const getPayoutModelForDateSingle = (dateStr: string): 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' => {
+                if (!targetUser) return 'PERCENTAGE';
+                const model = targetUser.payout_model || 'PERCENTAGE';
+                if (!targetUser.fixed_start_date) {
+                    return model === 'FIXED' ? 'FIXED' : model;
+                }
+                const inFixedWindow = dateStr >= targetUser.fixed_start_date && 
+                  (!targetUser.fixed_end_date || dateStr < targetUser.fixed_end_date);
+                if (inFixedWindow) return 'FIXED';
+                return model === 'PERCENTAGE_15_DAILY' ? 'PERCENTAGE_15_DAILY' : 'PERCENTAGE';
             };
 
             const photographersToProcess = isOrgImpact ? currentPhotographers : (targetUser ? [targetUser] : []);
@@ -256,7 +269,7 @@ export function EarningsTracker() {
 
             photographersToProcess.forEach(p => {
                 const pDeliveries = filteredDeliveries.filter(d => d.assigned_user_id === p.id);
-                const pLeaves = allLeaves.filter(l => l.photographer_id === p.id);
+                const pLeaves = allLeaves.filter(l => l.photographerId === p.id);
                 const pForgiven = allForgiven
                     .filter(f => f.photographer_id === p.id)
                     .map(f => f.penalty_type);
@@ -267,11 +280,15 @@ export function EarningsTracker() {
                 
                 const pMissedUpdates = missedUpdatesMap.get(p.id) || [];
 
-                const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' => {
-                    if (!p.fixed_start_date) return 'PERCENTAGE';
-                    if (dateStr < p.fixed_start_date) return 'PERCENTAGE';
-                    if (p.fixed_end_date && dateStr >= p.fixed_end_date) return 'PERCENTAGE';
-                    return 'FIXED';
+                const getPayoutModelForDate = (dateStr: string): 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' => {
+                    const model = p.payout_model || 'PERCENTAGE';
+                    if (!p.fixed_start_date) {
+                        return model === 'FIXED' ? 'FIXED' : model;
+                    }
+                    const inFixedWindow = dateStr >= p.fixed_start_date && 
+                      (!p.fixed_end_date || dateStr < p.fixed_end_date);
+                    if (inFixedWindow) return 'FIXED';
+                    return model === 'PERCENTAGE_15_DAILY' ? 'PERCENTAGE_15_DAILY' : 'PERCENTAGE';
                 };
 
                 const isEmergencyLeaveForgiven = pForgiven.includes('EMERGENCY_LEAVE');
@@ -281,6 +298,10 @@ export function EarningsTracker() {
                 let rapidoPct = 0;
                 let grossFixed = 0;
                 let rapidoFixed = 0;
+                let grossPct15Customer = 0;
+                let rapidoPct15Customer = 0;
+                let grossPct15Dealer = 0;
+                let rapidoPct15Dealer = 0;
 
                 pDeliveries.forEach(d => {
                     const dealership = dealerships.find(ds => getShowroomCodeInternal(ds.name) === d.showroom_code);
@@ -292,9 +313,18 @@ export function EarningsTracker() {
                     
                     const charge = d.rapido_charge || 0;
                     
-                    if (getPayoutModelForDate(d.date) === 'PERCENTAGE') {
+                    const model = getPayoutModelForDate(d.date);
+                    if (model === 'PERCENTAGE') {
                         grossPct += rate;
                         rapidoPct += charge;
+                    } else if (model === 'PERCENTAGE_15_DAILY') {
+                        if (d.payment_type === 'CUSTOMER_PAID') {
+                            grossPct15Customer += rate;
+                            rapidoPct15Customer += charge;
+                        } else {
+                            grossPct15Dealer += rate;
+                            rapidoPct15Dealer += charge;
+                        }
                     } else {
                         grossFixed += rate;
                         rapidoFixed += charge;
@@ -313,20 +343,41 @@ export function EarningsTracker() {
                     pDeliveries.filter(d => new Date(d.date).getDay() === 2).map(d => d.date)
                 )).sort();
                 
-                let availableCarryForwardHalves = workedTuesdays.length * 2;
+                // Count completed deliveries per Tuesday
+                const tuesdayDeliveriesCount = new Map<string, number>();
+                pDeliveries.forEach(d => {
+                    const dateObj = new Date(d.date);
+                    if (dateObj.getDay() === 2) {
+                        tuesdayDeliveriesCount.set(d.date, (tuesdayDeliveriesCount.get(d.date) || 0) + 1);
+                    }
+                });
+
+                let availableCarryForwardHalves = 0;
+                tuesdayDeliveriesCount.forEach((count) => {
+                    if (count === 1) {
+                        availableCarryForwardHalves += 1;
+                    } else if (count >= 2) {
+                        availableCarryForwardHalves += 2;
+                    }
+                });
+
                 const carryForwardedDates = new Set<string>();
                 let totalEmergencyHalves = 0;
                 let unpaidLeavesDeductionFixed = 0;
                 let unpaidLeavesDeductionPctHalves = 0;
                 const emergencyByMonthPct = new Map<string, number>();
                 const emergencyByMonthFixed = new Map<string, number>();
+                const emergencyByMonthPct15 = new Map<string, number>();
 
                 sortedLeaves.forEach(l => {
                     const model = getPayoutModelForDate(l.date);
                     const leaveDate = new Date(l.date);
                     let isForgiven = false;
 
-                    if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
+                    if (l.convertedToWorkingDay) {
+                        isForgiven = true;
+                        carryForwardedDates.add(l.date);
+                    } else if (leaveDate.getDay() !== 2 && l.date >= fromStr && l.date <= toStr) {
                         if (availableCarryForwardHalves > 0) {
                             availableCarryForwardHalves--;
                             carryForwardedDates.add(l.date);
@@ -346,6 +397,8 @@ export function EarningsTracker() {
                         const monthKey = l.date.substring(0, 7);
                         if (model === 'PERCENTAGE') {
                             emergencyByMonthPct.set(monthKey, (emergencyByMonthPct.get(monthKey) || 0) + 1);
+                        } else if (model === 'PERCENTAGE_15_DAILY') {
+                            emergencyByMonthPct15.set(monthKey, (emergencyByMonthPct15.get(monthKey) || 0) + 1);
                         } else {
                             emergencyByMonthFixed.set(monthKey, (emergencyByMonthFixed.get(monthKey) || 0) + 1);
                         }
@@ -360,10 +413,15 @@ export function EarningsTracker() {
                 if (!isEmergencyLeaveForgiven) {
                     emergencyByMonthFixed.forEach(count => { if (count > 6) penaltyFixed += (count - 6) * 250; });
                 }
+                let penaltyPct15 = 0;
+                if (!isEmergencyLeaveForgiven) {
+                    emergencyByMonthPct15.forEach(count => { if (count > 6) penaltyPct15 += (count - 6) * 250; });
+                }
 
                 let missedUpdatesCount = 0;
                 let missedUpdatesPenaltyPct = 0;
                 let missedUpdatesPenaltyFixed = 0;
+                let missedUpdatesPenaltyPct15 = 0;
 
                 // Admins do not get penalized
                 if (p.role !== 'ADMIN') {
@@ -379,8 +437,11 @@ export function EarningsTracker() {
 
                             missedUpdatesCount++;
                             if (!isSendUpdateForgiven) {
-                                if (getPayoutModelForDate(mu.missing_date) === 'PERCENTAGE') {
+                                const model = getPayoutModelForDate(mu.missing_date);
+                                if (model === 'PERCENTAGE') {
                                     missedUpdatesPenaltyPct += 1000;
+                                } else if (model === 'PERCENTAGE_15_DAILY') {
+                                    missedUpdatesPenaltyPct15 += 1000;
                                 } else {
                                     missedUpdatesPenaltyFixed += 1000;
                                 }
@@ -391,6 +452,7 @@ export function EarningsTracker() {
 
                 penaltyPct += missedUpdatesPenaltyPct;
                 penaltyFixed += missedUpdatesPenaltyFixed;
+                penaltyPct15 += missedUpdatesPenaltyPct15;
 
                 let postItBonus = 0;
                 let postItPenalty = 0;
@@ -402,6 +464,9 @@ export function EarningsTracker() {
                 if (getPayoutModelForDate(toStr) === 'PERCENTAGE') {
                     grossPct += postItBonus;
                     penaltyPct += postItPenalty;
+                } else if (getPayoutModelForDate(toStr) === 'PERCENTAGE_15_DAILY') {
+                    grossPct15Customer += postItBonus;
+                    penaltyPct15 += postItPenalty;
                 } else {
                     grossFixed += postItBonus;
                     penaltyFixed += postItPenalty;
@@ -470,19 +535,30 @@ export function EarningsTracker() {
                 let photographerShareFixed = basePayoutFixed + rapidoFixed - penaltyFixed;
                 if (getPayoutModelForDate(toStr) !== 'PERCENTAGE') photographerShareFixed += postItBonus;
 
-                adminShare = adminSharePct;
-                photographerShare = photographerSharePct + photographerShareFixed;
-                totalSettledDaily = settledPct;
-                totalDealerRevenue = dealerRevPct;
-                amountPending = amountPendingPct - photographerShareFixed;
+                const grossPct15 = grossPct15Customer + grossPct15Dealer;
+                const rapidoPct15 = rapidoPct15Customer + rapidoPct15Dealer;
+                const netRevenue15 = grossPct15 - rapidoPct15;
+                
+                const photographerSharePct15 = (netRevenue15 * 0.85) + rapidoPct15 - penaltyPct15;
+                const adminSharePct15 = (netRevenue15 * 0.15) + penaltyPct15;
+
+                const settledPct15 = Math.max(0, Math.round((grossPct15Customer - rapidoPct15Customer) * 0.15));
+                const dealerRevPct15 = grossPct15Dealer;
+                const amountPendingPct15 = (grossPct15Customer - settledPct15) - photographerSharePct15;
+
+                adminShare = adminSharePct + (grossFixed - photographerShareFixed) + adminSharePct15;
+                photographerShare = photographerSharePct + photographerShareFixed + photographerSharePct15;
+                totalSettledDaily = settledPct + settledPct15;
+                totalDealerRevenue = dealerRevPct + dealerRevPct15;
+                amountPending = amountPendingPct - photographerShareFixed + amountPendingPct15;
 
                 // Accumulate totals
-                totalGrossEarnings += (grossPct + grossFixed);
-                totalRapido += (rapidoPct + rapidoFixed);
-                totalPenalty += (penaltyPct + penaltyFixed);
+                totalGrossEarnings += (grossPct + grossFixed + grossPct15);
+                totalRapido += (rapidoPct + rapidoFixed + rapidoPct15);
+                totalPenalty += (penaltyPct + penaltyFixed + penaltyPct15);
                 totalEmergencyLeavesCount += totalEmergencyHalves;
                 totalMissedUpdatesCount += missedUpdatesCount;
-                totalMissedUpdatesPenalty += (missedUpdatesPenaltyPct + missedUpdatesPenaltyFixed);
+                totalMissedUpdatesPenalty += (missedUpdatesPenaltyPct + missedUpdatesPenaltyFixed + missedUpdatesPenaltyPct15);
                 totalSalaryBenchmark += salaryBenchmark;
                 totalDaysWorked += daysWorkedCount;
                 totalNetPayableAdmin += adminShare;
@@ -515,7 +591,7 @@ export function EarningsTracker() {
                 deliveryCount: isOrgImpact ? filteredDeliveries.length : filteredDeliveries.filter(d => d.assigned_user_id === selectedPhotographerId || d.assigned_user_id === user?.id).length,
                 postItBonus: 0,
                 postItPenalty: 0,
-                payoutModel: overallPayoutModel as 'PERCENTAGE' | 'FIXED' | 'HYBRID',
+                payoutModel: overallPayoutModel as 'PERCENTAGE' | 'FIXED' | 'HYBRID' | 'PERCENTAGE_15_DAILY',
                 unpaidLeavesDeduction: totalUnpaidLeavesDeductionSum,
                 totalWorkingDays: totalWorkingDaysSum,
                 breakdown: Array.from(breakdownMap.entries()).map(([name, data]) => ({
@@ -561,7 +637,11 @@ export function EarningsTracker() {
                                 <span className="text-[10px] text-gray-400 font-medium uppercase">
                                     {isOrgImpact
                                         ? 'Total Organization Settlement'
-                                        : (stats.payoutModel === 'FIXED' ? 'Final Month Payout (Admin Owes You)' : 'Reconciled vs. 30% Upfront & Invoices')
+                                        : (stats.payoutModel === 'FIXED'
+                                            ? 'Final Month Payout (Admin Owes You)'
+                                            : stats.payoutModel === 'PERCENTAGE_15_DAILY'
+                                                ? 'Reconciled vs. Daily Settlement & Invoices'
+                                                : 'Reconciled vs. 30% Upfront & Invoices')
                                     }
                                 </span>
                             </div>
@@ -744,6 +824,54 @@ export function EarningsTracker() {
                         </div>
                     )}
 
+                    {/* 🚀 FLAT 15% DAILY SETTLEMENT Metric Cards */}
+                    {stats && stats.payoutModel === 'PERCENTAGE_15_DAILY' && !isOrgImpact && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <Card className="bg-blue-50/50 border-blue-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Calculator className="h-5 w-5 text-blue-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Total Revenue</div>
+                                    <div className="text-xl font-bold text-blue-900">₹{stats.grossEarnings.toLocaleString()}</div>
+                                    <div className="text-[10px] text-blue-600 mt-1">Gross earnings generated</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-purple-50/50 border-purple-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Landmark className="h-5 w-5 text-purple-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Platform Share (15%)</div>
+                                    <div className="text-xl font-bold text-purple-900">
+                                        ₹{Math.round(stats.grossEarnings - stats.netEarnings).toLocaleString()}
+                                    </div>
+                                    <div className="text-[10px] text-purple-600 mt-1">Platform commission</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-green-50/50 border-green-100">
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <TrendingUp className="h-5 w-5 text-green-600 mb-2" />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Photographer Share (85%)</div>
+                                    <div className="text-xl font-bold text-green-900">₹{Math.round(stats.netEarnings).toLocaleString()}</div>
+                                    <div className="text-[10px] text-green-600 mt-1">Your total share + Rapido</div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className={stats.amountPending > 0 ? "bg-red-50/50 border-red-100" : "bg-emerald-50/50 border-emerald-100"}>
+                                <CardContent className="p-4 flex flex-col items-center text-center">
+                                    <Wallet className={`h-5 w-5 mb-2 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Amount Pending</div>
+                                    <div className={`text-xl font-bold ${stats.amountPending > 0 ? 'text-red-900' : 'text-emerald-900'}`}>
+                                        ₹{Math.abs(Math.round(stats.amountPending)).toLocaleString()}
+                                        {stats.amountPending < 0 && ' (CR)'}
+                                    </div>
+                                    <div className={`text-[10px] mt-1 ${stats.amountPending > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {stats.amountPending > 0 ? 'Owed to Platform' : 'Platform owes you (Credit)'}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
                     {/* 🚀 HYBRID PAYOUT Metric Cards */}
                     {stats && stats.payoutModel === 'HYBRID' && !isOrgImpact && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -839,23 +967,23 @@ export function EarningsTracker() {
                                         emergencyFull: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const dayLeaves = stats.leaves.filter(l => l.date === dStr);
-                                            return dayLeaves.length === 2 && dayLeaves.every(l => isEmergencyLeave(l.date, l.half, l.appliedAt));
+                                            return dayLeaves.length === 2 && dayLeaves.every(l => !l.convertedToWorkingDay && isEmergencyLeave(l.date, l.half, l.appliedAt));
                                         },
                                         emergencyFirst: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const l = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
-                                            if (!l) return false;
+                                            if (!l || l.convertedToWorkingDay) return false;
                                             if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
                                             const r = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
-                                            return !r || !isEmergencyLeave(r.date, r.half, r.appliedAt);
+                                            return !r || r.convertedToWorkingDay || !isEmergencyLeave(r.date, r.half, r.appliedAt);
                                         },
                                         emergencySecond: (date) => {
                                             const dStr = format(date, 'yyyy-MM-dd');
                                             const l = stats.leaves.find(l => l.date === dStr && l.half === 'SECOND_HALF');
-                                            if (!l) return false;
+                                            if (!l || l.convertedToWorkingDay) return false;
                                             if (!isEmergencyLeave(l.date, l.half, l.appliedAt)) return false;
                                             const f = stats.leaves.find(l => l.date === dStr && l.half === 'FIRST_HALF');
-                                            return !f || !isEmergencyLeave(f.date, f.half, f.appliedAt);
+                                            return !f || f.convertedToWorkingDay || !isEmergencyLeave(f.date, f.half, f.appliedAt);
                                         }
                                     }}
                                     modifiersClassNames={{
@@ -1001,6 +1129,14 @@ export function EarningsTracker() {
                                     <li><strong>Expenses & Bonuses:</strong> Rapido reimbursements and Post-It bonuses are added directly to your fixed payout.</li>
                                     <li><strong>Penalties:</strong> Standard penalties (missed updates, emergency leaves) apply and are deducted.</li>
                                     <li><strong>Settlements:</strong> You do not collect customer cash directly (paid to company account), so the final payout is paid directly to you.</li>
+                                </ul>
+                            ) : stats?.payoutModel === 'PERCENTAGE_15_DAILY' ? (
+                                <ul className="list-disc ml-4 space-y-1">
+                                    <li><strong>Flat 15% Settlement:</strong> Platform receives 15% of net delivery revenue (Amount - Rapido), and you keep 85% of net revenue plus 100% of Rapido.</li>
+                                    <li><strong>No Salary Benchmark:</strong> There is no guaranteed daily salary benchmark or tiered calculation.</li>
+                                    <li><strong>Customer Paid:</strong> You keep the full customer collection and transfer 15% of (Collection - Rapido) to the platform daily.</li>
+                                    <li><strong>Dealer Paid:</strong> Platform collects the full amount. Your 85% share + 15% of Rapido is paid to your "Credit" to be settled at the end of the month.</li>
+                                    <li><strong>Penalties:</strong> Standard penalties (missed updates, emergency leaves) apply and are deducted from your monthly credit.</li>
                                 </ul>
                             ) : (
                                 <ul className="list-disc ml-4 space-y-1">

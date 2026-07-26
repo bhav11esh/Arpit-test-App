@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useConfig } from '../../context/ConfigContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Switch } from '../ui/switch';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -74,6 +75,8 @@ export function MappingsConfigScreen() {
     mappingType: 'PRIMARY' as MappingType,
     latitude: '',
     longitude: '',
+    map_link: '',
+    has_metro: false,
   });
 
   // Admin-only access guard (Defensive: AppRoutes handles primary auth redirect)
@@ -115,6 +118,8 @@ export function MappingsConfigScreen() {
         mappingType: mapping.mappingType,
         latitude: mapping.latitude.toString(),
         longitude: mapping.longitude.toString(),
+        map_link: mapping.map_link || '',
+        has_metro: mapping.has_metro ?? false,
       });
     } else {
       setEditingMapping(null);
@@ -125,6 +130,8 @@ export function MappingsConfigScreen() {
         mappingType: 'PRIMARY',
         latitude: '',
         longitude: '',
+        map_link: '',
+        has_metro: false,
       });
     }
     setDialogOpen(true);
@@ -140,6 +147,8 @@ export function MappingsConfigScreen() {
       mappingType: 'PRIMARY',
       latitude: '',
       longitude: '',
+      map_link: '',
+      has_metro: false,
     });
   };
 
@@ -231,6 +240,8 @@ export function MappingsConfigScreen() {
           mappingType: formData.mappingType,
           latitude: lat,
           longitude: lng,
+          map_link: formData.map_link.trim() || null,
+          has_metro: formData.has_metro,
         });
         toast.success('Mapping updated successfully');
       } else {
@@ -241,6 +252,8 @@ export function MappingsConfigScreen() {
           mappingType: formData.mappingType,
           latitude: lat,
           longitude: lng,
+          map_link: formData.map_link.trim() || null,
+          has_metro: formData.has_metro,
         });
         toast.success('Mapping added successfully');
       }
@@ -352,6 +365,11 @@ export function MappingsConfigScreen() {
                           >
                             {mapping.mappingType}
                           </Badge>
+                          {mapping.has_metro && (
+                            <Badge className="bg-emerald-100 text-emerald-800">
+                              🚇 Metro Accessible
+                            </Badge>
+                          )}
                           {mapping.photographerId && !isPhotographerActive && (
                             <Badge className="bg-red-100 text-red-800">
                               Photographer Inactive
@@ -385,6 +403,19 @@ export function MappingsConfigScreen() {
                                   ? getPhotographerName(mapping.photographerId)
                                   : 'Not Assigned'}
                               </span>
+                            </div>
+                          )}
+                          {mapping.map_link && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">🔗 Map Link:</span>
+                              <a
+                                href={mapping.map_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline truncate max-w-[200px]"
+                              >
+                                {mapping.map_link}
+                              </a>
                             </div>
                           )}
                         </div>
@@ -495,6 +526,16 @@ export function MappingsConfigScreen() {
             </div>
 
             <div>
+              <Label htmlFor="map_link">Showroom Map Link</Label>
+              <Input
+                id="map_link"
+                value={formData.map_link}
+                onChange={e => setFormData({ ...formData, map_link: e.target.value })}
+                placeholder="e.g., https://maps.app.goo.gl/..."
+              />
+            </div>
+
+            <div>
               <Label htmlFor="mappingType">Showroom Type</Label>
               <Select
                 value={formData.mappingType}
@@ -548,6 +589,22 @@ export function MappingsConfigScreen() {
                 </Select>
               </div>
             )}
+
+            <div className="flex items-center justify-between border-t pt-4 mt-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="has_metro">Metro Accessible</Label>
+                <div className="text-[12px] text-gray-500">
+                  Mark if this showroom location is accessible via metro.
+                </div>
+              </div>
+              <Switch
+                id="has_metro"
+                checked={formData.has_metro}
+                onCheckedChange={checked =>
+                  setFormData({ ...formData, has_metro: checked })
+                }
+              />
+            </div>
           </div>
 
           <DialogFooter>

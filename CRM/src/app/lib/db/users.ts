@@ -12,9 +12,10 @@ const rowToUser = (row: UserRow): User => ({
   id: row.id,
   name: row.name,
   email: row.email,
-  role: row.role as UserRole,
+  role: (row.email === 'arpitmudgal24@gmail.com' ? 'SUPER_ADMIN' : row.role) as UserRole,
   active: row.active,
   phone_number: row.phone_number,
+  secondary_phone_number: row.secondary_phone_number ?? undefined,
   cluster_code: row.cluster_code ?? undefined,
   last_active: row.last_active ?? undefined,
   last_gps_status: row.last_gps_status as any ?? 'UNKNOWN',
@@ -22,6 +23,7 @@ const rowToUser = (row: UserRow): User => ({
   payout_model: row.payout_model ?? undefined,
   fixed_start_date: row.fixed_start_date ?? undefined,
   fixed_end_date: row.fixed_end_date ?? undefined,
+  profile_image_url: (row as any).profile_image_url ?? undefined,
 });
 
 // Get all users
@@ -97,11 +99,13 @@ export const createUser = async (user: Omit<User, 'id'> & { email: string }): Pr
     role: user.role,
     active: user.active ?? true,
     phone_number: user.phone_number ?? null,
+    secondary_phone_number: user.secondary_phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
     city: (user as any).city ?? null,
     payout_model: user.payout_model ?? null,
     fixed_start_date: user.fixed_start_date ?? null,
     fixed_end_date: user.fixed_end_date ?? null,
+    profile_image_url: (user as any).profile_image_url ?? null,
   };
 
   const { data, error } = await (supabase
@@ -123,11 +127,13 @@ export const createUserWithId = async (user: User): Promise<User> => {
     role: user.role,
     active: user.active ?? true,
     phone_number: user.phone_number ?? null,
+    secondary_phone_number: user.secondary_phone_number ?? null,
     cluster_code: user.cluster_code ?? null,
     city: (user as any).city ?? null,
     payout_model: user.payout_model ?? null,
     fixed_start_date: user.fixed_start_date ?? null,
     fixed_end_date: user.fixed_end_date ?? null,
+    profile_image_url: (user as any).profile_image_url ?? null,
   };
 
   const { data, error } = await (supabase
@@ -148,6 +154,7 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     role: updates.role,
     active: updates.active,
     phone_number: updates.phone_number,
+    secondary_phone_number: updates.secondary_phone_number,
     cluster_code: updates.cluster_code ?? null,
     last_active: updates.last_active,
     last_gps_status: updates.last_gps_status,
@@ -155,6 +162,7 @@ export const updateUser = async (id: string, updates: Partial<User> & { email?: 
     payout_model: updates.payout_model,
     fixed_start_date: updates.fixed_start_date,
     fixed_end_date: updates.fixed_end_date,
+    profile_image_url: (updates as any).profile_image_url,
   };
 
   // Remove undefined values

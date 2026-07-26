@@ -24,7 +24,8 @@ import {
 import { ArrowLeft, Plus, Calendar, Clock, Trash2, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
-import type { LeaveHalf } from '../../types';
+import type { LeaveHalf, CityWeekoff } from '../../types';
+import { getCityWeekoffs } from '../../lib/db/leaves';
 import { format } from 'date-fns';
 
 type ViewMode = 'ALL' | 'BY_PHOTOGRAPHER' | 'BY_DATE';
@@ -38,6 +39,13 @@ export function AdminLeaveManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leaveToDelete, setLeaveToDelete] = useState<string | null>(null);
+  const [cityWeekoffs, setCityWeekoffs] = useState<CityWeekoff[]>([]);
+
+  React.useEffect(() => {
+    getCityWeekoffs()
+      .then(setCityWeekoffs)
+      .catch(err => console.error('Failed to load city weekoffs:', err));
+  }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>('ALL');
   const [filterPhotographerId, setFilterPhotographerId] = useState('');
@@ -73,6 +81,27 @@ export function AdminLeaveManagement() {
     }
     if (!formDate) {
       toast.error('Please select a date');
+      return;
+    }
+
+    // Resolve the week-off for the photographer
+    const photographer = photographers.find(p => p.id === formPhotographerId);
+    const photographerCity = photographer?.city;
+    let weekoffDayIndex = 2; // Default to Tuesday
+    if (photographerCity) {
+      const normalizedCity = photographerCity.trim().toLowerCase();
+      const config = cityWeekoffs.find(c => c.city.toLowerCase() === normalizedCity);
+      if (config) {
+        weekoffDayIndex = config.weekoff_day_index;
+      }
+    }
+
+    const [year, month, day] = formDate.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    const dayOfWeek = localDate.getDay();
+
+    if (dayOfWeek === weekoffDayIndex) {
+      toast.error(`Cannot apply leave on the photographer's week-off day (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekoffDayIndex]})`);
       return;
     }
 

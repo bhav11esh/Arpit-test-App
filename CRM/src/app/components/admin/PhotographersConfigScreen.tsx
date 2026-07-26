@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useConfig } from '../../context/ConfigContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import * as screenshotsDb from '../../lib/db/screenshots';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -48,22 +50,28 @@ export function PhotographersConfigScreen() {
     name: string;
     email: string;
     phone_number: string;
-    password: '';
+    secondary_phone_number: string;
+    password: string;
     active: boolean;
     city: string;
-    payout_model: 'PERCENTAGE' | 'FIXED';
+    payout_model: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
     fixed_start_date: string;
     fixed_end_date: string;
+    profile_image_file: File | null;
+    profile_image_url: string;
   }>({
     name: '',
     email: '',
     phone_number: '',
+    secondary_phone_number: '',
     password: '',
     active: true,
     city: '',
-    payout_model: 'PERCENTAGE',
+    payout_model: 'PERCENTAGE_15_DAILY',
     fixed_start_date: '',
     fixed_end_date: '',
+    profile_image_file: null,
+    profile_image_url: '',
   });
 
   // Admin-only access guard
@@ -78,6 +86,25 @@ export function PhotographersConfigScreen() {
     ? photographers.filter(p => (p as any).city === user.city)
     : photographers;
 
+  const handleDownloadPhoto = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+      toast.success('Image download started');
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('Failed to download image');
+    }
+  };
+
   const handleOpenDialog = (photographer?: UserType) => {
     if (photographer) {
       setEditingPhotographer(photographer);
@@ -85,12 +112,15 @@ export function PhotographersConfigScreen() {
         name: photographer.name,
         email: photographer.email,
         phone_number: photographer.phone_number || '',
+        secondary_phone_number: photographer.secondary_phone_number || '',
         password: '', // Password is only for new photographers
         active: photographer.active,
         city: (photographer as any).city || '',
-        payout_model: photographer.payout_model || 'PERCENTAGE',
-        fixed_start_date: photographer.fixed_start_date || '',
-        fixed_end_date: photographer.fixed_end_date || '',
+        payout_model: (photographer as any).payout_model || 'PERCENTAGE_15_DAILY',
+        fixed_start_date: (photographer as any).fixed_start_date || '',
+        fixed_end_date: (photographer as any).fixed_end_date || '',
+        profile_image_file: null,
+        profile_image_url: (photographer as any).profile_image_url || '',
       });
     } else {
       setEditingPhotographer(null);
@@ -98,12 +128,15 @@ export function PhotographersConfigScreen() {
         name: '', 
         email: '', 
         phone_number: '', 
+        secondary_phone_number: '', 
         password: '', 
         active: true,
         city: user?.city || '',
-        payout_model: 'PERCENTAGE',
+        payout_model: 'PERCENTAGE_15_DAILY',
         fixed_start_date: '',
         fixed_end_date: '',
+        profile_image_file: null,
+        profile_image_url: '',
       });
     }
     setDialogOpen(true);
@@ -112,7 +145,20 @@ export function PhotographersConfigScreen() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingPhotographer(null);
-    setFormData({ name: '', email: '', phone_number: '', password: '', active: true, city: '', payout_model: 'PERCENTAGE', fixed_start_date: '', fixed_end_date: '' });
+    setFormData({ 
+      name: '', 
+      email: '', 
+      phone_number: '', 
+      secondary_phone_number: '', 
+      password: '', 
+      active: true, 
+      city: '',
+      payout_model: 'PERCENTAGE_15_DAILY',
+      fixed_start_date: '',
+      fixed_end_date: '',
+      profile_image_file: null,
+      profile_image_url: '',
+    });
   };
 
   const handleSubmit = async () => {
@@ -139,18 +185,46 @@ export function PhotographersConfigScreen() {
       return;
     }
 
+    // Active photographer validation: Phone number, secondary phone number, and profile image are mandatory
+    if (formData.active) {
+      if (!formData.phone_number.trim()) {
+        toast.error('Primary phone number is mandatory for active photographers');
+        return;
+      }
+      if (!formData.secondary_phone_number.trim()) {
+        toast.error('Secondary phone number is mandatory for active photographers');
+        return;
+      }
+      if (!editingPhotographer && !formData.profile_image_file) {
+        toast.error('Profile image is mandatory for active photographers');
+        return;
+      }
+      if (editingPhotographer && !formData.profile_image_file && !formData.profile_image_url) {
+        toast.error('Profile image is mandatory for active photographers');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
+      let profileImageUrl = formData.profile_image_url;
+      if (formData.profile_image_file) {
+        const path = `avatars/${Date.now()}_${formData.profile_image_file.name}`;
+        profileImageUrl = await screenshotsDb.uploadScreenshotFile(formData.profile_image_file, path, supabase);
+      }
+
       if (editingPhotographer) {
         await updatePhotographer(editingPhotographer.id, {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
           payout_model: formData.payout_model,
           fixed_start_date: formData.fixed_start_date || null,
-          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          fixed_end_date: formData.payout_model !== 'FIXED' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          profile_image_url: profileImageUrl || null,
         } as any);
         toast.success('Photographer updated successfully');
       } else {
@@ -158,12 +232,14 @@ export function PhotographersConfigScreen() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
           password: formData.password.trim(),
           active: formData.active,
           city: formData.city.toLowerCase().trim(),
           payout_model: formData.payout_model,
           fixed_start_date: formData.fixed_start_date || null,
-          fixed_end_date: formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          fixed_end_date: formData.payout_model !== 'FIXED' && formData.fixed_start_date ? (formData.fixed_end_date || null) : null,
+          profile_image_url: profileImageUrl || null,
         } as any);
         toast.success('Photographer added successfully');
       }
@@ -285,12 +361,14 @@ export function PhotographersConfigScreen() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
                       <div
-                        className={`p-2 rounded-lg ${photographer.active
+                        className={`h-10 w-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${photographer.active
                           ? 'bg-purple-100'
                           : 'bg-gray-100'
                           }`}
                       >
-                        {photographer.active ? (
+                        {photographer.profile_image_url ? (
+                          <img src={photographer.profile_image_url} alt={photographer.name} className="h-full w-full object-cover" />
+                        ) : photographer.active ? (
                           <UserCheck className="h-5 w-5 text-purple-600" />
                         ) : (
                           <UserX className="h-5 w-5 text-gray-500" />
@@ -323,9 +401,29 @@ export function PhotographersConfigScreen() {
                               Phone: <span className="font-mono text-gray-700">{photographer.phone_number}</span>
                             </div>
                           )}
-                          <div className="text-purple-600">
+                          {photographer.secondary_phone_number && (
+                            <div>
+                              Sec. Phone: <span className="font-mono text-gray-700">{photographer.secondary_phone_number}</span>
+                            </div>
+                          )}
+                          <div className="text-purple-600 font-medium">
                             {photographerMappingCount} mapping(s): {primaryMappings}{' '}
                             primary, {secondaryMappings} secondary
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Payout Model: <span className="font-semibold text-blue-600">
+                              {photographer.payout_model === 'PERCENTAGE_15_DAILY'
+                                ? 'Flat 15% Daily Settlement'
+                                : photographer.payout_model === 'FIXED'
+                                  ? 'Fixed Salary'
+                                  : 'Percentage Based (10/30/50) [Legacy]'}
+                            </span>
+                            {photographer.fixed_start_date && (
+                              <span className="text-gray-500 ml-1.5 font-mono">
+                                (Fixed: {photographer.fixed_start_date}
+                                {photographer.fixed_end_date ? ` to ${photographer.fixed_end_date}` : ''})
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -395,6 +493,58 @@ export function PhotographersConfigScreen() {
 
           <div className="space-y-4">
             <div>
+              <Label>Profile Image {formData.active && <span className="text-red-500">*</span>}</Label>
+              <div className="mt-2 flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+                  {formData.profile_image_file ? (
+                    <img src={URL.createObjectURL(formData.profile_image_file)} alt="Preview" className="h-full w-full object-cover" />
+                  ) : formData.profile_image_url ? (
+                    <img src={formData.profile_image_url} alt="Profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-8 w-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Input
+                      id="profile_image"
+                      type="file"
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          setFormData(prev => ({ ...prev, profile_image_file: file }));
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('profile_image')?.click()}
+                    >
+                      Choose Image
+                    </Button>
+                    {editingPhotographer && formData.profile_image_url && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleDownloadPhoto(formData.profile_image_url, `${formData.name.replace(/\s+/g, '_')}_profile.jpg`)}
+                      >
+                        Download Photo
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-500">
+                    JPEG, PNG, WebP format. Max 10MB.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
               <Label htmlFor="name">Photographer Name</Label>
               <Input
                 id="name"
@@ -416,13 +566,24 @@ export function PhotographersConfigScreen() {
             </div>
 
             <div>
-              <Label htmlFor="phone">Phone Number (Optional)</Label>
+              <Label htmlFor="phone">Phone Number {formData.active && <span className="text-red-500">*</span>}</Label>
               <Input
                 id="phone"
                 type="tel"
                 value={formData.phone_number}
                 onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                 placeholder="e.g., +91 9876543210"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="secondary_phone">Secondary Phone Number {formData.active && <span className="text-red-500">*</span>}</Label>
+              <Input
+                id="secondary_phone"
+                type="tel"
+                value={formData.secondary_phone_number}
+                onChange={e => setFormData({ ...formData, secondary_phone_number: e.target.value })}
+                placeholder="e.g., +91 9876543211"
               />
             </div>
 
@@ -441,10 +602,13 @@ export function PhotographersConfigScreen() {
               <select
                 id="payout_model"
                 value={formData.payout_model}
-                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                onChange={e => setFormData({ ...formData, payout_model: e.target.value as 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="PERCENTAGE">Percentage Based (10/30/50)</option>
+                {formData.payout_model === 'PERCENTAGE' && (
+                  <option value="PERCENTAGE">Percentage Based (10/30/50) [Legacy]</option>
+                )}
+                <option value="PERCENTAGE_15_DAILY">Flat 15% Daily Settlement</option>
                 <option value="FIXED">Fixed Salary (per Working Day)</option>
               </select>
             </div>
@@ -464,9 +628,9 @@ export function PhotographersConfigScreen() {
               </div>
             )}
 
-            {formData.payout_model === 'PERCENTAGE' && formData.fixed_start_date && (
+            {formData.payout_model !== 'FIXED' && formData.fixed_start_date && (
               <div>
-                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back to Percentage)</Label>
+                <Label htmlFor="fixed_end_date">Fixed Payout End Date (Switch back from Fixed)</Label>
                 <Input
                   id="fixed_end_date"
                   type="date"
@@ -474,7 +638,7 @@ export function PhotographersConfigScreen() {
                   onChange={e => setFormData({ ...formData, fixed_end_date: e.target.value })}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  The date they switched back from Fixed to Percentage.
+                  The date they switched back from Fixed to their current model.
                 </p>
               </div>
             )}

@@ -458,7 +458,7 @@ export function HomeScreen() {
 
       const today = getOperationalDateString();
 
-      const clusterDealerships = dealerships.filter(d => {
+      const clusterDealerships = dealerships.filter(d => d.active !== false).filter(d => {
         // V1 FIX: Support Shared Showrooms. Ensure we find the mapping matching 
         // BOTH the dealership AND the effective cluster.
         const dMapping = mappings.find(m => {
@@ -532,7 +532,7 @@ export function HomeScreen() {
       if (myPrimaryId) {
         const isMapped = clusterDealerships.some(d => d.id === myPrimaryId);
         if (!isMapped) {
-          const primaryDealership = dealerships.find(d => d.id === myPrimaryId);
+          const primaryDealership = dealerships.filter(d => d.active !== false).find(d => d.id === myPrimaryId);
           if (primaryDealership) {
             clusterDealerships.push(primaryDealership);
           }
@@ -770,6 +770,48 @@ export function HomeScreen() {
           }));
         setLeaves(todayLeaves);
         console.log('Successfully loaded home data with global leaves:', todayLeaves.length);
+      }
+
+      // 4. Check if day is closed via DB log event (type = 'SEND_UPDATE_COMPLETED' for today's operational date)
+      if (user?.id) {
+        const past30Hours = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+        const { data: recentLogs, error: logsError } = await client
+          .from('log_events')
+          .select('created_at')
+          .eq('actor_user_id', user.id)
+          .eq('type', 'SEND_UPDATE_COMPLETED')
+          .gte('created_at', past30Hours);
+
+        if (!logsError && recentLogs && recentLogs.length > 0) {
+          const hasCompletedToday = recentLogs.some(l => {
+            const ts = new Date(l.created_at);
+            const formatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Kolkata',
+              hour: 'numeric',
+              hour12: false,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            });
+            const formatted = formatter.formatToParts(ts);
+            const parts: Record<string, string> = {};
+            formatted.forEach(p => { parts[p.type] = p.value; });
+            const hour = parseInt(parts.hour);
+            let dateStr = `${parts.year}-${parts.month}-${parts.day}`;
+            if (hour < 4) {
+              const prevDate = new Date(ts.getTime() - 24 * 60 * 60 * 1000);
+              const prevParts: Record<string, string> = {};
+              formatter.formatToParts(prevDate).forEach(p => { prevParts[p.type] = p.value; });
+              dateStr = `${prevParts.year}-${prevParts.month}-${prevParts.day}`;
+            }
+            return dateStr === currentOperationalDate;
+          });
+
+          if (hasCompletedToday) {
+            setPhotographerDayState('CLOSED');
+            markEndOfDay(user.id, myDeliveries.filter(d => d.status === 'DONE').length);
+          }
+        }
       }
     } catch (err: any) {
       console.error('Failed to load home data:', err);
@@ -1096,12 +1138,35 @@ export function HomeScreen() {
 
   const handleUploadScreenshot = async (id: string, type: ScreenshotType, file: File) => {
     try {
-      const fileExt = file.name.split('.').pop();
+      const client = supabase;
+      
+      // Compute SHA-256 hash of the file
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Check database for duplicates by file hash
+      const { data: duplicateCheck, error: checkError } = await client
+        .from('screenshots')
+        .select('id')
+        .ilike('file_url', `%${fileHash}%`)
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error checking duplicate screenshot:', checkError);
+      }
+
+      if (duplicateCheck && duplicateCheck.length > 0) {
+        toast.error('Duplicate file detected! This screenshot has already been used previously.');
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop() || 'jpg';
       const isFraudDetection = type === 'FRAUD_DETECTION';
-      const fileName = `${id}_${type}_${Date.now()}.${fileExt}`;
+      const fileName = `${id}_${type}_${fileHash}.${fileExt}`;
       const filePath = isFraudDetection ? `fraud/${fileName}` : `${fileName}`;
 
-      const client = supabase;
       const publicUrl = await screenshotsDb.uploadScreenshotFile(file, filePath, client);
 
       const newScreenshot = await screenshotsDb.createScreenshot({
@@ -1126,7 +1191,6 @@ export function HomeScreen() {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('Screenshot upload aborted (auth disruption)');
-        // Don't show toast for AbortError as it's usually a side effect of sign-out
       } else {
         console.error('Error uploading screenshot:', error);
         toast.error('Failed to upload screenshot');
@@ -1986,10 +2050,7 @@ export function HomeScreen() {
                           <div className="grid gap-4 py-4">
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Cluster</label>
-                              <Select value={selectedExternalCluster} onValueChange={(val) => {
-                                setSelectedExternalCluster(val);
-                                setSelectedExternalDealership(''); // Reset dealership when cluster changes
-                              }}>
+                              <Select onValueChange={(val) => setSelectedExternalCluster(val)}>
                                 <SelectTrigger className="w-full">
                                   <SelectValue placeholder="Select Cluster" />
                                 </SelectTrigger>
@@ -2004,14 +2065,12 @@ export function HomeScreen() {
                             </div>
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Dealership</label>
-                              <Select value={selectedExternalDealership} onValueChange={(val) => setSelectedExternalDealership(val)}>
+                              <Select onValueChange={(val) => setSelectedExternalDealership(val)}>
                                 <SelectTrigger className="w-full">
                                   <SelectValue placeholder="Select Dealership" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {dealerships
-                                    .filter(d => !selectedExternalCluster || mappings.some(m => m.clusterId === selectedExternalCluster && m.dealershipId === d.id))
-                                    .map(dealership => (
+                                  {dealerships.filter(d => d.active !== false).map(dealership => (
                                     <SelectItem key={dealership.id} value={dealership.id}>
                                       {dealership.name}
                                     </SelectItem>

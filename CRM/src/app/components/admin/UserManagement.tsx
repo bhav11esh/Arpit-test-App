@@ -41,6 +41,8 @@ export function UserManagement() {
     role: 'PHOTOGRAPHER' as UserRole,
     active: true,
     city: '',
+    phone_number: '',
+    secondary_phone_number: '',
   });
 
   useEffect(() => {
@@ -74,6 +76,8 @@ export function UserManagement() {
         role: user.role,
         active: user.active,
         city: user.city || '',
+        phone_number: user.phone_number || '',
+        secondary_phone_number: user.secondary_phone_number || '',
       });
     } else {
       setEditingUser(null);
@@ -83,6 +87,8 @@ export function UserManagement() {
         role: 'PHOTOGRAPHER',
         active: true,
         city: currentUser?.city || '', // Default to current admin's city
+        phone_number: '',
+        secondary_phone_number: '',
       });
     }
     setIsDialogOpen(true);
@@ -97,12 +103,26 @@ export function UserManagement() {
       role: 'PHOTOGRAPHER',
       active: true,
       city: '',
+      phone_number: '',
+      secondary_phone_number: '',
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Admin validation: Secondary contact is mandatory
+    if (formData.role === 'ADMIN') {
+      if (!formData.phone_number.trim()) {
+        setError('Primary phone number is required for admin users');
+        return;
+      }
+      if (!formData.secondary_phone_number.trim()) {
+        setError('Secondary phone number is required for admin users');
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -113,6 +133,8 @@ export function UserManagement() {
           role: formData.role,
           active: formData.active,
           city: formData.city.toLowerCase().trim() || undefined,
+          phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
         });
 
         // 2. V6.0 SYNC: Update Auth Metadata to prevent flickering Fallbacks
@@ -171,6 +193,8 @@ export function UserManagement() {
           active: formData.active,
           city: formData.city.toLowerCase().trim() || undefined,
           last_gps_status: 'UNKNOWN',
+          phone_number: formData.phone_number.trim() || null,
+          secondary_phone_number: formData.secondary_phone_number.trim() || null,
         });
 
         toast.success('User created successfully');
@@ -208,7 +232,18 @@ export function UserManagement() {
     setSubmitting(true);
     try {
       await usersDb.adminUpdateUserPassword(editingUser.id, newPassword);
-      toast.success(`Password updated for ${editingUser.name}`);
+      
+      // Force instantaneous logout for the user across all devices
+      // We do this by temporarily toggling their active status, which triggers the realtime 
+      // listener in AuthContext.tsx to instantly sign them out.
+      if (editingUser.active) {
+        await usersDb.updateUser(editingUser.id, { active: false });
+        // Wait briefly for the realtime event to propagate to the user's browser
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await usersDb.updateUser(editingUser.id, { active: true });
+      }
+
+      toast.success(`Password updated for ${editingUser.name} & all active sessions logged out.`);
       setIsPasswordDialogOpen(false);
       setNewPassword('');
     } catch (err) {
@@ -290,6 +325,16 @@ export function UserManagement() {
                     </div>
                     {/* User info display */}
                     <div className="flex flex-wrap items-center gap-4 mt-2">
+                      {user.phone_number && (
+                        <div className="text-sm text-gray-500">
+                          Phone: <span className="text-gray-750 font-medium">{user.phone_number}</span>
+                        </div>
+                      )}
+                      {user.secondary_phone_number && (
+                        <div className="text-sm text-gray-500">
+                          Sec. Phone: <span className="text-gray-750 font-medium">{user.secondary_phone_number}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 text-sm text-gray-500">
                         <Clock className="h-4 w-4" />
                         <span>
@@ -396,6 +441,24 @@ export function UserManagement() {
                   />
                 </div>
               )}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number {formData.role === 'ADMIN' && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone_number}
+                  onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                  placeholder="e.g., +91 9876543210"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secondary_phone">Secondary Phone Number {formData.role === 'ADMIN' && <span className="text-red-500">*</span>}</Label>
+                <Input
+                  id="secondary_phone"
+                  value={formData.secondary_phone_number}
+                  onChange={(e) => setFormData({ ...formData, secondary_phone_number: e.target.value })}
+                  placeholder="e.g., +91 9876543211"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
                 <Select

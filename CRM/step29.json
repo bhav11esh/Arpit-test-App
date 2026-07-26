@@ -1,0 +1,58 @@
+﻿
+{"step_index":29,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-05-30T11:16:02Z","conten
+t":"Here is the fully updated code. I have separated `Customer Name` and `Delivery Name` so they never overwrite each 
+other again, and I also bumped the version at the top to **17.8** so you can confirm the new script is running. 
+\n\nYou can copy and paste this entire block directly into your Google Apps Script editor, replacing everything that's 
+currently there:\n\n```javascript\n/**\n * ðŸš€ GOOGLE APPS SCRIPT SYNC BRIDGE - V17.8 (SMART SENSING)\n * \n * 
+FEATURES:\n * - Smart Header Sensing: Dynamically finds the header row (scans first 10 rows).\n * - Multi-Layer Date 
+Fix: Overcomes US/India locale mismatch by reading Display Values.\n * - Hunter Priority: Matches by Google Drive ID 
+BEFORE checking any dates.\n * - Quad-Factor Matching (QFM): Matches by Date, Photographer, and Link Text for 
+text-only rows.\n * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.\n * - Split 
+Name Mapping: Keeps Customer Name and Delivery Name strictly separated.\n */\n\nconst VERSION = \"17.8\";\n\nfunction 
+doGet(e) {\n  return ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))\n    
+.setMimeType(ContentService.MimeType.JSON);\n}\n\nfunction doPost(e) {\n  const lock = LockService.getScriptLock();\n  
+try {\n    lock.waitLock(30000);\n    const request = JSON.parse(e.postData.contents);\n    const { action, sheetId, 
+sheetName, delivery, deliveries, id } = request;\n    const spreadsheet = SpreadsheetApp.openById(sheetId);\n    const 
+tz = spreadsheet.getSpreadsheetTimeZone();\n    let sheet;\n    if (sheetName) sheet = 
+spreadsheet.getSheetByName(sheetName);\n    if (!sheet) sheet = spreadsheet.getSheets()[0];\n\n    const headerRowInfo 
+= findHeaderRow(sheet);\n    const headers = headerRowInfo.values;\n    repairHeadersIfNeeded(sheet, 
+headerRowInfo.index, headers);\n    const finalHeaders = sheet.getRange(headerRowInfo.index, 1, 1, 
+sheet.getLastColumn()).getValues()[0];\n    const finalColIdx = buildColIdx(finalHeaders);\n\n    if (action === 
+'delete') return deleteRow(sheet, finalColIdx, id);\n    if (action =\n<truncated 8643 bytes>\nature', 'Updated 
+At'];\n  required.forEach(req => {\n    const t = norm(req);\n    let found = false;\n    for (let h of headers) { if 
+(norm(h) === t) { found = true; break; } }\n    if (!found) {\n      const lastCol = sheet.getLastColumn();\n      
+sheet.getRange(headIdx, lastCol + 1).setValue(req).setBackground('#EFEFEF').setFontWeight('bold');\n      
+headers.push(req);\n    }\n  });\n}\n\nfunction deleteRow(sheet, colIdx, id) {\n  const displayData = 
+sheet.getDataRange().getDisplayValues();\n  if (colIdx.id === -1) return 
+ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'CRM ID column not found' }));\n  for (let 
+i = 1; i < displayData.length; i++) {\n    if (String(displayData[i][colIdx.id]).trim() === String(id).trim()) {\n     
+ sheet.deleteRow(i + 1);\n      return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 
+'deleted' }));\n    }\n  }\n  return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Row 
+not found' }));\n}\n\nfunction extractId(s) {\n  if (!s) return \"\";\n  const match = 
+String(s).match(/[-\\w]{25,}/);\n  return match ? match[0] : \"\";\n}\n\nfunction normalizeDate(d, tz) {\n  if (!d) 
+return \"\";\n  if (Object.prototype.toString.call(d) === '[object Date]') return Utilities.formatDate(d, tz || 
+\"GMT+5:30\", \"yyyy-MM-dd\");\n  let s = String(d).trim().replace(/[^\\d\\/\\-\\.]/g, '');\n  if 
+(/^\\d{4}-\\d{1,2}-\\d{1,2}$/.test(s)) return s;\n  const dmyMatch = 
+s.match(/^(\\d{1,2})[\\s\\-\\.\\/](\\d{1,2})[\\s\\-\\.\\/](\\d{2,4})$/);\n  if (dmyMatch) {\n    let dd = 
+parseInt(dmyMatch[1]);\n    let mm = parseInt(dmyMatch[2]);\n    let yy = dmyMatch[3].length === 2 ? 
+\"20\"+dmyMatch[3] : dmyMatch[3];\n    if (mm > 12 && dd <= 12) return 
+`${yy}-${String(dd).padStart(2,'0')}-${String(mm).padStart(2,'0')}`;\n    return 
+`${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;\n  }\n  return s.split('T')[0];\n}\n```\n\nDon't 
+forget to **Deploy > New Deployment** or **Manage Deployments > Edit > New Version** to ensure the new code takes 
+effect. Let me know if you run into any issues at all!","thinking":"**Prioritizing Tool Usage**\n\nI'm now focusing on 
+tool selection, emphasizing specific tools like 'view_file' over broader ones like terminal commands where applicable. 
+The goal is efficiency, and I'm aiming for the most direct approach to each task.\n\n\n**Refining Tool 
+Choices**\n\nI've recalled critical instructions regarding tool use. For this code tweak, I'm considering the most 
+direct approach. Since there's no file, I'll initially output the modified code. However, I'm prepared to adapt and 
+present it as a code block, keeping in mind the user might prefer a direct copy-paste.\n\n\n**Directly Outputting 
+Code**\n\nI've decided on the most straightforward approach: directly outputting the complete, modified code as a code 
+block. This simplifies the process for the user, making it easy to copy and integrate. I've completed the review and 
+made necessary edits to the code snippets.\n\n\n**Formatting Date Logic**\n\nI'm now focusing on formatting the date 
+using `Utilities.formatDate`. It looks like I need to integrate this function properly within the script to handle 
+date objects. I'm double-checking the formatting for consistency and proper output.\n\n\n**Analyzing Code 
+Relationships**\n\nI'm now investigating the relationship between `buildColIdx`, `findRowIndex` and `updateRowArray`. 
+I've confirmed that `findRowIndex` does not use `colIdx.name`. It only utilizes the properties such as id, date, 
+photog, link and reel for determining the indexes of the columns. The goal here is to get a clearer understanding of 
+the data structure.\n\n\n"}
+
+

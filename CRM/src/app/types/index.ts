@@ -27,7 +27,7 @@
  * ❌ Reel backlog modification on photographer disable
  */
 
-export type UserRole = 'ADMIN' | 'PHOTOGRAPHER';
+export type UserRole = 'ADMIN' | 'PHOTOGRAPHER' | 'SUPER_ADMIN';
 
 // V1 SPEC: No DONE status exists - SEND UPDATE is the only closure
 export type DeliveryStatus =
@@ -50,7 +50,7 @@ export type DecisionState = 'WAITING' | 'ACCEPTED' | 'REJECTED_BY_ALL';
 // - CLOSED: Photographer has triggered SEND UPDATE - no further actions allowed
 export type PhotographerDayState = 'ACTIVE' | 'CLOSED';
 
-export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION';
+export type ScreenshotType = 'PAYMENT' | 'FOLLOW' | 'RAPIDO' | 'PLATFORM_PAYMENT' | 'FRAUD_DETECTION' | 'FRAUD_CALL_LOG';
 
 export type PaymentType = 'CUSTOMER_PAID' | 'DEALER_PAID';
 
@@ -65,13 +65,15 @@ export interface User {
   role: UserRole;
   active: boolean;
   phone_number?: string | null;
+  secondary_phone_number?: string | null;
   cluster_code?: string; // Photographer's assigned cluster (for Accept/Reject matching)
   last_active?: string; // ISO timestamp of last app check-in
   last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
   city?: string; // V6.0: For city-level admin isolation
-  payout_model?: 'PERCENTAGE' | 'FIXED';
+  payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
   fixed_start_date?: string; // YYYY-MM-DD
   fixed_end_date?: string; // YYYY-MM-DD
+  profile_image_url?: string | null;
 }
 
 export interface Delivery {
@@ -112,6 +114,27 @@ export interface Delivery {
   customer_phone?: string;
   rapido_charge?: number;
   deleted_at?: string; // V6.0: For 'Safe Delete' flow
+  witness_phone?: string | null;
+  payment_screenshot_date?: string | null;
+  payment_screenshot_time?: string | null;
+  payment_screenshot_amount?: number | null;
+  platform_payment_screenshot_date?: string | null;
+  platform_payment_screenshot_time?: string | null;
+  platform_payment_screenshot_amount?: number | null;
+  rapido_screenshot_date?: string | null;
+  rapido_screenshot_time?: string | null;
+  rapido_screenshot_amount?: number | null;
+}
+
+export interface StandupCall {
+  id: string;
+  photographer_id: string;
+  date: string;
+  status: 'CONFIRMED' | 'LEAVE';
+  confirmed_count?: number | null;
+  call_log_screenshot_url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Screenshot {
@@ -185,6 +208,7 @@ export interface Dealership {
   latitude?: number;
   longitude?: number;
   city?: string; // V6.0: For showroom-level branch identification
+  active?: boolean;
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';
@@ -197,6 +221,8 @@ export interface Mapping {
   mappingType: MappingType; // PRIMARY or SECONDARY
   latitude: number;
   longitude: number;
+  map_link?: string | null;
+  has_metro?: boolean;
 }
 
 // V1 LEAVE MANAGEMENT
@@ -213,6 +239,7 @@ export interface Leave {
   half: LeaveHalf; // FIRST_HALF or SECOND_HALF
   appliedBy: LeaveAppliedBy; // Who created this leave
   appliedAt: string; // ISO timestamp
+  convertedToWorkingDay?: boolean;
 }
 
 export interface DeliveryRejection {
@@ -233,3 +260,10 @@ export interface DeliveryRejection {
  * - Full-day leave = FIRST_HALF + SECOND_HALF records on same date
  * - Leaves are retained for at least 2 months for salary reconciliation
  */
+
+export interface CityWeekoff {
+  city: string;
+  weekoff_day_index: number;
+  created_at?: string;
+  updated_at?: string;
+}

@@ -55,6 +55,16 @@ const rowToDelivery = (row: DeliveryRow): Delivery => {
     customer_phone: row.customer_phone ?? undefined,
     rapido_charge: row.rapido_charge ?? undefined,
     deleted_at: row.deleted_at ?? undefined,
+    witness_phone: row.witness_phone ?? null,
+    payment_screenshot_date: row.payment_screenshot_date ?? null,
+    payment_screenshot_time: row.payment_screenshot_time ?? null,
+    payment_screenshot_amount: row.payment_screenshot_amount != null ? Number(row.payment_screenshot_amount) : null,
+    platform_payment_screenshot_date: row.platform_payment_screenshot_date ?? null,
+    platform_payment_screenshot_time: row.platform_payment_screenshot_time ?? null,
+    platform_payment_screenshot_amount: row.platform_payment_screenshot_amount != null ? Number(row.platform_payment_screenshot_amount) : null,
+    rapido_screenshot_date: (row as any).rapido_screenshot_date ?? null,
+    rapido_screenshot_time: (row as any).rapido_screenshot_time ?? null,
+    rapido_screenshot_amount: (row as any).rapido_screenshot_amount != null ? Number((row as any).rapido_screenshot_amount) : null,
   };
 };
 
@@ -118,6 +128,16 @@ export const createDelivery = async (
     customer_phone: delivery.customer_phone,
     rapido_charge: delivery.rapido_charge,
     deleted_at: delivery.deleted_at,
+    witness_phone: delivery.witness_phone,
+    payment_screenshot_date: delivery.payment_screenshot_date,
+    payment_screenshot_time: delivery.payment_screenshot_time,
+    payment_screenshot_amount: delivery.payment_screenshot_amount,
+    platform_payment_screenshot_date: delivery.platform_payment_screenshot_date,
+    platform_payment_screenshot_time: delivery.platform_payment_screenshot_time,
+    platform_payment_screenshot_amount: delivery.platform_payment_screenshot_amount,
+    rapido_screenshot_date: delivery.rapido_screenshot_date,
+    rapido_screenshot_time: delivery.rapido_screenshot_time,
+    rapido_screenshot_amount: delivery.rapido_screenshot_amount,
   };
 
   const { data, error } = await (supabaseClient.from('deliveries') as any)
@@ -158,6 +178,16 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     customer_phone: updates.customer_phone,
     rapido_charge: updates.rapido_charge,
     deleted_at: updates.deleted_at,
+    witness_phone: updates.witness_phone,
+    payment_screenshot_date: updates.payment_screenshot_date,
+    payment_screenshot_time: updates.payment_screenshot_time,
+    payment_screenshot_amount: updates.payment_screenshot_amount,
+    platform_payment_screenshot_date: updates.platform_payment_screenshot_date,
+    platform_payment_screenshot_time: updates.platform_payment_screenshot_time,
+    platform_payment_screenshot_amount: updates.platform_payment_screenshot_amount,
+    rapido_screenshot_date: updates.rapido_screenshot_date,
+    rapido_screenshot_time: updates.rapido_screenshot_time,
+    rapido_screenshot_amount: updates.rapido_screenshot_amount,
   };
 
   // Remove undefined values

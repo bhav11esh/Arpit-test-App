@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 
 export function ReelBacklog() {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [reelTasks, setReelTasks] = useState<ReelTask[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
@@ -43,7 +44,9 @@ export function ReelBacklog() {
   const [selectedPhotographer, setSelectedPhotographer] = useState('');
   const [postItReels, setPostItReels] = useState<(ReelTask & { delivery?: Delivery })[]>([]);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [relinquishing, setRelinquishing] = useState<string | null>(null);
   const [bountyFilter, setBountyFilter] = useState<'mine' | 'others'>('others');
+  const [isResolving, setIsResolving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -58,7 +61,7 @@ export function ReelBacklog() {
       const client = supabase;
 
       // 1. Fetch relevant reel tasks first
-      const allTasks = user.role === 'ADMIN'
+      const allTasks = isAdmin
         ? await reelsDb.getAllReelTasks(undefined, client)
         : await reelsDb.getReelTasksByUser(user.id, client);
 
@@ -72,7 +75,7 @@ export function ReelBacklog() {
       const allDbUsers = await usersDb.getUsers(client);
 
       // 5. NEW: Refresh and Fetch Post-its for photographers and admins
-      if (user.role === 'PHOTOGRAPHER' || user.role === 'ADMIN') {
+      if (user.role === 'PHOTOGRAPHER' || isAdmin) {
         try {
           await reelsDb.refreshPostIts(client);
           const availablePostIts = await reelsDb.getPostItReels(client);
@@ -109,30 +112,44 @@ export function ReelBacklog() {
     }
   };
 
+  const handleRelinquishPostIt = async (taskId: string) => {
+    if (!user) return;
+    try {
+      setRelinquishing(taskId);
+      await reelsDb.relinquishPostIt(taskId, user.id);
+      toast.success('Bounty unassigned and returned to the pool');
+      // Refresh data
+      loadData();
+    } catch (error: any) {
+      console.error('Failed to unassign bounty:', error);
+      toast.error(error.message || 'Failed to unassign bounty');
+    } finally {
+      setRelinquishing(null);
+    }
+  };
+
   const handleResolve = async (taskId: string) => {
     if (!reelLinkInput.trim()) {
       toast.error('Please enter a reel link');
       return;
     }
 
+    setIsResolving(true);
     try {
       // V1 FIX: Use admin client to allow resolving reassigned tasks (bypass RLS)
       const client = supabase;
-
-      await reelsDb.updateReelTask(taskId, {
-        reel_link: reelLinkInput,
-        status: 'RESOLVED',
-      }, client);
-
-      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
-      // V1 FIX: Also update the delivery record so it appears in the Spreadsheet View
-      // Using the same privileged client to ensure permissions
       const currentTask = reelTasks.find(t => t.id === taskId);
-      if (currentTask && currentTask.delivery_id) {
-        await deliveriesDb.updateDelivery(currentTask.delivery_id, {
-          reel_link: reelLinkInput
-        }, client);
-      }
+
+      // Run database updates in parallel to halve network latency
+      await Promise.all([
+        reelsDb.updateReelTask(taskId, {
+          reel_link: reelLinkInput,
+          status: 'RESOLVED',
+        }, client),
+        currentTask && currentTask.delivery_id
+          ? deliveriesDb.updateDelivery(currentTask.delivery_id, { reel_link: reelLinkInput }, client)
+          : Promise.resolve()
+      ]);
 
       // Update local state
       setReelTasks(prev => prev.map(t =>
@@ -148,6 +165,8 @@ export function ReelBacklog() {
     } catch (error) {
       console.error('Failed to resolve reel task:', error);
       toast.error('Failed to resolve reel task');
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -194,7 +213,7 @@ export function ReelBacklog() {
   const pendingTasks = reelTasks.filter(t => t.status === 'PENDING' && !t.is_post_it);
   // V18.3: Resolved section logic
   // Only show entries where the reel was reassigned to them (Admin or Post-it)
-  const resolvedTasks = user?.role === 'ADMIN' 
+  const resolvedTasks = isAdmin 
     ? reelTasks.filter(t => t.status === 'RESOLVED')
     : reelTasks.filter(t => t.status === 'RESOLVED' && t.reassigned_reason !== null);
 
@@ -221,9 +240,9 @@ export function ReelBacklog() {
   }
 
   return (
-    <div className="space-y-4 p-1 sm:p-4 pb-20">
+    <div className="space-y-4 p-1 sm:p-4 pb-36">
       {/* NEW: Bounty Board / Post-its Marketplace */}
-      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || user?.role === 'ADMIN') && (
+      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || isAdmin) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -269,7 +288,7 @@ export function ReelBacklog() {
                       : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-500'
                   }`}
                 >
-                  <span>{user?.role === 'ADMIN' ? 'All Bounties' : 'Others'} ({othersReels.length})</span>
+                  <span>{isAdmin ? 'All Bounties' : 'Others'} ({othersReels.length})</span>
                   {othersTotal > 0 && (
                     <span className={`text-[9px] font-black ${bountyFilter === 'others' ? 'text-emerald-200' : 'text-emerald-500'}`}>
                       +₹{othersTotal} to earn
@@ -379,7 +398,7 @@ export function ReelBacklog() {
                       )}
 
                       {/* V1 ADMIN: Admin can resolve bounty reels directly */}
-                      {user?.role === 'ADMIN' && (
+                      {isAdmin && (
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9" onClick={() => {
@@ -405,6 +424,7 @@ export function ReelBacklog() {
                                   placeholder="https://drive.google.com/..."
                                   value={reelLinkInput}
                                   onChange={(e) => setReelLinkInput(e.target.value)}
+                                  disabled={isResolving}
                                 />
                               </div>
                             </div>
@@ -412,12 +432,21 @@ export function ReelBacklog() {
                               <Button variant="outline" onClick={() => {
                                 setSelectedTask(null);
                                 setReelLinkInput('');
-                              }}>
+                              }} disabled={isResolving}>
                                 Cancel
                               </Button>
-                              <Button onClick={() => handleResolve(task.id)}>
-                                <Check className="h-4 w-4 mr-2" />
-                                Resolve
+                              <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
+                                {isResolving ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Resolving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Resolve
+                                  </>
+                                )}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -489,7 +518,7 @@ export function ReelBacklog() {
                         </CardTitle>
                         <CardDescription className="text-[10px] truncate mt-0.5">{delivery.showroom_code}</CardDescription>
                         {/* V1 ADMIN: Show photographer name for admin view */}
-                        {user?.role === 'ADMIN' && photographer && (
+                        {isAdmin && photographer && (
                           <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-orange-500 bg-orange-50 w-fit px-2 py-0.5 rounded-full">
                             <User className="h-3 w-3" />
                             <span>{photographer.name}</span>
@@ -549,52 +578,80 @@ export function ReelBacklog() {
 
                     {/* V1 ADMIN: Only photographers can add reel links */}
                     {user?.role === 'PHOTOGRAPHER' && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                        <Button className="w-full btn-gradient h-8 text-xs" onClick={() => {
-                            setSelectedTask(task);
-                            setReelLinkInput(task.reel_link || '');
-                          }}>
-                            <Film className="h-3.5 w-3.5 mr-2" />
-                            Add Reel Link
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Resolve Reel Task</DialogTitle>
-                            <DialogDescription>
-                              Add the reel link for {delivery.delivery_name}
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label>Reel Link</Label>
-                              <Input
-                                type="url"
-                                placeholder="https://drive.google.com/..."
-                                value={reelLinkInput}
-                                onChange={(e) => setReelLinkInput(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => {
-                              setSelectedTask(null);
-                              setReelLinkInput('');
+                      <div className="space-y-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                          <Button className="w-full btn-gradient h-8 text-xs" onClick={() => {
+                              setSelectedTask(task);
+                              setReelLinkInput(task.reel_link || '');
                             }}>
-                              Cancel
+                              <Film className="h-3.5 w-3.5 mr-2" />
+                              Add Reel Link
                             </Button>
-                            <Button onClick={() => handleResolve(task.id)}>
-                              <Check className="h-4 w-4 mr-2" />
-                              Resolve
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Resolve Reel Task</DialogTitle>
+                              <DialogDescription>
+                                Add the reel link for {delivery.delivery_name}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Reel Link</Label>
+                                <Input
+                                  type="url"
+                                  placeholder="https://drive.google.com/..."
+                                  value={reelLinkInput}
+                                  onChange={(e) => setReelLinkInput(e.target.value)}
+                                  disabled={isResolving}
+                                />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => {
+                                  setSelectedTask(null);
+                                  setReelLinkInput('');
+                                }}
+                                disabled={isResolving}
+                              >
+                                Cancel
+                              </Button>
+                              <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
+                                {isResolving ? (
+                                  <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Resolving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Resolve
+                                  </>
+                                )}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+
+                        {task.original_user_id && (
+                          <Button
+                            variant="outline"
+                            className="w-full border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 h-8 text-xs"
+                            disabled={relinquishing === task.id}
+                            onClick={() => handleRelinquishPostIt(task.id)}
+                          >
+                            <X className="h-3.5 w-3.5 mr-2" />
+                            {relinquishing === task.id ? 'Unassigning...' : 'Unassign Bounty'}
+                          </Button>
+                        )}
+                      </div>
                     )}
 
                     {/* V1 ADMIN: Admins can reassign reel tasks */}
-                    {user?.role === 'ADMIN' && (
+                    {isAdmin && (
                       <Dialog open={reassignDialogOpen && selectedTask?.id === task.id} onOpenChange={(open) => {
                         setReassignDialogOpen(open);
                         if (!open) {
@@ -703,7 +760,7 @@ export function ReelBacklog() {
                           </CardTitle>
                           <CardDescription className="text-xs truncate">{delivery.showroom_code}</CardDescription>
                           {/* V1 ADMIN: Show photographer name for admin view */}
-                          {user?.role === 'ADMIN' && photographer && (
+                          {isAdmin && photographer && (
                             <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full">
                               <User className="h-3 w-3" />
                               <span>{photographer.name}</span>

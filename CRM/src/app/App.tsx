@@ -18,6 +18,7 @@ import { ClustersConfigScreen } from './components/admin/ClustersConfigScreen';
 import { DealershipsConfigScreen } from './components/admin/DealershipsConfigScreen';
 import { PhotographersConfigScreen } from './components/admin/PhotographersConfigScreen';
 import { MappingsConfigScreen } from './components/admin/MappingsConfigScreen';
+import { CityWeekoffsConfigScreen } from './components/admin/CityWeekoffsConfigScreen';
 
 import { ProfileScreen } from './components/ProfileScreen';
 import { ReelBacklog } from './components/ReelBacklog';
@@ -125,7 +126,7 @@ function AppRoutes() {
 
                 // Notify All Active Admins
                 const allUsers = await getUsers();
-                const admins = allUsers.filter(u => u.role === 'ADMIN' && u.active);
+                const admins = allUsers.filter(u => (u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') && u.active);
                 for (const admin of admins) {
                     await createNotification({
                         user_id: admin.id,
@@ -277,7 +278,7 @@ function AppRoutes() {
         <Route
           path="/"
           element={
-            user?.role === 'ADMIN' ? (
+            user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' ? (
               <Navigate to="/view" replace />
             ) : (
               <Layout hideHeader={false}>
@@ -289,7 +290,7 @@ function AppRoutes() {
         <Route
           path="/view"
           element={
-            user?.role === 'ADMIN' || user?.role === 'PHOTOGRAPHER' ? (
+            user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'PHOTOGRAPHER' ? (
               <Layout hideHeader={false}>
                 <ViewScreen />
               </Layout>
@@ -325,13 +326,14 @@ function AppRoutes() {
         />
 
         {/* Admin Modules - Role Protected */}
-        {user.role === 'ADMIN' ? (
+        {user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' ? (
           <>
             <Route path="/admin/config" element={<AdminConfigScreen />} />
             <Route path="/admin/config/clusters" element={<ClustersConfigScreen />} />
             <Route path="/admin/config/dealerships" element={<DealershipsConfigScreen />} />
             <Route path="/admin/config/photographers" element={<PhotographersConfigScreen />} />
             <Route path="/admin/config/mappings" element={<MappingsConfigScreen />} />
+            <Route path="/admin/config/city-weekoffs" element={<CityWeekoffsConfigScreen />} />
             <Route path="/admin/leave" element={<AdminLeaveManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/analytics" element={<AnalyticsDashboard />} />

@@ -20,10 +20,11 @@ export interface Database {
           created_at: string
           updated_at: string
           phone_number: string | null
+          secondary_phone_number: string | null
           last_active: string | null
           last_gps_status: 'ON' | 'OFF' | 'UNKNOWN' | null
           city: string | null
-          payout_model: 'PERCENTAGE' | 'FIXED' | null
+          payout_model: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date: string | null
           fixed_end_date: string | null
         }
@@ -37,10 +38,11 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          secondary_phone_number?: string | null
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
-          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date?: string | null
           fixed_end_date?: string | null
         }
@@ -54,10 +56,11 @@ export interface Database {
           created_at?: string
           updated_at?: string
           phone_number?: string | null
+          secondary_phone_number?: string | null
           last_active?: string | null
           last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN' | null
           city?: string | null
-          payout_model?: 'PERCENTAGE' | 'FIXED' | null
+          payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY' | null
           fixed_start_date?: string | null
           fixed_end_date?: string | null
         }
@@ -325,6 +328,7 @@ export interface Database {
           half: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at: string
+          converted_to_working_day: boolean
         }
         Insert: {
           id?: string
@@ -333,6 +337,7 @@ export interface Database {
           half: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at?: string
+          converted_to_working_day?: boolean
         }
         Update: {
           id?: string
@@ -341,6 +346,7 @@ export interface Database {
           half?: 'FIRST_HALF' | 'SECOND_HALF'
           applied_by?: 'PHOTOGRAPHER' | 'ADMIN'
           applied_at?: string
+          converted_to_working_day?: boolean
         }
       }
       log_events: {

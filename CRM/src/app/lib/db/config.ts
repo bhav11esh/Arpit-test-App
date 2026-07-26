@@ -110,6 +110,7 @@ const rowToDealership = (row: DealershipRow): Dealership => ({
   googleSyncUrl: (row as any).google_sync_url ?? undefined,
   ratePerDelivery: row.rate_per_delivery ?? undefined,
   city: row.city ?? undefined,
+  active: (row as any).active ?? true,
 });
 
 export const getDealerships = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Dealership[]> => {
@@ -146,7 +147,8 @@ export const createDealership = async (dealership: Omit<Dealership, 'id'>): Prom
     latitude: 0,
     longitude: 0,
     city: (dealership as any).city || null,
-  };
+    active: dealership.active ?? true,
+  } as any;
 
   const client = supabase;
   const { data, error } = await (client
@@ -167,7 +169,8 @@ export const updateDealership = async (id: string, updates: Partial<Dealership>)
     google_sync_url: updates.googleSyncUrl,
     rate_per_delivery: updates.ratePerDelivery,
     city: (updates as any).city,
-  };
+    active: updates.active,
+  } as any;
 
   Object.keys(update).forEach(key => {
     if (update[key as keyof DealershipUpdate] === undefined) {
@@ -206,6 +209,8 @@ const rowToMapping = (row: MappingRow): Mapping => ({
   mappingType: row.mapping_type as MappingType,
   latitude: row.latitude ?? 0,
   longitude: row.longitude ?? 0,
+  map_link: (row as any).map_link ?? null,
+  has_metro: (row as any).has_metro ?? false,
 });
 
 export const getMappings = async (supabaseClient: SupabaseClient<Database> = supabase): Promise<Mapping[]> => {
@@ -262,7 +267,9 @@ export const createMapping = async (mapping: Omit<Mapping, 'id'>): Promise<Mappi
     mapping_type: mapping.mappingType,
     latitude: mapping.latitude,
     longitude: mapping.longitude,
-  };
+    map_link: mapping.map_link || null,
+    has_metro: mapping.has_metro ?? false,
+  } as any;
 
   const client = supabase;
   const { data, error } = await (client
@@ -283,7 +290,9 @@ export const updateMapping = async (id: string, updates: Partial<Mapping>): Prom
     mapping_type: updates.mappingType,
     latitude: updates.latitude,
     longitude: updates.longitude,
-  };
+    map_link: updates.map_link,
+    has_metro: updates.has_metro,
+  } as any;
 
   Object.keys(update).forEach(key => {
     if (update[key as keyof MappingUpdate] === undefined) {
