@@ -1188,7 +1188,7 @@ export function ViewScreen() {
           photographer_id: targetId,
           date: spreadSheetDate,
           reported_count: count,
-          saved_count: p.totalCount
+          saved_count: p.completedCount
         }
       });
       if (error) throw error;
@@ -5837,7 +5837,7 @@ export function ViewScreen() {
                     if (!missedEntry || isAlreadyClosed) return null;
                     const enteredVal = enteredCounts[missedEntry.photographerId] ?? '';
                     const enteredNum = parseInt(enteredVal);
-                    const countMatches = enteredVal !== '' && enteredNum === missedEntry.totalCount;
+                    const countMatches = enteredVal !== '' && enteredNum === missedEntry.completedCount;
                     const isHandedOver = handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'MISSED_UPDATE');
                     const isEditingLocked = isHandedOver && user?.role !== 'SUPER_ADMIN';
 
@@ -5872,7 +5872,7 @@ export function ViewScreen() {
                             <div className="grid grid-cols-2 gap-3 text-xs">
                               <div className="bg-gray-50 rounded p-2">
                                 <span className="text-gray-500">Deliveries in sheet:</span>
-                                <span className="font-bold ml-1">{missedEntry.totalCount}</span>
+                                <span className="font-bold ml-1">{missedEntry.completedCount}</span>
                               </div>
                               <div className="bg-gray-50 rounded p-2">
                                 <span className="text-gray-500">End-of-day update:</span>
