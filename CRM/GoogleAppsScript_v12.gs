@@ -60,8 +60,11 @@ function findHeaderRow(sheet) {
 function readSheet(sheet, tz) {
   const data = sheet.getDataRange().getValues();
   const displayData = sheet.getDataRange().getDisplayValues();
+  const formulas = sheet.getDataRange().getFormulas();
   const result = data.map((row, rIdx) => {
     return row.map((cell, cIdx) => {
+      const f = formulas[rIdx][cIdx];
+      if (f) return "FORMULA:" + f;
       const s = String(displayData[rIdx][cIdx]).trim();
       const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})\s*$/);
       if (dmyMatch) {
