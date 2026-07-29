@@ -9,7 +9,7 @@
  * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.
  */
 
-const VERSION = "17.8";
+const VERSION = "17.9";
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))
@@ -34,7 +34,7 @@ function doPost(e) {
     const finalHeaders = sheet.getRange(headerRowInfo.index, 1, 1, sheet.getLastColumn()).getValues()[0];
     const finalColIdx = buildColIdx(finalHeaders);
 
-    if (action === 'delete') return deleteRow(sheet, finalColIdx, id);
+    if (action === 'delete') return deleteRow(sheet, finalColIdx, id, headerRowInfo.index);
     if (action === 'read') return readSheet(sheet, tz);
     if (deliveries) return processBulkSync(sheet, deliveries, tz, headerRowInfo.index, finalColIdx, finalHeaders);
     return processSync(sheet, delivery, tz, headerRowInfo.index, finalColIdx, finalHeaders);
@@ -103,6 +103,7 @@ function processBulkSync(sheet, deliveries, tz, headerIndex, colIdx, headers) {
       displayData.push(newRow.map(c => String(c)));
     }
   });
+  sortSheetByDate(sheet, headerIndex, colIdx);
   return ContentService.createTextOutput(JSON.stringify({ status: 'success', stats }))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -111,14 +112,16 @@ function processSync(sheet, delivery, tz, headerIndex, colIdx, headers) {
   const data = sheet.getDataRange().getValues();
   const displayData = sheet.getDataRange().getDisplayValues();
   const matchIdx = findRowIndex(displayData, data, delivery, colIdx, null, tz);
+  let actionResult = 'appended';
   if (matchIdx > -1) {
     const updatedRow = updateRowArray(data[matchIdx], delivery, headers, colIdx);
     sheet.getRange(matchIdx + 1, 1, 1, updatedRow.length).setValues([updatedRow]);
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'updated' }));
+    actionResult = 'updated';
   } else {
     sheet.appendRow(createRowArray(delivery, headers, colIdx));
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'appended' }));
   }
+  sortSheetByDate(sheet, headerIndex, colIdx);
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: actionResult }));
 }
 
 function buildColIdx(headers) {
@@ -227,12 +230,13 @@ function repairHeadersIfNeeded(sheet, headIdx, headers) {
   });
 }
 
-function deleteRow(sheet, colIdx, id) {
+function deleteRow(sheet, colIdx, id, headerIndex) {
   const displayData = sheet.getDataRange().getDisplayValues();
   if (colIdx.id === -1) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'CRM ID column not found' }));
   for (let i = 1; i < displayData.length; i++) {
     if (String(displayData[i][colIdx.id]).trim() === String(id).trim()) {
       sheet.deleteRow(i + 1);
+      sortSheetByDate(sheet, headerIndex, colIdx);
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', action: 'deleted' }));
     }
   }
@@ -259,4 +263,47 @@ function normalizeDate(d, tz) {
     return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
   }
   return s.split('T')[0];
+}
+
+function sortSheetByDate(sheet, headerIndex, colIdx) {
+  if (!colIdx || colIdx.date === -1) return;
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= headerIndex) return;
+  const lastColumn = sheet.getLastColumn();
+  
+  // 1. Force convert all values in the date column below headers to actual Date objects
+  const dateRange = sheet.getRange(headerIndex + 1, colIdx.date + 1, lastRow - headerIndex, 1);
+  const values = dateRange.getValues();
+  const updatedValues = [];
+  
+  for (let i = 0; i < values.length; i++) {
+    const val = values[i][0];
+    if (val && Object.prototype.toString.call(val) !== '[object Date]') {
+      const s = String(val).trim();
+      const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})$/);
+      if (dmyMatch) {
+        const dd = parseInt(dmyMatch[1]);
+        const mm = parseInt(dmyMatch[2]);
+        const yy = dmyMatch[3].length === 2 ? "20" + dmyMatch[3] : dmyMatch[3];
+        updatedValues.push([new Date(yy, mm - 1, dd)]);
+      } else {
+        const ymdMatch = s.match(/^(\d{4})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{1,2})$/);
+        if (ymdMatch) {
+          const yy = parseInt(ymdMatch[1]);
+          const mm = parseInt(ymdMatch[2]);
+          const dd = parseInt(ymdMatch[3]);
+          updatedValues.push([new Date(yy, mm - 1, dd)]);
+        } else {
+          updatedValues.push([val]);
+        }
+      }
+    } else {
+      updatedValues.push([val]);
+    }
+  }
+  dateRange.setValues(updatedValues);
+  
+  // 2. Perform native sort on the data range
+  const dataRange = sheet.getRange(headerIndex + 1, 1, lastRow - headerIndex, lastColumn);
+  dataRange.sort({ column: colIdx.date + 1, ascending: true });
 }
