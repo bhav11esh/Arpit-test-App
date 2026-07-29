@@ -9,7 +9,7 @@
  * - Robust Meta-Mapping: Ensures CRM ID, Signature, and Updated At are always filled.
  */
 
-const VERSION = "17.9";
+const VERSION = "18.0";
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({ status: 'success', version: VERSION }))
@@ -60,11 +60,8 @@ function findHeaderRow(sheet) {
 function readSheet(sheet, tz) {
   const data = sheet.getDataRange().getValues();
   const displayData = sheet.getDataRange().getDisplayValues();
-  const formulas = sheet.getDataRange().getFormulas();
   const result = data.map((row, rIdx) => {
     return row.map((cell, cIdx) => {
-      const f = formulas[rIdx][cIdx];
-      if (f) return "FORMULA:" + f;
       const s = String(displayData[rIdx][cIdx]).trim();
       const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})\s*$/);
       if (dmyMatch) {
@@ -148,7 +145,8 @@ function buildColIdx(headers) {
     rapido: find('rapido', ['travel', 'rapi']),
     signature: find('signature', ['sig']),
     updated: find('updatedat', ['updated']),
-    reel: find('reellink', ['reel'])
+    reel: find('reellink', ['reel']),
+    month: find('month', ['mth'])
   };
 }
 
@@ -274,39 +272,99 @@ function sortSheetByDate(sheet, headerIndex, colIdx) {
   if (lastRow <= headerIndex) return;
   const lastColumn = sheet.getLastColumn();
   
-  // 1. Force convert all values in the date column below headers to actual Date objects
+  // 1. Read all date and month values for self-healing
   const dateRange = sheet.getRange(headerIndex + 1, colIdx.date + 1, lastRow - headerIndex, 1);
   const values = dateRange.getValues();
+  const displayData = sheet.getRange(headerIndex + 1, 1, lastRow - headerIndex, lastColumn).getDisplayValues();
+  
   const updatedValues = [];
+  const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
   
   for (let i = 0; i < values.length; i++) {
     const val = values[i][0];
-    if (val && Object.prototype.toString.call(val) !== '[object Date]') {
-      const s = String(val).trim();
-      const dmyMatch = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})$/);
-      if (dmyMatch) {
-        const dd = parseInt(dmyMatch[1]);
-        const mm = parseInt(dmyMatch[2]);
-        const yy = dmyMatch[3].length === 2 ? "20" + dmyMatch[3] : dmyMatch[3];
-        updatedValues.push([new Date(yy, mm - 1, dd)]);
-      } else {
-        const ymdMatch = s.match(/^(\d{4})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{1,2})$/);
-        if (ymdMatch) {
-          const yy = parseInt(ymdMatch[1]);
-          const mm = parseInt(ymdMatch[2]);
-          const dd = parseInt(ymdMatch[3]);
-          updatedValues.push([new Date(yy, mm - 1, dd)]);
-        } else {
-          updatedValues.push([val]);
+    const displayVal = displayData[i][colIdx.date];
+    let monthName = "";
+    if (colIdx.month > -1) {
+      monthName = String(displayData[i][colIdx.month]).trim().toLowerCase();
+    }
+    
+    let correctedDate = null;
+    
+    // Check if it's already a Date object
+    if (val && Object.prototype.toString.call(val) === '[object Date]') {
+      const currentMonth = val.getMonth(); // 0-11
+      const currentDay = val.getDate();
+      const currentYear = val.getFullYear();
+      
+      if (monthName) {
+        const expectedMonth = monthNames.indexOf(monthName);
+        if (expectedMonth > -1 && currentMonth !== expectedMonth) {
+          // Month mismatch! Check if flipping day and month fixes it
+          if (currentDay >= 1 && currentDay <= 12 && (currentMonth + 1) <= 31) {
+            const flippedMonth = currentDay - 1;
+            const flippedDay = currentMonth + 1;
+            if (flippedMonth === expectedMonth) {
+              correctedDate = new Date(currentYear, flippedMonth, flippedDay);
+            }
+          }
         }
       }
-    } else {
-      updatedValues.push([val]);
+      
+      if (!correctedDate) {
+        correctedDate = val;
+      }
+    } else if (displayVal) {
+      // It's a string. Parse it based on dmy or mdy
+      const s = String(displayVal).trim().replace(/[^\d\/\-\.]/g, '');
+      const match = s.match(/^(\d{1,2})[\s\-\.\/](\d{1,2})[\s\-\.\/](\d{2,4})$/);
+      if (match) {
+        const p1 = parseInt(match[1]);
+        const p2 = parseInt(match[2]);
+        const yy = match[3].length === 2 ? 2000 + parseInt(match[3]) : parseInt(match[3]);
+        
+        if (monthName) {
+          const expectedMonth = monthNames.indexOf(monthName);
+          if (expectedMonth > -1) {
+            // Check if p1 is day and p2 is month (dmy)
+            if (p2 - 1 === expectedMonth) {
+              correctedDate = new Date(yy, p2 - 1, p1);
+            }
+            // Check if p1 is month and p2 is day (mdy)
+            else if (p1 - 1 === expectedMonth) {
+              correctedDate = new Date(yy, p1 - 1, p2);
+            }
+          }
+        }
+        
+        if (!correctedDate) {
+          // Fallback to spreadsheet locale
+          const locale = sheet.getParent().getSpreadsheetLocale() || "en_IN";
+          const isUS = locale.indexOf("US") > -1 || locale === "en";
+          if (isUS) {
+            correctedDate = new Date(yy, p1 - 1, p2);
+          } else {
+            correctedDate = new Date(yy, p2 - 1, p1);
+          }
+        }
+      }
     }
+    
+    updatedValues.push([correctedDate || val]);
   }
-  dateRange.setValues(updatedValues);
   
-  // 2. Perform native sort on the data range
-  const dataRange = sheet.getRange(headerIndex + 1, 1, lastRow - headerIndex, lastColumn);
-  dataRange.sort({ column: colIdx.date + 1, ascending: true });
+  if (updatedValues.length > 0) {
+    dateRange.setValues(updatedValues);
+  }
+  
+  // 2. Perform native sheet sort (handles ArrayFormulas correctly if header is frozen)
+  const initialFrozenRows = sheet.getFrozenRows();
+  if (initialFrozenRows < headerIndex) {
+    sheet.setFrozenRows(headerIndex); // Temporarily freeze up to the header row
+  }
+  
+  sheet.sort(colIdx.date + 1, true); // Sort the entire sheet by the date column ascending
+  
+  if (initialFrozenRows < headerIndex) {
+    sheet.setFrozenRows(initialFrozenRows); // Restore initial frozen rows
+  }
 }
