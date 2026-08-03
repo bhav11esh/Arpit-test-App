@@ -274,7 +274,7 @@ export function InvoicePreview({
 
                 <div className="text-right">
                   <div className="inline-block px-3 py-1 bg-zinc-900 text-white font-extrabold uppercase tracking-widest text-[10px] rounded-md mb-6">
-                    Tax Invoice
+                    INVOICE
                   </div>
                   <div className="space-y-2 text-xs text-zinc-700">
                     <p><span className="text-zinc-400 uppercase font-bold tracking-wider text-[10px]">Invoice Number:</span> <span className="font-extrabold text-zinc-900">{invoiceNumber}</span></p>
