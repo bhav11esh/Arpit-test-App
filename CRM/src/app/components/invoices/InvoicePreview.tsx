@@ -363,7 +363,14 @@ export function InvoicePreview({
 
               <div className="text-center w-48 space-y-1">
                 <div className="h-12 flex items-center justify-center">
-                  <span className="font-mono text-zinc-400 italic text-2xl">Arpit</span>
+                  <img
+                    src="/signature.png"
+                    alt="Signature"
+                    className="h-12 w-auto object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                 </div>
                 <div className="border-t border-zinc-200 pt-2 text-xs">
                   <p className="font-extrabold text-zinc-950">Arpit Mudgal</p>
