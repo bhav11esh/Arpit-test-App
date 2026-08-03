@@ -65,6 +65,8 @@ const rowToDelivery = (row: DeliveryRow): Delivery => {
     rapido_screenshot_date: (row as any).rapido_screenshot_date ?? null,
     rapido_screenshot_time: (row as any).rapido_screenshot_time ?? null,
     rapido_screenshot_amount: (row as any).rapido_screenshot_amount != null ? Number((row as any).rapido_screenshot_amount) : null,
+    is_invoice_billing: (row as any).is_invoice_billing ?? undefined,
+    invoice_id: (row as any).invoice_id ?? undefined,
   };
 };
 
@@ -138,7 +140,9 @@ export const createDelivery = async (
     rapido_screenshot_date: delivery.rapido_screenshot_date,
     rapido_screenshot_time: delivery.rapido_screenshot_time,
     rapido_screenshot_amount: delivery.rapido_screenshot_amount,
-  };
+    is_invoice_billing: delivery.is_invoice_billing,
+    invoice_id: delivery.invoice_id,
+  } as any;
 
   const { data, error } = await (supabaseClient.from('deliveries') as any)
     .insert(insert)
@@ -188,6 +192,8 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     rapido_screenshot_date: updates.rapido_screenshot_date,
     rapido_screenshot_time: updates.rapido_screenshot_time,
     rapido_screenshot_amount: updates.rapido_screenshot_amount,
+    is_invoice_billing: updates.is_invoice_billing,
+    invoice_id: updates.invoice_id,
   };
 
   // Remove undefined values

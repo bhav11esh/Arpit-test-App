@@ -120,6 +120,12 @@ export function DealershipsConfigScreen() {
     ratePerDelivery: '',
     city: '',
     active: true,
+    billingCompanyName: '',
+    billingAddress: '',
+    billingState: 'Karnataka',
+    billingEmail: '',
+    billingPhone: '',
+    nextInvoiceNumber: '100000',
   });
 
   // Filter by city
@@ -138,6 +144,12 @@ export function DealershipsConfigScreen() {
         ratePerDelivery: dealership.ratePerDelivery?.toString() || '',
         city: (dealership as any).city || '',
         active: dealership.active ?? true,
+        billingCompanyName: dealership.billing_company_name || '',
+        billingAddress: dealership.billing_address || '',
+        billingState: dealership.billing_state || 'Karnataka',
+        billingEmail: dealership.billing_email || '',
+        billingPhone: dealership.billing_phone || '',
+        nextInvoiceNumber: dealership.next_invoice_number?.toString() || '100000',
       });
     } else {
       setEditingDealership(null);
@@ -149,6 +161,12 @@ export function DealershipsConfigScreen() {
         ratePerDelivery: '',
         city: user?.city || '', // Default to admin's city
         active: true,
+        billingCompanyName: '',
+        billingAddress: '',
+        billingState: 'Karnataka',
+        billingEmail: '',
+        billingPhone: '',
+        nextInvoiceNumber: '100000',
       });
     }
     setDialogOpen(true);
@@ -165,6 +183,12 @@ export function DealershipsConfigScreen() {
       ratePerDelivery: '',
       city: '',
       active: true,
+      billingCompanyName: '',
+      billingAddress: '',
+      billingState: 'Karnataka',
+      billingEmail: '',
+      billingPhone: '',
+      nextInvoiceNumber: '100000',
     });
   };
 
@@ -179,6 +203,15 @@ export function DealershipsConfigScreen() {
       return;
     }
 
+    const billingData = {
+      billing_company_name: formData.billingCompanyName.trim() || undefined,
+      billing_address: formData.billingAddress.trim() || undefined,
+      billing_state: formData.billingState.trim() || undefined,
+      billing_email: formData.billingEmail.trim() || undefined,
+      billing_phone: formData.billingPhone.trim() || undefined,
+      next_invoice_number: parseInt(formData.nextInvoiceNumber) || 100000,
+    };
+
     if (editingDealership) {
       updateDealership(editingDealership.id, {
         name: formData.name.trim(),
@@ -188,6 +221,7 @@ export function DealershipsConfigScreen() {
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
         active: formData.active,
+        ...billingData,
       } as any);
       toast.success('Dealership updated successfully');
     } else {
@@ -199,6 +233,7 @@ export function DealershipsConfigScreen() {
         ratePerDelivery: formData.paymentType === 'DEALER_PAID' ? parseFloat(formData.ratePerDelivery) || 0 : undefined,
         city: formData.city.trim(),
         active: formData.active,
+        ...billingData,
       } as any);
       toast.success('Dealership added successfully');
     }
@@ -702,7 +737,7 @@ export function DealershipsConfigScreen() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-2">
             <div>
               <Label htmlFor="name">Dealership Name</Label>
               <Input
@@ -781,6 +816,73 @@ export function DealershipsConfigScreen() {
                 placeholder="e.g., bengaluru"
               />
               <p className="text-[10px] text-gray-500 mt-1">Use lowercase, e.g., "bengaluru"</p>
+            </div>
+
+            <div className="pt-4 border-t border-dashed border-zinc-200">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Billing & Invoice Details</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="billingCompanyName">Billing Company Name</Label>
+                  <Input
+                    id="billingCompanyName"
+                    value={formData.billingCompanyName}
+                    onChange={e => setFormData({ ...formData, billingCompanyName: e.target.value })}
+                    placeholder="e.g. Akshaya Motors Mercedes-Benz"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="billingAddress">Billing Address</Label>
+                  <textarea
+                    id="billingAddress"
+                    value={formData.billingAddress}
+                    onChange={e => setFormData({ ...formData, billingAddress: e.target.value })}
+                    placeholder="Full address for invoice"
+                    className="w-full min-h-[80px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="billingState">State</Label>
+                    <Input
+                      id="billingState"
+                      value={formData.billingState}
+                      onChange={e => setFormData({ ...formData, billingState: e.target.value })}
+                      placeholder="e.g. Karnataka"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="nextInvoiceNumber">Starting Invoice Number</Label>
+                    <Input
+                      id="nextInvoiceNumber"
+                      type="number"
+                      value={formData.nextInvoiceNumber}
+                      onChange={e => setFormData({ ...formData, nextInvoiceNumber: e.target.value })}
+                      placeholder="e.g. 100000"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="billingEmail">Email Address</Label>
+                    <Input
+                      id="billingEmail"
+                      type="email"
+                      value={formData.billingEmail}
+                      onChange={e => setFormData({ ...formData, billingEmail: e.target.value })}
+                      placeholder="e.g. billing@dealership.com"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingPhone">Company Phone</Label>
+                    <Input
+                      id="billingPhone"
+                      value={formData.billingPhone}
+                      onChange={e => setFormData({ ...formData, billingPhone: e.target.value })}
+                      placeholder="e.g. +91 9620018080"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100">

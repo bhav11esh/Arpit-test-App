@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { ArrowLeft, Database, MapPin, Users, Network, BarChart3, UserCog, Calendar } from 'lucide-react';
+import { ArrowLeft, Database, MapPin, Users, Network, BarChart3, UserCog, Calendar, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+// ... (rest of imports unchanged)
 
 /**
  * AdminConfigScreen - V1 SYSTEM SETUP ONLY
@@ -150,6 +151,25 @@ export function AdminConfigScreen() {
                 <CardTitle>Analytics Dashboard</CardTitle>
                 <CardDescription className="mt-1">
                   View delivery statistics and performance metrics
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow border-emerald-200"
+          onClick={() => navigate('/admin/invoices')}
+        >
+          <CardHeader>
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-emerald-100 text-emerald-600">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <CardTitle>Invoices Dashboard</CardTitle>
+                <CardDescription className="mt-1">
+                  Generate and manage monthly invoices for showrooms
                 </CardDescription>
               </div>
             </div>

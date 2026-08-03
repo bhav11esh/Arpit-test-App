@@ -70,7 +70,7 @@ export interface User {
   last_active?: string; // ISO timestamp of last app check-in
   last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
   city?: string; // V6.0: For city-level admin isolation
-  payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
+  payout_model?: 'FIXED' | 'PERCENTAGE_15_DAILY';
   fixed_start_date?: string; // YYYY-MM-DD
   fixed_end_date?: string; // YYYY-MM-DD
   profile_image_url?: string | null;
@@ -124,6 +124,8 @@ export interface Delivery {
   rapido_screenshot_date?: string | null;
   rapido_screenshot_time?: string | null;
   rapido_screenshot_amount?: number | null;
+  is_invoice_billing?: boolean;
+  invoice_id?: string;
 }
 
 export interface StandupCall {
@@ -209,6 +211,12 @@ export interface Dealership {
   longitude?: number;
   city?: string; // V6.0: For showroom-level branch identification
   active?: boolean;
+  billing_company_name?: string;
+  billing_address?: string;
+  billing_state?: string;
+  billing_email?: string;
+  billing_phone?: string;
+  next_invoice_number?: number;
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';

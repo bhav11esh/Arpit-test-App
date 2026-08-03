@@ -19,6 +19,7 @@ import { DealershipsConfigScreen } from './components/admin/DealershipsConfigScr
 import { PhotographersConfigScreen } from './components/admin/PhotographersConfigScreen';
 import { MappingsConfigScreen } from './components/admin/MappingsConfigScreen';
 import { CityWeekoffsConfigScreen } from './components/admin/CityWeekoffsConfigScreen';
+import { InvoiceDashboard } from './components/invoices/InvoiceDashboard';
 
 import { ProfileScreen } from './components/ProfileScreen';
 import { ReelBacklog } from './components/ReelBacklog';
@@ -337,6 +338,7 @@ function AppRoutes() {
             <Route path="/admin/leave" element={<AdminLeaveManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
+            <Route path="/admin/invoices" element={<InvoiceDashboard />} />
           </>
         ) : (
           // Redirect non-admins trying to access admin routes
