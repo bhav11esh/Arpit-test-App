@@ -69,7 +69,7 @@ export interface User {
   last_active?: string; // ISO timestamp of last app check-in
   last_gps_status?: 'ON' | 'OFF' | 'UNKNOWN';
   city?: string; // V6.0: For city-level admin isolation
-  payout_model?: 'PERCENTAGE' | 'FIXED' | 'PERCENTAGE_15_DAILY';
+  payout_model?: 'FIXED' | 'PERCENTAGE_15_DAILY';
   fixed_start_date?: string; // YYYY-MM-DD
   fixed_end_date?: string; // YYYY-MM-DD
 }
@@ -112,6 +112,17 @@ export interface Delivery {
   customer_phone?: string;
   rapido_charge?: number;
   deleted_at?: string; // V6.0: For 'Safe Delete' flow
+  witness_phone?: string;
+  rapido_screenshot_date?: string;
+  rapido_screenshot_time?: string;
+  rapido_screenshot_amount?: number;
+  payment_screenshot_date?: string;
+  payment_screenshot_time?: string;
+  payment_screenshot_amount?: number;
+  platform_payment_screenshot_date?: string;
+  platform_payment_screenshot_time?: string;
+  platform_payment_screenshot_amount?: number;
+  is_invoice_billing?: boolean;
 }
 
 export interface Screenshot {
@@ -186,6 +197,12 @@ export interface Dealership {
   longitude?: number;
   city?: string; // V6.0: For showroom-level branch identification
   active?: boolean;
+  billing_company_name?: string;
+  billing_address?: string;
+  billing_state?: string;
+  billing_email?: string;
+  billing_phone?: string;
+  next_invoice_number?: number;
 }
 
 export type MappingType = 'PRIMARY' | 'SECONDARY';

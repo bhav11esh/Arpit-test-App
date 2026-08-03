@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
+import { Switch } from './ui/switch';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -99,19 +100,23 @@ export function SendUpdateScreen({
 
     if (delivery.payment_type === 'CUSTOMER_PAID') {
       const deliveryScreenshots = screenshots.get(delivery.id) || [];
-      const hasPayment = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
-      const hasPlatformPayment = user?.payout_model === 'FIXED' || deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
-      const hasAmount = (delivery.received_amount || 0) > 0;
-      const hasPhone = (delivery.customer_phone || '').length >= 10;
-
-      // Rapido check
       const charge = delivery.rapido_charge || 0;
       if (charge > 0) {
         const hasRapidoScreenshot = deliveryScreenshots.some(s => s.type === 'RAPIDO' && !s.deleted_at);
         if (!hasRapidoScreenshot) return false;
       }
 
-      return hasPayment && hasPlatformPayment && hasAmount && hasPhone;
+      if (delivery.is_invoice_billing) {
+        // Showroom billed exception: amount is required, no screenshots or phone needed
+        const hasAmount = (delivery.received_amount || 0) > 0;
+        return hasAmount;
+      } else {
+        const hasPayment = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
+        const hasPlatformPayment = user?.payout_model === 'FIXED' || deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
+        const hasAmount = (delivery.received_amount || 0) > 0;
+        const hasPhone = (delivery.customer_phone || '').length >= 10;
+        return hasPayment && hasPlatformPayment && hasAmount && hasPhone;
+      }
     }
 
     // Rapido check for Dealer Paid too
@@ -280,6 +285,23 @@ export function SendUpdateScreen({
                   </div>
 
                   <div className="space-y-4">
+                    {isCustomerPaid && (
+                      <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm mb-2 shadow-sm">
+                        <div className="space-y-0.5">
+                          <Label htmlFor={`invoice-billing-${delivery.id}`} className="font-bold text-zinc-700">
+                            Paid Showroom Specific Content?
+                          </Label>
+                          <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                        </div>
+                        <Switch
+                          id={`invoice-billing-${delivery.id}`}
+                          checked={delivery.is_invoice_billing || false}
+                          onCheckedChange={(checked) => {
+                            onUpdateDeliveryFields(delivery.id, { is_invoice_billing: checked });
+                          }}
+                        />
+                      </div>
+                    )}
                     {/* Footage Link */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -347,7 +369,7 @@ export function SendUpdateScreen({
                     </div>
 
                     {/* Payment Screenshot - Only for Customer Paid */}
-                    {isCustomerPaid && (
+                    {isCustomerPaid && !delivery.is_invoice_billing && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* 1. Customer Payment Screenshot */}
                         <div className="space-y-2">
@@ -356,9 +378,7 @@ export function SendUpdateScreen({
                               <Upload className="h-4 w-4" />
                               {user?.payout_model === 'FIXED'
                                 ? 'Payment screenshot from customer directly to company account'
-                                : user?.payout_model === 'PERCENTAGE_15_DAILY'
-                                  ? 'Customer Payment (Full amount paid to you)'
-                                  : 'Customer Payment'
+                                : 'Customer Payment (Full amount paid to you)'
                               }
                               <span className="text-red-500">*</span>
                             </Label>
@@ -393,7 +413,7 @@ export function SendUpdateScreen({
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium flex items-center gap-1 text-orange-700">
                               <Wallet className="h-4 w-4" />
-                              {user?.payout_model === 'PERCENTAGE_15_DAILY' ? 'Settlement (15%)' : 'Settlement (30%)'}
+                              Settlement (15%)
                               <span className="text-red-500">*</span>
                             </Label>
                             {deliveryScreenshots.some(s => s.type === 'PLATFORM_PAYMENT' && !s.deleted_at) ? (
@@ -407,10 +427,7 @@ export function SendUpdateScreen({
                             <div className="bg-orange-50 border border-orange-100 p-2 rounded text-[10px] text-orange-800 font-bold flex justify-between items-center">
                               <span>AMOUNT TO PAY:</span>
                               <span className="text-sm">
-                                ₹{user?.payout_model === 'PERCENTAGE_15_DAILY'
-                                  ? Math.max(0, Math.round((Number(delivery.received_amount || 0) - Number(delivery.rapido_charge || 0)) * 0.15))
-                                  : Math.round((delivery.received_amount || 0) * 0.3)
-                                }
+                                ₹{Math.max(0, Math.round((Number(delivery.received_amount || 0) - Number(delivery.rapido_charge || 0)) * 0.15))}
                               </span>
                             </div>
 
@@ -512,7 +529,7 @@ export function SendUpdateScreen({
                     )}
 
                     {/* Customer Phone - Only for Customer Paid */}
-                    {isCustomerPaid && (
+                    {isCustomerPaid && !delivery.is_invoice_billing && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm font-medium flex items-center gap-1">
@@ -542,7 +559,7 @@ export function SendUpdateScreen({
                     )}
 
                     {/* Follow Screenshot - Only for Customer Paid, Optional */}
-                    {isCustomerPaid && (
+                    {isCustomerPaid && !delivery.is_invoice_billing && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm font-medium flex items-center gap-1">

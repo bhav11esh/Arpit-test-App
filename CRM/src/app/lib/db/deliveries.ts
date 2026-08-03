@@ -55,6 +55,7 @@ const rowToDelivery = (row: DeliveryRow): Delivery => {
     customer_phone: row.customer_phone ?? undefined,
     rapido_charge: row.rapido_charge ?? undefined,
     deleted_at: row.deleted_at ?? undefined,
+    is_invoice_billing: (row as any).is_invoice_billing ?? undefined,
   };
 };
 
@@ -118,7 +119,8 @@ export const createDelivery = async (
     customer_phone: delivery.customer_phone,
     rapido_charge: delivery.rapido_charge,
     deleted_at: delivery.deleted_at,
-  };
+    is_invoice_billing: delivery.is_invoice_billing,
+  } as any;
 
   const { data, error } = await (supabaseClient.from('deliveries') as any)
     .insert(insert)
@@ -158,6 +160,7 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     customer_phone: updates.customer_phone,
     rapido_charge: updates.rapido_charge,
     deleted_at: updates.deleted_at,
+    is_invoice_billing: updates.is_invoice_billing,
   };
 
   // Remove undefined values
