@@ -179,6 +179,13 @@ export function InvoicePreview({
         {/* Style block for Print override (Inject print media queries) */}
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
+            @page {
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              -webkit-print-color-adjust: exact;
+            }
             body * {
               visibility: hidden;
             }
@@ -192,10 +199,11 @@ export function InvoicePreview({
               width: 100%;
               height: 100%;
               background: white !important;
-              padding: 0px !important;
-              margin: 0px !important;
+              padding: 20mm !important;
+              margin: 0 !important;
               box-shadow: none !important;
               border: none !important;
+              box-sizing: border-box;
             }
             .no-print {
               display: none !important;
