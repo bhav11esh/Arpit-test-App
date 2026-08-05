@@ -187,6 +187,15 @@ export function InvoicePreview({
               -webkit-print-color-adjust: exact;
               background: white !important;
             }
+            /* Hide the main page flow elements to take up exactly 0 space during printing */
+            #root,
+            #__next,
+            header,
+            footer,
+            main,
+            .no-print {
+              display: none !important;
+            }
             /* Overwrite Radix Dialog and scroll parent style to allow natural printing layout without clipping/shifting */
             div[data-radix-portal] > *:not([role="dialog"]) {
               display: none !important;
@@ -217,18 +226,18 @@ export function InvoicePreview({
               visibility: visible !important;
             }
             #printable-invoice-container {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
+              display: block !important;
+              position: relative !important;
+              left: auto !important;
+              top: auto !important;
               width: 100% !important;
               height: auto !important;
-              min-height: 100% !important;
               background: white !important;
               padding: 15mm !important;
               margin: 0 !important;
               box-shadow: none !important;
               border: none !important;
-              box-sizing: border-box;
+              box-sizing: border-box !important;
             }
             .no-print {
               display: none !important;
