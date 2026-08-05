@@ -1627,11 +1627,13 @@ export function ViewScreen() {
           if (showroomId && showroomId !== 'all') {
             const dealership = cityIsolatedDealerships.find(d => d.id === showroomId);
             if (dealership) {
-              filters.showroomCode = getShowroomCode(dealership.name);
+              // Fetch by BOTH text code and UUID to ensure we get all historical and new rows
+              filters.showroomCodes = [getShowroomCode(dealership.name), dealership.id];
             }
           } else if (user?.role === 'ADMIN' && user.city) {
             // V6.0: If 'all' selected but is a city-admin, restrict fetch to their city's showrooms
-            const cityShowroomCodes = cityIsolatedDealerships.map(d => getShowroomCode(d.name));
+            // Fetch by BOTH text code and UUID
+            const cityShowroomCodes = cityIsolatedDealerships.flatMap(d => [getShowroomCode(d.name), d.id]);
             if (cityShowroomCodes.length > 0) {
               filters.showroomCodes = cityShowroomCodes;
             }
@@ -1784,9 +1786,9 @@ export function ViewScreen() {
         const dealership = cityIsolatedDealerships.find(d => d.id === selectedShowroom);
         if (dealership) {
           const targetCode = getShowroomCode(dealership.name);
-          // V21 FIX: Use raw showroom_code from DB, no need to re-process via getShowroomCode
+          // Match against BOTH the text code and the UUID
           const currentCode = d.showroom_code;
-          if (currentCode !== targetCode) return false;
+          if (currentCode !== targetCode && currentCode !== dealership.id) return false;
         }
       }
 
