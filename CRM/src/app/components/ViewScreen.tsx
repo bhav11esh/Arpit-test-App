@@ -3371,7 +3371,7 @@ export function ViewScreen() {
                                     <Input
                                       value={editValue}
                                       onChange={(e) => setEditValue(e.target.value)}
-                                      className="h-7 text-xs"
+                                      className="h-7 text-xs w-[200px]"
                                       placeholder="https://drive.google.com/..."
                                       autoFocus
                                       onKeyDown={(e) => {
@@ -3413,7 +3413,7 @@ export function ViewScreen() {
                                     <Input
                                       value={editValue}
                                       onChange={(e) => setEditValue(e.target.value)}
-                                      className="h-7 text-xs"
+                                      className="h-7 text-xs w-[200px]"
                                       placeholder="Reel link or leave empty"
                                       autoFocus
                                       onKeyDown={(e) => {
