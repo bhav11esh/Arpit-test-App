@@ -155,8 +155,84 @@ export function InvoicePreview({
   }, [dealershipId, billingMonth]);
 
   const handlePrint = () => {
-    window.print();
+    const printArea = printAreaRef.current;
+    if (!printArea) return;
+
+    // Clone the invoice HTML content
+    const clonedContent = printArea.cloneNode(true) as HTMLElement;
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) return;
+
+    // Write clean print HTML into iframe
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            @page { margin: 10mm; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+              font-family: Inter, sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            #invoice-print-root {
+              width: 100%;
+              background: white;
+            }
+            /* Restore flex layout that was on the original container */
+            #invoice-print-root > div {
+              display: flex;
+              flex-direction: column;
+              min-height: 277mm;
+              justify-content: space-between;
+              padding: 0;
+            }
+            img { max-width: 100%; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        </head>
+        <body>
+          <div id="invoice-print-root"></div>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    // Insert cloned content
+    const root = iframeDoc.getElementById('invoice-print-root');
+    if (root) {
+      root.appendChild(clonedContent);
+    }
+
+    // Print after fonts load
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      // Cleanup iframe after print dialog closes
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }, 500);
   };
+
 
   const totalAmount = lineItems.reduce((acc, item) => acc + item.total, 0);
 
