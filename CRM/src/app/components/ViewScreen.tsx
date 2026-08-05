@@ -1764,7 +1764,8 @@ export function ViewScreen() {
   const filteredDeliveries = React.useMemo(() => {
     return deliveries.filter(d => {
       // V1 SPEC: Spreadsheet shows DONE deliveries AND Deadlocked (REJECTED_BY_ALL) deliveries
-      if (d.status !== 'DONE' && (d as any).decision_state !== 'REJECTED_BY_ALL') return false;
+      // V10.0 FIX: Removed status check to allow ASSIGNED deliveries (like dealer-paid ones) to show up.
+      // if (d.status !== 'DONE' && (d as any).decision_state !== 'REJECTED_BY_ALL') return false;
 
       // V9.0: Spreadsheet Date Filtering (Default to Today)
       if (!showAllTime && spreadSheetDate) {
@@ -3254,7 +3255,7 @@ export function ViewScreen() {
                     <div className="text-blue-800">
                       <p className="font-medium">Delivery Coverage Log</p>
                       <p className="text-xs text-blue-700 mt-1">
-                        This sheet shows only deliveries where SEND UPDATE was pressed (status: DONE). Deliveries with just footage links (draft state) do not appear here.
+                        This sheet shows covered deliveries and dealer-paid assignments. Deliveries with just footage links (draft state) do not appear here.
                       </p>
                     </div>
                   </div>
