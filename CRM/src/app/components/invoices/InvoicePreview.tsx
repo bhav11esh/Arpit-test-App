@@ -201,12 +201,32 @@ export function InvoicePreview({
             .no-print {
               display: none !important;
             }
-            /* Overwrite Radix Dialog and scroll parent style to allow natural printing layout without clipping/shifting */
-            div[data-radix-portal] > *:not([role="dialog"]) {
+            /* Reset Radix portal wrapper and dialog content layouts to static blocks to prevent centering transforms/clipping */
+            div[data-radix-portal] {
+              display: block !important;
+              position: static !important;
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+            div[data-radix-portal] > * {
+              display: block !important;
+              position: static !important;
+              transform: none !important;
+              left: auto !important;
+              top: auto !important;
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: transparent !important;
+            }
+            /* Hide Radix backdrop overlay specifically */
+            div[data-radix-portal] > [data-state="open"]:not([role="dialog"]) {
               display: none !important;
             }
             div[role="dialog"], 
-            div[data-radix-portal],
             .max-w-5xl,
             .overflow-y-auto,
             .flex-1 {
@@ -233,7 +253,7 @@ export function InvoicePreview({
             }
             #printable-invoice-container {
               display: block !important;
-              position: relative !important;
+              position: static !important;
               left: auto !important;
               top: auto !important;
               width: 100% !important;
