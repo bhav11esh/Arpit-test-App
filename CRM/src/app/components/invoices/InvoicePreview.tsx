@@ -180,26 +180,44 @@ export function InvoicePreview({
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page {
-              margin: 0;
+              margin: 15mm;
             }
             body {
               margin: 0;
               -webkit-print-color-adjust: exact;
+              background: white !important;
+            }
+            /* Overwrite Radix Dialog and scroll parent style to allow natural printing layout without clipping */
+            div[role="dialog"], 
+            div[data-radix-portal],
+            .max-w-5xl,
+            .overflow-y-auto,
+            .flex-1 {
+              position: static !important;
+              height: auto !important;
+              max-height: none !important;
+              overflow: visible !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+              background: white !important;
             }
             body * {
               visibility: hidden;
             }
             #printable-invoice-container, #printable-invoice-container * {
-              visibility: visible;
+              visibility: visible !important;
             }
             #printable-invoice-container {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              height: 100%;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
               background: white !important;
-              padding: 20mm !important;
+              padding: 0 !important;
               margin: 0 !important;
               box-shadow: none !important;
               border: none !important;
@@ -240,19 +258,19 @@ export function InvoicePreview({
         </DialogHeader>
 
         {/* Invoice Page Container (scrollable inside app modal) */}
-        <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-zinc-100/50">
-          
-          {/* A4 Sheet Mockup */}
-          <div
-            id="printable-invoice-container"
-            ref={printAreaRef}
-            className="w-[210mm] min-h-[297mm] bg-white p-12 shadow-md border border-zinc-200/60 rounded-xl relative flex flex-col justify-between"
-            style={{ boxSizing: 'border-box' }}
-          >
+        <div className="flex-1 overflow-y-auto p-6 bg-zinc-100/50">
+          <div className="flex justify-center w-full min-h-full pb-8">
+            {/* A4 Sheet Mockup */}
+            <div
+              id="printable-invoice-container"
+              ref={printAreaRef}
+              className="w-[210mm] min-h-[297mm] bg-white p-10 shadow-md border border-zinc-200/60 rounded-xl relative flex flex-col justify-between"
+              style={{ boxSizing: 'border-box' }}
+            >
             
             <div>
               {/* Sender Details Header */}
-              <div className="flex justify-between items-start border-b border-zinc-100 pb-8 mb-8">
+              <div className="flex justify-between items-start border-b border-zinc-100 pb-5 mb-5">
                 <div>
                   <img
                     src="/yourphotocrew_logo.png"
@@ -285,7 +303,7 @@ export function InvoicePreview({
               </div>
 
               {/* Billed To Details */}
-              <div className="grid grid-cols-2 gap-6 bg-zinc-50/70 p-5 rounded-xl border border-zinc-100 mb-8">
+              <div className="grid grid-cols-2 gap-6 bg-zinc-50/70 p-4 rounded-xl border border-zinc-100 mb-5">
                 <div>
                   <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Billed To</h3>
                   <div className="space-y-1 text-xs text-zinc-800">
@@ -311,7 +329,7 @@ export function InvoicePreview({
                 </div>
               ) : (
                 /* Item Table */
-                <table className="w-full text-xs mb-8">
+                <table className="w-full text-xs mb-5">
                   <thead>
                     <tr className="border-b-2 border-zinc-200 text-zinc-500 font-bold uppercase tracking-wider text-[10px] bg-zinc-50/20">
                       <th className="p-3 text-left w-12">#</th>
@@ -348,7 +366,7 @@ export function InvoicePreview({
               )}
 
               {/* Service & Text Amount Section */}
-              <div className="space-y-2 border-t border-b border-zinc-100 py-4 mb-8 text-xs">
+              <div className="space-y-2 border-t border-b border-zinc-100 py-3 mb-5 text-xs">
                 <p><span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">List of services’s done:</span> <span className="font-extrabold text-zinc-850">Photos + Videos + Reel</span></p>
                 <p><span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Total Billing Chargeable Invoice Amount:</span> <span className="font-black text-zinc-950">₹{totalAmount.toLocaleString('en-IN')}</span></p>
                 <p><span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Total Billing Chargeable Invoice Amount (In Words):</span> <span className="font-bold text-zinc-900">{numberToWords(totalAmount)}</span></p>
@@ -356,7 +374,7 @@ export function InvoicePreview({
             </div>
 
             {/* Bank details & signature footer */}
-            <div className="flex justify-between items-end pt-8 border-t border-zinc-100 mt-12">
+            <div className="flex justify-between items-end pt-6 border-t border-zinc-100 mt-6">
               <div className="space-y-3 bg-zinc-50 p-4 rounded-xl border border-zinc-100 max-w-sm">
                 <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
                   <CreditCard className="h-3.5 w-3.5 text-zinc-400" /> Company's Bank Details
@@ -389,6 +407,7 @@ export function InvoicePreview({
 
           </div>
         </div>
+      </div>
 
       </DialogContent>
     </Dialog>
