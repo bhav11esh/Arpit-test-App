@@ -1608,7 +1608,10 @@ export function ViewScreen() {
           const client = supabase;
 
           // 1. Prepare filters for deliveries
-          const filters: any = { status: 'DONE' };
+          // V10.0 FIX: Do NOT filter by status in spreadsheet view — show all deliveries
+          // (DONE, ASSIGNED, etc.) so dealer-paid dealership rows aren't hidden.
+          // The audit/call_logs view still only needs DONE, but they use a separate data path.
+          const filters: any = {};
 
           const targetDeliveryDate = (viewMode === 'audit' || viewMode === 'call_logs') 
             ? getYesterdayDateString(spreadSheetDate) 
@@ -1618,6 +1621,7 @@ export function ViewScreen() {
           if (!showAllTime && targetDeliveryDate) {
             filters.date = targetDeliveryDate;
           }
+
           
           // V5.5: Always filter by showroom if one is selected to save memory/bandwidth
           if (showroomId && showroomId !== 'all') {
