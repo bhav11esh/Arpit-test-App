@@ -229,12 +229,6 @@ export function InvoicePreview({
               border: none !important;
               background: white !important;
             }
-            body * {
-              visibility: hidden;
-            }
-            #printable-invoice-container, #printable-invoice-container * {
-              visibility: visible !important;
-            }
              #printable-invoice-container {
               display: block !important;
               position: static !important;
