@@ -34,6 +34,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     const [selectedHalf, setSelectedHalf] = useState<'FIRST_HALF' | 'SECOND_HALF' | 'FULL_DAY'>('FULL_DAY');
     const [submitting, setSubmitting] = useState(false);
     const [photographerCity, setPhotographerCity] = useState<string | undefined>(undefined);
+    const [photographerRole, setPhotographerRole] = useState<string | undefined>(undefined);
     const [cityWeekoffs, setCityWeekoffs] = useState<CityWeekoff[]>([]);
 
     useEffect(() => {
@@ -49,6 +50,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
             ]);
             if (u) {
                 setPhotographerCity(u.city);
+                setPhotographerRole(u.role);
             }
             setCityWeekoffs(woffs);
         } catch (error) {
@@ -59,6 +61,12 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     const getWeekoffDayIndex = () => {
         if (!photographerCity) return 2; // Default to Tuesday
         const normalizedCity = photographerCity.trim().toLowerCase();
+        
+        // Wednesday for Bengaluru Admins
+        if (normalizedCity === 'bengaluru' && photographerRole === 'ADMIN') {
+            return 3; // Wednesday
+        }
+
         const config = cityWeekoffs.find(c => c.city.toLowerCase() === normalizedCity);
         return config ? config.weekoff_day_index : 2; // Default to Tuesday
     };

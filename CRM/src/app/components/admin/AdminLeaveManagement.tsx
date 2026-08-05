@@ -34,7 +34,7 @@ export function AdminLeaveManagement() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { leaves, addLeave, removeLeave } = useLeave();
-  const { photographers } = useConfig();
+  const { photographers, allUsers } = useConfig();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -55,6 +55,14 @@ export function AdminLeaveManagement() {
   const [formPhotographerId, setFormPhotographerId] = useState('');
   const [formDate, setFormDate] = useState('');
   const [formHalf, setFormHalf] = useState<LeaveHalf>('FIRST_HALF');
+
+  // Filter list of eligible users to show in select dropdown
+  const eligibleUsers = React.useMemo(() => {
+    if (user?.role === 'SUPER_ADMIN') {
+      return allUsers.filter(u => u.role === 'PHOTOGRAPHER' || u.role === 'ADMIN');
+    }
+    return photographers;
+  }, [user, allUsers, photographers]);
 
   // Admin-only access guard
   if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
@@ -84,15 +92,20 @@ export function AdminLeaveManagement() {
       return;
     }
 
-    // Resolve the week-off for the photographer
-    const photographer = photographers.find(p => p.id === formPhotographerId);
-    const photographerCity = photographer?.city;
+    // Resolve the week-off for the photographer/user
+    const targetUser = allUsers.find(u => u.id === formPhotographerId) || photographers.find(p => p.id === formPhotographerId);
+    const userCity = targetUser?.city;
+    const userRole = targetUser?.role;
     let weekoffDayIndex = 2; // Default to Tuesday
-    if (photographerCity) {
-      const normalizedCity = photographerCity.trim().toLowerCase();
-      const config = cityWeekoffs.find(c => c.city.toLowerCase() === normalizedCity);
-      if (config) {
-        weekoffDayIndex = config.weekoff_day_index;
+    if (userCity) {
+      const normalizedCity = userCity.trim().toLowerCase();
+      if (normalizedCity === 'bengaluru' && userRole === 'ADMIN') {
+        weekoffDayIndex = 3; // Wednesday
+      } else {
+        const config = cityWeekoffs.find(c => c.city.toLowerCase() === normalizedCity);
+        if (config) {
+          weekoffDayIndex = config.weekoff_day_index;
+        }
       }
     }
 
@@ -101,7 +114,7 @@ export function AdminLeaveManagement() {
     const dayOfWeek = localDate.getDay();
 
     if (dayOfWeek === weekoffDayIndex) {
-      toast.error(`Cannot apply leave on the photographer's week-off day (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekoffDayIndex]})`);
+      toast.error(`Cannot apply leave on their week-off day (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekoffDayIndex]})`);
       return;
     }
 
@@ -133,7 +146,14 @@ export function AdminLeaveManagement() {
   };
 
   const getPhotographerName = (id: string) => {
-    return photographers.find(p => p.id === id)?.name || 'Unknown Photographer';
+    const matchedUser = allUsers.find(u => u.id === id);
+    if (matchedUser) {
+      if (matchedUser.role === 'ADMIN') {
+        return `${matchedUser.name} (Admin)`;
+      }
+      return matchedUser.name;
+    }
+    return photographers.find(p => p.id === id)?.name || 'Unknown User';
   };
 
   const formatLeaveDate = (dateStr: string) => {
@@ -236,9 +256,9 @@ export function AdminLeaveManagement() {
                   <SelectValue placeholder="Select photographer" />
                 </SelectTrigger>
                 <SelectContent>
-                  {photographers.map(p => (
+                  {eligibleUsers.map(p => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name}
+                      {p.name} {p.role === 'ADMIN' && '(Admin)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -341,9 +361,9 @@ export function AdminLeaveManagement() {
                   <SelectValue placeholder="Select photographer" />
                 </SelectTrigger>
                 <SelectContent>
-                  {photographers.map(p => (
+                  {eligibleUsers.map(p => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} {!p.active && '(Inactive)'}
+                      {p.name} {p.role === 'ADMIN' && '(Admin)'} {!p.active && '(Inactive)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
