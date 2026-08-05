@@ -181,39 +181,146 @@ export function InvoicePreview({
       <html>
         <head>
           <meta charset="UTF-8" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
           <style>
             @page { margin: 10mm; }
-            * { box-sizing: border-box; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
-              margin: 0;
-              padding: 0;
               background: white;
               font-family: Inter, sans-serif;
+              font-size: 12px;
+              color: #18181b;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
-            #invoice-print-root {
-              width: 100%;
-              background: white;
+
+            /* ── Logo: constrain to header-size ── */
+            img[alt="yourphotocrew logo"] {
+              height: 64px !important;
+              width: auto !important;
+              max-width: 180px !important;
+              display: block;
+              margin-bottom: 12px;
             }
-            /* Restore flex layout that was on the original container */
+            img { max-width: 100%; height: auto; }
+
+            /* ── Outer container ── */
             #invoice-print-root > div {
               display: flex;
               flex-direction: column;
               min-height: 277mm;
               justify-content: space-between;
-              padding: 0;
+              padding: 10mm;
+              background: white;
             }
-            img { max-width: 100%; }
+
+            /* ── Tailwind utility replacements ── */
+            .flex { display: flex !important; }
+            .flex-col { flex-direction: column !important; }
+            .items-start { align-items: flex-start !important; }
+            .items-center { align-items: center !important; }
+            .justify-between { justify-content: space-between !important; }
+            .text-right { text-align: right !important; }
+            .text-left { text-align: left !important; }
+            .text-center { text-align: center !important; }
+            .font-bold { font-weight: 700 !important; }
+            .font-extrabold { font-weight: 800 !important; }
+            .font-semibold { font-weight: 600 !important; }
+            .font-medium { font-weight: 500 !important; }
+            .uppercase { text-transform: uppercase !important; }
+            .tracking-widest { letter-spacing: 0.1em !important; }
+            .tracking-wider { letter-spacing: 0.05em !important; }
+            .tracking-tight { letter-spacing: -0.025em !important; }
+
+            /* ── Grid ── */
+            .grid { display: grid !important; }
+            .grid-cols-2 { grid-template-columns: 1fr 1fr !important; }
+            .gap-6 { gap: 24px !important; }
+
+            /* ── Borders ── */
+            .border-b { border-bottom: 1px solid #e4e4e7 !important; }
+            .border-b-2 { border-bottom: 2px solid #e4e4e7 !important; }
+            .border-l { border-left: 1px solid #e4e4e7 !important; }
+            .border { border: 1px solid #e4e4e7 !important; }
+
+            /* ── Spacing ── */
+            .pb-5 { padding-bottom: 20px !important; }
+            .mb-5 { margin-bottom: 20px !important; }
+            .mb-6 { margin-bottom: 24px !important; }
+            .mb-4 { margin-bottom: 16px !important; }
+            .mt-0\\.5 { margin-top: 2px !important; }
+            .mt-3 { margin-top: 12px !important; }
+            .mt-2 { margin-top: 8px !important; }
+            .p-4 { padding: 16px !important; }
+            .p-3 { padding: 12px !important; }
+            .pl-6 { padding-left: 24px !important; }
+            .px-3 { padding-left: 12px; padding-right: 12px !important; }
+            .py-1 { padding-top: 4px; padding-bottom: 4px !important; }
+            .space-y-1 > * + * { margin-top: 4px !important; }
+            .space-y-2 > * + * { margin-top: 8px !important; }
+
+            /* ── Text sizes ── */
+            .text-xl { font-size: 18px !important; }
+            .text-sm { font-size: 13px !important; }
+            .text-xs { font-size: 11px !important; }
+            .text-\\[10px\\] { font-size: 10px !important; }
+            .text-base { font-size: 14px !important; }
+
+            /* ── Colors ── */
+            .text-zinc-950 { color: #09090b !important; }
+            .text-zinc-900 { color: #18181b !important; }
+            .text-zinc-800 { color: #27272a !important; }
+            .text-zinc-700 { color: #3f3f46 !important; }
+            .text-zinc-600 { color: #52525b !important; }
+            .text-zinc-500 { color: #71717a !important; }
+            .text-zinc-400 { color: #a1a1aa !important; }
+            .text-white { color: #fff !important; }
+            .bg-zinc-900 { background-color: #18181b !important; }
+            .bg-zinc-50 { background-color: #fafafa !important; }
+            .bg-zinc-50\\/70 { background-color: rgba(250,250,250,0.7) !important; }
+            .bg-zinc-50\\/20 { background-color: rgba(250,250,250,0.2) !important; }
+            .bg-white { background: white !important; }
+            .text-amber-600 { color: #d97706 !important; }
+            .border-zinc-100 { border-color: #f4f4f5 !important; }
+            .border-zinc-200 { border-color: #e4e4e7 !important; }
+            .border-zinc-200\\/60 { border-color: rgba(228,228,231,0.6) !important; }
+
+            /* ── Misc ── */
+            .rounded-md { border-radius: 6px !important; }
+            .rounded-xl { border-radius: 12px !important; }
+            .inline-block { display: inline-block !important; }
+            .block { display: block !important; }
+            .w-full { width: 100% !important; }
+            .whitespace-pre-line { white-space: pre-line !important; }
+            .leading-relaxed { line-height: 1.625 !important; }
+            .divide-y > * + * { border-top: 1px solid #f4f4f5 !important; }
+
+            /* ── Table ── */
             table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 8px 12px; }
+            .w-12 { width: 48px; }
+            .w-20 { width: 80px; }
+            .w-24 { width: 96px; }
+            .w-28 { width: 112px; }
+
+            /* ── Icon sizing (lucide SVGs) ── */
+            .h-3\\.5 { height: 14px !important; width: 14px !important; }
+            svg { display: inline-block; vertical-align: middle; }
+
+            /* ── Flex row for icon + text ── */
+            p.flex { display: flex !important; align-items: center !important; gap: 6px !important; }
+
+            /* ── Hide shadow/decoration ── */
+            .shadow-md, .shadow-sm { box-shadow: none !important; }
+            .no-print { display: none !important; }
           </style>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         </head>
         <body>
           <div id="invoice-print-root"></div>
         </body>
       </html>
     `);
+
     iframeDoc.close();
 
     // Insert cloned content
