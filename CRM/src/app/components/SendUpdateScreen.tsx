@@ -266,6 +266,8 @@ export function SendUpdateScreen({
             const deliveryScreenshots = screenshots.get(delivery.id) || [];
             const hasFootage = delivery.footage_link;
             const hasPaymentScreenshot = deliveryScreenshots.some(s => s.type === 'PAYMENT' && !s.deleted_at);
+            const hasFollowScreenshot = deliveryScreenshots.some(s => s.type === 'FOLLOW' && !s.deleted_at);
+
             const isComplete = isDeliveryComplete(delivery);
             const isCustomerPaid = delivery.payment_type === 'CUSTOMER_PAID';
 
