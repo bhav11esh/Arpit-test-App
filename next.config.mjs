@@ -2,12 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
-    return [
-      {
-        source: '/crm/:path*',
-        destination: '/crm/index.html',
-      },
-    ];
+    return {
+      fallback: [
+        {
+          source: '/crm/:path*',
+          destination: '/crm/index.html',
+        },
+      ],
+    };
   },
 };
 
