@@ -109,7 +109,7 @@ function adminAuthProxy() {
 }
 
 export default defineConfig({
-  base: '/crm/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
