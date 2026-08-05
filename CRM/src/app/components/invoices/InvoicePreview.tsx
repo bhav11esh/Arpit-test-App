@@ -201,48 +201,32 @@ export function InvoicePreview({
             .no-print {
               display: none !important;
             }
-            /* Reset Radix portal wrapper and dialog content layouts to static blocks to prevent centering transforms/clipping */
-            div[data-radix-portal] {
-              display: block !important;
-              position: static !important;
-              width: 100% !important;
-              height: auto !important;
-              overflow: visible !important;
-            }
-            div[data-radix-portal] > * {
-              display: block !important;
-              position: static !important;
-              transform: none !important;
-              left: auto !important;
-              top: auto !important;
-              width: 100% !important;
-              height: auto !important;
-              overflow: visible !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: transparent !important;
-            }
             /* Hide Radix backdrop overlay specifically */
-            div[data-radix-portal] > [data-state="open"]:not([role="dialog"]) {
+            div[data-radix-portal] > [data-state="open"]:not([role="dialog"]):not(:has([role="dialog"])) {
               display: none !important;
             }
-            div[role="dialog"], 
+            /* Reset Radix portal wrapper and dialog content layouts to static blocks to prevent centering transforms/clipping */
+            div[data-radix-portal],
+            div[data-radix-portal] :has([role="dialog"]),
+            div[role="dialog"],
             .max-w-5xl,
             .overflow-y-auto,
-            .flex-1 {
+            .flex-1,
+            .invoice-wrap-print {
               position: static !important;
               display: block !important;
               transform: none !important;
               left: auto !important;
               top: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
               width: 100% !important;
               height: auto !important;
+              min-height: 0 !important;
               max-height: none !important;
               overflow: visible !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              border: none !important;
               box-shadow: none !important;
+              border: none !important;
               background: white !important;
             }
             body * {
