@@ -251,7 +251,7 @@ export function InvoicePreview({
             #printable-invoice-container, #printable-invoice-container * {
               visibility: visible !important;
             }
-            #printable-invoice-container {
+             #printable-invoice-container {
               display: block !important;
               position: static !important;
               left: auto !important;
@@ -264,6 +264,15 @@ export function InvoicePreview({
               box-shadow: none !important;
               border: none !important;
               box-sizing: border-box !important;
+            }
+            .invoice-wrap-print {
+              display: block !important;
+              position: static !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
             .no-print {
               display: none !important;
@@ -301,7 +310,7 @@ export function InvoicePreview({
 
         {/* Invoice Page Container (scrollable inside app modal) */}
         <div className="flex-1 overflow-y-auto p-6 bg-zinc-100/50">
-          <div className="flex justify-center w-full min-h-full pb-8">
+          <div className="flex justify-center w-full min-h-full pb-8 invoice-wrap-print">
             {/* A4 Sheet Mockup */}
             <div
               id="printable-invoice-container"
