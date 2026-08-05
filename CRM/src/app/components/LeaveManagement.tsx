@@ -144,7 +144,7 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
                     return;
                 }
 
-                const promises = [];
+                const promises: Promise<any>[] = [];
 
                 if (!existingFirst) {
                     promises.push(leavesDb.applyLeave({
