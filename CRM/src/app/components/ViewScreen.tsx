@@ -1627,13 +1627,17 @@ export function ViewScreen() {
           if (showroomId && showroomId !== 'all') {
             const dealership = cityIsolatedDealerships.find(d => d.id === showroomId);
             if (dealership) {
-              // Fetch by BOTH text code and UUID to ensure we get all historical and new rows
-              filters.showroomCodes = [getShowroomCode(dealership.name), dealership.id];
+              const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id).map(m => m.id);
+              // Fetch by text code, UUID, AND mapping IDs to ensure we get all historical and new rows
+              filters.showroomCodes = [getShowroomCode(dealership.name), dealership.id, ...dealershipMappings];
             }
           } else if (user?.role === 'ADMIN' && user.city) {
             // V6.0: If 'all' selected but is a city-admin, restrict fetch to their city's showrooms
-            // Fetch by BOTH text code and UUID
-            const cityShowroomCodes = cityIsolatedDealerships.flatMap(d => [getShowroomCode(d.name), d.id]);
+            // Fetch by text code, UUID, and mapping IDs
+            const cityShowroomCodes = cityIsolatedDealerships.flatMap(d => {
+              const dMappings = mappings.filter(m => m.dealershipId === d.id).map(m => m.id);
+              return [getShowroomCode(d.name), d.id, ...dMappings];
+            });
             if (cityShowroomCodes.length > 0) {
               filters.showroomCodes = cityShowroomCodes;
             }
@@ -1786,9 +1790,10 @@ export function ViewScreen() {
         const dealership = cityIsolatedDealerships.find(d => d.id === selectedShowroom);
         if (dealership) {
           const targetCode = getShowroomCode(dealership.name);
-          // Match against BOTH the text code and the UUID
+          const dealershipMappings = mappings.filter(m => m.dealershipId === dealership.id).map(m => m.id);
+          // Match against text code, UUID, and mapping IDs
           const currentCode = d.showroom_code;
-          if (currentCode !== targetCode && currentCode !== dealership.id) return false;
+          if (currentCode !== targetCode && currentCode !== dealership.id && !dealershipMappings.includes(currentCode)) return false;
         }
       }
 
