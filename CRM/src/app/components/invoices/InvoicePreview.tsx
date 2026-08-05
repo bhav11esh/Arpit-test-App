@@ -180,20 +180,27 @@ export function InvoicePreview({
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page {
-              margin: 15mm;
+              margin: 0;
             }
             body {
               margin: 0;
               -webkit-print-color-adjust: exact;
               background: white !important;
             }
-            /* Overwrite Radix Dialog and scroll parent style to allow natural printing layout without clipping */
+            /* Overwrite Radix Dialog and scroll parent style to allow natural printing layout without clipping/shifting */
+            div[data-radix-portal] > *:not([role="dialog"]) {
+              display: none !important;
+            }
             div[role="dialog"], 
             div[data-radix-portal],
             .max-w-5xl,
             .overflow-y-auto,
             .flex-1 {
               position: static !important;
+              transform: none !important;
+              left: auto !important;
+              top: auto !important;
+              width: 100% !important;
               height: auto !important;
               max-height: none !important;
               overflow: visible !important;
@@ -215,9 +222,9 @@ export function InvoicePreview({
               top: 0 !important;
               width: 100% !important;
               height: auto !important;
-              min-height: 0 !important;
+              min-height: 100% !important;
               background: white !important;
-              padding: 0 !important;
+              padding: 15mm !important;
               margin: 0 !important;
               box-shadow: none !important;
               border: none !important;
