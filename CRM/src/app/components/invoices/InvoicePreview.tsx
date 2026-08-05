@@ -182,10 +182,15 @@ export function InvoicePreview({
             @page {
               margin: 0;
             }
-            body {
-              margin: 0;
-              -webkit-print-color-adjust: exact;
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              height: auto !important;
+              min-height: auto !important;
+              overflow: visible !important;
+              position: static !important;
               background: white !important;
+              -webkit-print-color-adjust: exact;
             }
             /* Hide the main page flow elements to take up exactly 0 space during printing */
             #root,
@@ -206,6 +211,7 @@ export function InvoicePreview({
             .overflow-y-auto,
             .flex-1 {
               position: static !important;
+              display: block !important;
               transform: none !important;
               left: auto !important;
               top: auto !important;
