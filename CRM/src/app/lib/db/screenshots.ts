@@ -36,14 +36,21 @@ export const getScreenshotsByDelivery = async (deliveryId: string): Promise<Scre
 export const getScreenshotsByDeliveries = async (deliveryIds: string[]): Promise<Map<string, Screenshot[]>> => {
   if (deliveryIds.length === 0) return new Map();
 
-  const { data, error } = await supabase
-    .from('screenshots')
-    .select('*')
-    .in('delivery_id', deliveryIds)
-    .is('deleted_at', null)
-    .order('uploaded_at', { ascending: true });
+  const chunkSize = 100;
+  const data: any[] = [];
+  
+  for (let i = 0; i < deliveryIds.length; i += chunkSize) {
+    const chunk = deliveryIds.slice(i, i + chunkSize);
+    const { data: chunkData, error } = await supabase
+      .from('screenshots')
+      .select('*')
+      .in('delivery_id', chunk)
+      .is('deleted_at', null)
+      .order('uploaded_at', { ascending: true });
 
-  if (error) throw error;
+    if (error) throw error;
+    if (chunkData) data.push(...chunkData);
+  }
 
   const result = new Map<string, Screenshot[]>();
   data?.forEach(row => {
