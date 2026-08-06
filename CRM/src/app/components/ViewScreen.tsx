@@ -668,6 +668,8 @@ export function ViewScreen() {
   // V9.0 Spreadsheet View Filtering
   const [spreadSheetDate, setSpreadSheetDate] = useState<string>(getOperationalDateString());
   const [showAllTime, setShowAllTime] = useState<boolean>(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [showPremiumOnly, setShowPremiumOnly] = useState<boolean>(false);
 
   // V6.0 CONFLICT RESOLUTION
   const [conflictDelivery, setConflictDelivery] = useState<Delivery | null>(null);
@@ -1778,6 +1780,17 @@ export function ViewScreen() {
         if (d.date !== spreadSheetDate) return false;
       }
 
+      // Filter by Month
+      if (selectedMonth !== 'all') {
+        const monthPart = d.date.split('-')[1];
+        if (monthPart !== selectedMonth) return false;
+      }
+
+      // Filter by Premium (amount >= 2000)
+      if (showPremiumOnly) {
+        if (!d.received_amount || Number(d.received_amount) < 2000) return false;
+      }
+
       // V6.0 CITY ISOLATION: Always filter by admin's city if role is ADMIN
       if (user?.role === 'ADMIN' && user.city) {
         const deliveryShowroomCode = getShowroomCode(d.showroom_code);
@@ -1814,7 +1827,7 @@ export function ViewScreen() {
 
       return true;
     });
-  }, [deliveries, selectedShowroom, cityIsolatedDealerships, user, spreadSheetDate, showAllTime, filterPendingAuditsOnly]);
+  }, [deliveries, selectedShowroom, cityIsolatedDealerships, user, spreadSheetDate, showAllTime, filterPendingAuditsOnly, selectedMonth, showPremiumOnly]);
 
   const handleExportCSV = () => {
     const csv = [
@@ -3206,7 +3219,7 @@ export function ViewScreen() {
                         value={spreadSheetDate}
                         onChange={(e) => setSpreadSheetDate(e.target.value)}
                         disabled={showAllTime}
-                        className={showAllTime ? 'opacity-50' : ''}
+                        className={showAllTime ? 'opacity-50 h-10' : 'h-10'}
                       />
                       <div className="flex flex-wrap gap-2 mt-2">
                         <button
@@ -3252,6 +3265,51 @@ export function ViewScreen() {
                         >
                           All Time
                         </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* V11: Month Filter and Premium Checkbox */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Month</label>
+                      <select 
+                        value={selectedMonth}
+                        onChange={(e) => {
+                          setSelectedMonth(e.target.value);
+                          if (e.target.value !== 'all') {
+                            setShowAllTime(true);
+                          }
+                        }}
+                        className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white"
+                      >
+                        <option value="all">All Months</option>
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                      </select>
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="checkbox" 
+                          id="showPremiumOnly" 
+                          checked={showPremiumOnly} 
+                          onChange={(e) => setShowPremiumOnly(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                        />
+                        <label htmlFor="showPremiumOnly" className="text-sm font-semibold text-purple-700 cursor-pointer select-none">
+                          Premium Deliveries (≥ ₹2000)
+                        </label>
                       </div>
                     </div>
                   </div>
