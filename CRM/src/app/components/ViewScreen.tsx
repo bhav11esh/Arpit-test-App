@@ -1773,7 +1773,8 @@ export function ViewScreen() {
     return deliveries.filter(d => {
       // V1 SPEC: Spreadsheet shows DONE deliveries AND Deadlocked (REJECTED_BY_ALL) deliveries
       // V10.0 FIX: Removed status check to allow ASSIGNED deliveries (like dealer-paid ones) to show up.
-      // if (d.status !== 'DONE' && (d as any).decision_state !== 'REJECTED_BY_ALL') return false;
+      // USER REQUEST: Restore the check! Only 'DONE' deliveries (Send Update or Add Delivery Modal) should appear.
+      if (d.status !== 'DONE') return false;
 
       // V9.0: Spreadsheet Date Filtering (Default to Today)
       if (!showAllTime && spreadSheetDate) {
@@ -1831,17 +1832,21 @@ export function ViewScreen() {
 
   const handleExportCSV = () => {
     const csv = [
-      ['Date', 'Footage Link', 'Reel Link', 'Photographer Name', 'Amount Received', 'Phone Number', 'Rapido Charge'].join(','),
+      ['Date', 'Footage Link', 'Reel Link', 'Photographer Name', 'Amount Received', 'Phone Number', 'Rapido Charge', 'Source', 'Who Added'].join(','),
       ...filteredDeliveries.map(d => {
         const photographer = allUsers.find(p => p.id === d.assigned_user_id);
+        const source = d.creation_index === null ? "Add Delivery Modal" : "Send Update";
+        const whoAdded = d.creation_index === null ? "Admin" : (photographer ? photographer.name : 'Unknown');
         return [
           d.date,
-          d.footage_link || '',
-          (d as any).reel_link || '',
-          photographer?.name || 'Unassigned',
-          d.received_amount || '',
-          d.customer_phone || '',
-          d.rapido_charge || 0
+          d.footage_link || 'N/A',
+          d.reel_link || 'N/A',
+          photographer ? photographer.name : 'Unassigned',
+          d.received_amount?.toString() || '0',
+          d.customer_phone || 'N/A',
+          d.rapido_charge?.toString() || '0',
+          source,
+          whoAdded
         ].map(val => `"${val}"`).join(','); // Wrap in quotes to handle commas in links if any
       })
     ].join('\n');
@@ -3339,6 +3344,8 @@ export function ViewScreen() {
                         <TableHead className="text-white font-bold">Amount Received</TableHead>
                         <TableHead className="text-white font-bold">Phone Number</TableHead>
                         <TableHead className="text-white font-bold">Rapido Charge</TableHead>
+                        <TableHead className="text-white font-bold">Source</TableHead>
+                        <TableHead className="text-white font-bold">Who Added</TableHead>
                         <TableHead className="w-[80px] text-center text-white font-bold">Sync</TableHead>
                         {isAdmin && <TableHead className="w-[50px] text-right text-slate-300 font-bold">Actions</TableHead>}
                       </TableRow>
@@ -3346,7 +3353,7 @@ export function ViewScreen() {
                     <TableBody>
                       {filteredDeliveries.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={isAdmin ? 10 : 9} className="h-40 text-center text-slate-500">
+                          <TableCell colSpan={isAdmin ? 12 : 11} className="h-40 text-center text-slate-500">
                             <div className="flex flex-col items-center justify-center gap-2 py-8">
                               <ClipboardCheck className="h-10 w-10 text-slate-300 animate-pulse" />
                               <p className="font-semibold text-slate-700">No deliveries found</p>
@@ -3699,6 +3706,21 @@ export function ViewScreen() {
                                     )}
                                   </div>
                                 )}
+                              </TableCell>
+                              {/* Source (Read-only) */}
+                              <TableCell className="text-sm">
+                                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-semibold whitespace-nowrap">
+                                  {delivery.creation_index === null ? 'Add Delivery Modal' : 'Send Update'}
+                                </span>
+                              </TableCell>
+
+                              {/* Who Added (Read-only) */}
+                              <TableCell className="text-sm">
+                                <span className="font-medium text-slate-700 whitespace-nowrap">
+                                  {delivery.creation_index === null ? 'Admin' : (
+                                    allUsers.find(p => p.id === delivery.assigned_user_id)?.name || 'Unknown'
+                                  )}
+                                </span>
                               </TableCell>
                               {/* Sync Status Icon */}
                               <TableCell className="text-center">
