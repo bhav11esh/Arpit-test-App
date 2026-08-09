@@ -42,7 +42,11 @@ function AppRoutes() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    onNeedRefresh() {
+      updateServiceWorker(true);
+    }
+  });
 
   // V1 MONITORING: Heartbeat & GPS/Notification Status tracking
   const lastStatusRef = React.useRef<{ gps: string, notification: string }>({ gps: 'unknown', notification: 'unknown' });
