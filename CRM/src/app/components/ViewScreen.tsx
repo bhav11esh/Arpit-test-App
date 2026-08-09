@@ -1837,8 +1837,8 @@ export function ViewScreen() {
       ['Date', 'Footage Link', 'Reel Link', 'Photographer Name', 'Amount Received', 'Phone Number', 'Rapido Charge', 'Source', 'Who Added'].join(','),
       ...filteredDeliveries.map(d => {
         const photographer = allUsers.find(p => p.id === d.assigned_user_id);
-        const source = d.creation_index === null ? "Add Delivery Modal" : "Send Update";
-        const whoAdded = d.creation_index === null ? "Admin" : (photographer ? photographer.name : 'Unknown');
+        const source = d.creation_index == null ? "Add Delivery Modal" : "Send Update";
+        const whoAdded = d.creation_index == null ? "Admin" : (photographer ? photographer.name : 'Unknown');
         return [
           d.date,
           d.footage_link || 'N/A',
@@ -3712,14 +3712,14 @@ export function ViewScreen() {
                               {/* Source (Read-only) */}
                               <TableCell className="text-sm">
                                 <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-semibold whitespace-nowrap">
-                                  {delivery.creation_index === null ? 'Add Delivery Modal' : 'Send Update'}
+                                  {delivery.creation_index == null ? 'Add Delivery Modal' : 'Send Update'}
                                 </span>
                               </TableCell>
 
                               {/* Who Added (Read-only) */}
                               <TableCell className="text-sm">
                                 <span className="font-medium text-slate-700 whitespace-nowrap">
-                                  {delivery.creation_index === null ? 'Admin' : (
+                                  {delivery.creation_index == null ? 'Admin' : (
                                     allUsers.find(p => p.id === delivery.assigned_user_id)?.name || 'Unknown'
                                   )}
                                 </span>
