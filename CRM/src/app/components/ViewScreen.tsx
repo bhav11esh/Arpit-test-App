@@ -2488,8 +2488,8 @@ export function ViewScreen() {
         }
       }
 
-      // V1 SPEC: Payment Amount, Screenshot & Phone are MANDATORY for Customer Paid showrooms
-      if (selectedDealership.paymentType === 'CUSTOMER_PAID') {
+      // V1 SPEC: Payment Amount, Screenshot & Phone are MANDATORY for Customer Paid showrooms (unless invoice billed)
+      if (selectedDealership.paymentType === 'CUSTOMER_PAID' && !newRowData.is_invoice_billing) {
         if (!newRowData.received_amount || parseFloat(newRowData.received_amount) <= 0) {
           toast.error('Payment amount is mandatory for Customer Paid showrooms');
           setIsSubmitting(false);
