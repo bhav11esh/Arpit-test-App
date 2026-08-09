@@ -135,14 +135,26 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
         return;
       }
 
-      // Group deliveries by Date and Rate (received_amount)
-      const groups = new Map<string, { date: string; rate: number; count: number; ids: string[] }>();
+      // Group deliveries by Date, Rate, and Shoot Description
+      const groups = new Map<string, { date: string; rate: number; desc: string; count: number; ids: string[] }>();
       const defaultRate = dealer.ratePerDelivery || 700;
 
       finalDeliveries.forEach((d: any) => {
         const dateStr = d.date; // YYYY-MM-DD
         const rate = Number(d.received_amount) || defaultRate;
-        const key = `${dateStr}_${rate}`;
+        
+        let desc = d.shoot_description || d.witness_phone || '';
+        if (!desc) {
+          if (d.is_invoice_billing) {
+            desc = 'Showroom Specific Content Shoot';
+          } else if (rate > defaultRate) {
+            desc = 'Early morning home delivery';
+          } else {
+            desc = 'Shoot Coverage';
+          }
+        }
+
+        const key = `${dateStr}_${rate}_${desc}`;
 
         if (groups.has(key)) {
           const g = groups.get(key)!;
@@ -152,6 +164,7 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
           groups.set(key, {
             date: dateStr,
             rate: rate,
+            desc: desc,
             count: 1,
             ids: [d.id]
           });
@@ -159,27 +172,22 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
       });
 
       // Map to GroupedLineItem array
-      const items: GroupedLineItem[] = [];
+      const items: (GroupedLineItem & { deliveryIds: string[] })[] = [];
       const allDeliveryIds: string[] = [];
       let idx = 0;
 
-      groups.forEach((value, key) => {
+      groups.forEach((value) => {
         const [year, month, day] = value.date.split('-');
         const formattedDate = `${day}/${month}/${year}`;
-        
-        // Default description based on rate type
-        let desc = 'Shoot Coverage';
-        if (value.rate > defaultRate) {
-          desc = 'Early morning home delivery';
-        }
 
         items.push({
           id: `item_${idx++}`,
-          description: desc,
+          description: value.desc,
           date: formattedDate,
           rate: value.rate,
           quantity: value.count,
-          total: value.count * value.rate
+          total: value.count * value.rate,
+          deliveryIds: value.ids
         });
 
         allDeliveryIds.push(...value.ids);
@@ -192,7 +200,7 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
         return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
       });
 
-      setLineItems(items);
+      setLineItems(items as any);
       setDeliveriesToLink(allDeliveryIds);
       setStep(2);
     } catch (err: any) {
@@ -284,18 +292,22 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
         next_invoice_number: nextNum
       });
 
-      // 4. Link deliveries to this invoice to prevent double-billing
-      if (deliveriesToLink.length > 0) {
-        const { error: linkError } = await supabase
-          .from('deliveries')
-          .update({
-            invoice_id: newInvoice.id,
-            updated_at: new Date().toISOString()
-          })
-          .in('id', deliveriesToLink);
-        
-        if (linkError) {
-          console.warn('Could not set links on deliveries:', linkError);
+      // 4. Link deliveries to this invoice and persist edited shoot descriptions
+      for (const item of (lineItems as any[])) {
+        const idsToUpdate = item.deliveryIds || deliveriesToLink;
+        if (idsToUpdate.length > 0) {
+          const { error: linkError } = await supabase
+            .from('deliveries')
+            .update({
+              invoice_id: newInvoice.id,
+              witness_phone: item.description,
+              updated_at: new Date().toISOString()
+            })
+            .in('id', idsToUpdate);
+          
+          if (linkError) {
+            console.warn('Could not set links on deliveries:', linkError);
+          }
         }
       }
 

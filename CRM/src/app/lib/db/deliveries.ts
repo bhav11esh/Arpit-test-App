@@ -67,6 +67,7 @@ const rowToDelivery = (row: DeliveryRow): Delivery => {
     rapido_screenshot_amount: (row as any).rapido_screenshot_amount != null ? Number((row as any).rapido_screenshot_amount) : null,
     is_invoice_billing: (row as any).is_invoice_billing ?? undefined,
     invoice_id: (row as any).invoice_id ?? undefined,
+    shoot_description: (row as any).shoot_description ?? row.witness_phone ?? null,
   };
 };
 
@@ -182,7 +183,7 @@ export const updateDelivery = async (id: string, updates: Partial<Delivery>, sup
     customer_phone: updates.customer_phone,
     rapido_charge: updates.rapido_charge,
     deleted_at: updates.deleted_at,
-    witness_phone: updates.witness_phone,
+    witness_phone: updates.shoot_description !== undefined ? updates.shoot_description : updates.witness_phone,
     payment_screenshot_date: updates.payment_screenshot_date,
     payment_screenshot_time: updates.payment_screenshot_time,
     payment_screenshot_amount: updates.payment_screenshot_amount,

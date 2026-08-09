@@ -3986,18 +3986,38 @@ export function ViewScreen() {
                                     
                                     {/* Invoice Billing Toggle for Customer Paid showrooms */}
                                     {isCustomerPaid && (
-                                      <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm mb-2 shadow-sm">
-                                        <div className="space-y-0.5">
-                                          <Label htmlFor="new-row-invoice-billing" className="font-bold text-zinc-700">
-                                            Paid Showroom Specific Content?
-                                          </Label>
-                                          <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                                      <div className="space-y-3 mb-2">
+                                        <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm shadow-sm">
+                                          <div className="space-y-0.5">
+                                            <Label htmlFor="new-row-invoice-billing" className="font-bold text-zinc-700">
+                                              Paid Showroom Specific Content?
+                                            </Label>
+                                            <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                                          </div>
+                                          <Switch
+                                            id="new-row-invoice-billing"
+                                            checked={newRowData.is_invoice_billing || false}
+                                            onCheckedChange={(checked) => setNewRowData({ ...newRowData, is_invoice_billing: checked })}
+                                          />
                                         </div>
-                                        <Switch
-                                          id="new-row-invoice-billing"
-                                          checked={newRowData.is_invoice_billing || false}
-                                          onCheckedChange={(checked) => setNewRowData({ ...newRowData, is_invoice_billing: checked })}
-                                        />
+
+                                        {newRowData.is_invoice_billing && (
+                                          <div className="space-y-1.5 p-3 bg-purple-50/60 border border-purple-100 rounded-xl">
+                                            <label className="text-[10px] font-bold uppercase text-purple-900 flex items-center gap-1">
+                                              📝 Shoot Description
+                                            </label>
+                                            <Input
+                                              value={newRowData.shoot_description || newRowData.witness_phone || ''}
+                                              onChange={(e) => setNewRowData({ 
+                                                ...newRowData, 
+                                                shoot_description: e.target.value,
+                                                witness_phone: e.target.value 
+                                              })}
+                                              placeholder="e.g. Kia Syros Car Launch Shoot"
+                                              className="h-9 text-xs bg-white border-purple-200 focus:border-purple-500"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     )}
 

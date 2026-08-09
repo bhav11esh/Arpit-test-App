@@ -98,13 +98,25 @@ export function InvoicePreview({
 
         if (error) throw error;
 
-        const groups = new Map<string, { date: string; rate: number; count: number }>();
+        const groups = new Map<string, { date: string; rate: number; desc: string; count: number }>();
         const defaultRate = dealer.ratePerDelivery || 700;
 
         finalDeliveries.forEach((d: any) => {
           const dateStr = d.date;
           const rate = Number(d.received_amount) || defaultRate;
-          const key = `${dateStr}_${rate}`;
+
+          let desc = d.shoot_description || d.witness_phone || '';
+          if (!desc) {
+            if (d.is_invoice_billing) {
+              desc = 'Showroom Specific Content Shoot';
+            } else if (rate > defaultRate) {
+              desc = 'Early morning home delivery';
+            } else {
+              desc = 'Shoot Coverage';
+            }
+          }
+
+          const key = `${dateStr}_${rate}_${desc}`;
 
           if (groups.has(key)) {
             const g = groups.get(key)!;
@@ -113,6 +125,7 @@ export function InvoicePreview({
             groups.set(key, {
               date: dateStr,
               rate: rate,
+              desc: desc,
               count: 1
             });
           }
@@ -122,14 +135,9 @@ export function InvoicePreview({
         groups.forEach((value) => {
           const [year, month, day] = value.date.split('-');
           const formattedDate = `${day}/${month}/${year}`;
-          
-          let desc = 'Shoot Coverage';
-          if (value.rate > defaultRate) {
-            desc = 'Early morning home delivery';
-          }
 
           items.push({
-            description: desc,
+            description: value.desc,
             date: formattedDate,
             rate: value.rate,
             quantity: value.count,

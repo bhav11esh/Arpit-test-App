@@ -126,6 +126,7 @@ export interface Delivery {
   rapido_screenshot_amount?: number | null;
   is_invoice_billing?: boolean;
   invoice_id?: string;
+  shoot_description?: string | null;
 }
 
 export interface StandupCall {

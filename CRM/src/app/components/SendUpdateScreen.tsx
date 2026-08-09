@@ -292,20 +292,42 @@ export function SendUpdateScreen({
 
                   <div className="space-y-4">
                     {isCustomerPaid && (
-                      <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm mb-2 shadow-sm">
-                        <div className="space-y-0.5">
-                          <Label htmlFor={`invoice-billing-${delivery.id}`} className="font-bold text-zinc-700">
-                            Paid Showroom Specific Content?
-                          </Label>
-                          <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm shadow-sm">
+                          <div className="space-y-0.5">
+                            <Label htmlFor={`invoice-billing-${delivery.id}`} className="font-bold text-zinc-700">
+                              Paid Showroom Specific Content?
+                            </Label>
+                            <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                          </div>
+                          <Switch
+                            id={`invoice-billing-${delivery.id}`}
+                            checked={delivery.is_invoice_billing || false}
+                            onCheckedChange={(checked) => {
+                              onUpdateDeliveryFields(delivery.id, { is_invoice_billing: checked });
+                            }}
+                          />
                         </div>
-                        <Switch
-                          id={`invoice-billing-${delivery.id}`}
-                          checked={delivery.is_invoice_billing || false}
-                          onCheckedChange={(checked) => {
-                            onUpdateDeliveryFields(delivery.id, { is_invoice_billing: checked });
-                          }}
-                        />
+
+                        {delivery.is_invoice_billing && (
+                          <div className="space-y-1.5 p-3 bg-purple-50/60 border border-purple-100 rounded-xl">
+                            <Label className="text-xs font-semibold text-purple-900 flex items-center gap-1">
+                              📝 Shoot Description
+                            </Label>
+                            <Input
+                              value={delivery.shoot_description || delivery.witness_phone || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                onUpdateDeliveryFields(delivery.id, { 
+                                  shoot_description: val,
+                                  witness_phone: val 
+                                });
+                              }}
+                              placeholder="e.g. Kia Syros Car Launch Shoot"
+                              className="h-9 text-xs bg-white border-purple-200 focus:border-purple-500"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                     {/* Footage Link */}
