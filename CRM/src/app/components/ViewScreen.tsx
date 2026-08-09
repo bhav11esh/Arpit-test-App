@@ -4260,6 +4260,7 @@ export function ViewScreen() {
 
                                     {/* Dealership Witness Verification Banners & Fields */}
                                     {(() => {
+                                      const isInvoiceBilling = newRowData.is_invoice_billing || false;
                                       const fraudAlreadyVerified = !!(
                                         newRowData.date &&
                                         newRowData.assigned_user_id &&
