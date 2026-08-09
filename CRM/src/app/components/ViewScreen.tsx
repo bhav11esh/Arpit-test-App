@@ -3916,10 +3916,11 @@ export function ViewScreen() {
                               
                               const photographerObj = allUsers.find(p => p.id === newRowData.assigned_user_id);
                               const payoutModel = photographerObj ? getPhotographerRawPayoutModel(photographerObj.id, newRowData.date) : 'PERCENTAGE';
-                              const showPlatformPaymentFields = payoutModel === 'PERCENTAGE_15_DAILY';
+                              const isInvoiceBilling = newRowData.is_invoice_billing || false;
                               const isCustomerPaid = selectedShowroom.paymentType === 'CUSTOMER_PAID';
+                              const showPlatformPaymentFields = isCustomerPaid && !isInvoiceBilling && payoutModel === 'PERCENTAGE_15_DAILY';
                               
-                              const receivedAmount = parseFloat(newRowData.received_amount || '0') || (isCustomerPaid ? 0 : (selectedShowroom.ratePerDelivery || 0));
+                              const receivedAmount = parseFloat(newRowData.received_amount || '0') || ((!isCustomerPaid || isInvoiceBilling) ? (selectedShowroom.ratePerDelivery || 0) : 0);
                               const rapido = parseFloat(newRowData.rapido_charge || '0') || 0;
                               
                               let payout = 0;
@@ -3946,8 +3947,8 @@ export function ViewScreen() {
                                       <span className="text-emerald-800 flex items-center gap-1">
                                         💰 Live Audit Preview
                                       </span>
-                                      <Badge className={isCustomerPaid ? "bg-red-100 text-red-800 border-red-200" : "bg-blue-100 text-blue-800 border-blue-200"}>
-                                        {isCustomerPaid ? "Customer Paid" : "Dealer Paid"}
+                                      <Badge className={isCustomerPaid ? (isInvoiceBilling ? "bg-purple-100 text-purple-800 border-purple-200" : "bg-red-100 text-red-800 border-red-200") : "bg-blue-100 text-blue-800 border-blue-200"}>
+                                        {isCustomerPaid ? (isInvoiceBilling ? "Invoice Billed (Showroom Specific Content)" : "Customer Paid") : "Dealer Paid"}
                                       </Badge>
                                     </div>
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-emerald-900 pt-1.5 font-medium">
@@ -3966,7 +3967,7 @@ export function ViewScreen() {
                                             <span>Photographer Payout:</span>
                                             <span className="font-bold text-emerald-700">₹{payout}</span>
                                           </div>
-                                          {isCustomerPaid && (
+                                          {isCustomerPaid && !isInvoiceBilling && (
                                             <div className="flex justify-between col-span-2">
                                               <span>Platform Share ({showPlatformPaymentFields ? "15% Cut" : "Standard Share"}):</span>
                                               <span className="font-bold text-teal-700">₹{platformCommission}</span>
@@ -3983,8 +3984,25 @@ export function ViewScreen() {
                                       Financials & Audit
                                     </h3>
                                     
-                                    {/* Dealer Paid Payout Rate */}
-                                    {!isCustomerPaid && (
+                                    {/* Invoice Billing Toggle for Customer Paid showrooms */}
+                                    {isCustomerPaid && (
+                                      <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-200/50 rounded-xl text-sm mb-2 shadow-sm">
+                                        <div className="space-y-0.5">
+                                          <Label htmlFor="new-row-invoice-billing" className="font-bold text-zinc-700">
+                                            Paid Showroom Specific Content?
+                                          </Label>
+                                          <p className="text-[10px] text-zinc-500 font-medium">Will get paid through monthly invoice</p>
+                                        </div>
+                                        <Switch
+                                          id="new-row-invoice-billing"
+                                          checked={newRowData.is_invoice_billing || false}
+                                          onCheckedChange={(checked) => setNewRowData({ ...newRowData, is_invoice_billing: checked })}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Dealer Paid or Invoice Billed Payout Rate */}
+                                    {(!isCustomerPaid || isInvoiceBilling) && (
                                       <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold uppercase text-slate-400">Received Amount (Optional)</label>
                                         <Input
@@ -3998,7 +4016,7 @@ export function ViewScreen() {
                                     )}
 
                                     {/* Customer Paid Fields */}
-                                    {isCustomerPaid && (
+                                    {(isCustomerPaid && !isInvoiceBilling) && (
                                       <div className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                           <div className="space-y-1.5">
