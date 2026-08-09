@@ -37,6 +37,8 @@ import * as standupDb from '../lib/db/standup';
 import { BellRing, ClipboardCheck, Bell, CheckCircle2, Upload, RefreshCw, Clock, ShieldCheck, Eye } from 'lucide-react';
 import { SearchableSelect } from './ui/searchable-select';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
 
 const getYesterdayDateString = (dateStr: string): string => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
@@ -2528,7 +2530,7 @@ export function ViewScreen() {
       // Photographer Payout model verification
       const selectedPhotographer = allUsers.find(p => p.id === newRowData.assigned_user_id);
       const payoutModel = selectedPhotographer ? getPhotographerRawPayoutModel(selectedPhotographer.id, newRowData.date) : 'PERCENTAGE';
-      const showPlatformPaymentFields = selectedDealership.paymentType === 'CUSTOMER_PAID' && payoutModel === 'PERCENTAGE_15_DAILY';
+      const showPlatformPaymentFields = selectedDealership.paymentType === 'CUSTOMER_PAID' && !newRowData.is_invoice_billing && payoutModel === 'PERCENTAGE_15_DAILY';
 
       if (showPlatformPaymentFields) {
         const expectedCut = Math.max(0, Math.round((parseFloat(newRowData.received_amount || '0') - parseFloat(newRowData.rapido_charge || '0')) * 0.15));
@@ -2600,7 +2602,7 @@ export function ViewScreen() {
         )
       );
 
-      if (isCustomerPaid && !fraudAlreadyVerified) {
+      if (isCustomerPaid && !newRowData.is_invoice_billing && !fraudAlreadyVerified) {
         if (!newRowData.witness_phone || newRowData.witness_phone.trim().length < 10) {
           toast.error('Witness Phone Number is mandatory and must be a valid 10-digit number');
           setIsSubmitting(false);
@@ -4270,7 +4272,7 @@ export function ViewScreen() {
                                         )
                                       );
 
-                                      if (!isCustomerPaid) return null;
+                                      if (!isCustomerPaid || isInvoiceBilling) return null;
 
                                       return (
                                         <div className="space-y-3 border-t border-slate-100 pt-3">
