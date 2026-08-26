@@ -4,7 +4,9 @@ import { supabase, adminSupabase } from '../lib/supabase';
 import * as reelsDb from '../lib/db/reels';
 import * as deliveriesDb from '../lib/db/deliveries';
 import * as usersDb from '../lib/db/users';
-import type { ReelTask, Delivery, User as UserType } from '../types';
+import * as configDb from '../lib/db/config';
+import type { ReelTask, Delivery, User as UserType, Dealership } from '../types';
+import { getShowroomCode } from '../lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -36,6 +38,7 @@ export function ReelBacklog() {
   const [reelTasks, setReelTasks] = useState<ReelTask[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
+  const [dealerships, setDealerships] = useState<Dealership[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<ReelTask | null>(null);
   const [reelLinkInput, setReelLinkInput] = useState('');
@@ -74,7 +77,11 @@ export function ReelBacklog() {
       // 4. Fetch users
       const allDbUsers = await usersDb.getUsers(client);
 
-      // 5. NEW: Refresh and Fetch Post-its for photographers and admins
+      // 5. Fetch dealerships to check active status
+      const allDealerships = await configDb.getDealerships(client);
+      setDealerships(allDealerships);
+
+      // 6. NEW: Refresh and Fetch Post-its for photographers and admins
       if (user.role === 'PHOTOGRAPHER' || isAdmin) {
         try {
           await reelsDb.refreshPostIts(client);
@@ -210,18 +217,50 @@ export function ReelBacklog() {
     }
   };
 
-  const pendingTasks = reelTasks.filter(t => t.status === 'PENDING' && !t.is_post_it);
+  const isDealershipActive = (showroomCode?: string | null): boolean => {
+    if (!showroomCode || dealerships.length === 0) return true;
+    const matchingDealer = dealerships.find(d => 
+      getShowroomCode(d.name) === showroomCode ||
+      d.name.toUpperCase() === showroomCode.toUpperCase() ||
+      d.id === showroomCode ||
+      d.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_') === showroomCode.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+    );
+    if (matchingDealer) {
+      return matchingDealer.active !== false;
+    }
+    return true;
+  };
+
+  const pendingTasks = reelTasks.filter(t => {
+    if (t.status !== 'PENDING' || t.is_post_it) return false;
+    const delivery = deliveries.find(d => d.id === t.delivery_id);
+    if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
+    return true;
+  });
+
   // V18.3: Resolved section logic
   // Only show entries where the reel was reassigned to them (Admin or Post-it)
-  const resolvedTasks = isAdmin 
+  const rawResolvedTasks = isAdmin 
     ? reelTasks.filter(t => t.status === 'RESOLVED')
     : reelTasks.filter(t => t.status === 'RESOLVED' && t.reassigned_reason !== null);
 
-  // V19: Filter bounty board post-its by mine/others + exclude inactive photographers
+  const resolvedTasks = rawResolvedTasks.filter(t => {
+    const delivery = deliveries.find(d => d.id === t.delivery_id);
+    if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
+    return true;
+  });
+
+  // V19: Filter bounty board post-its by mine/others + exclude inactive photographers & deactivated dealerships
   const activeUserIds = new Set(allUsers.filter(u => u.active).map(u => u.id));
-  const filteredPostItReels = postItReels.filter(task => {
-    // Exclude reels from inactive photographers (can't charge penalty)
+  
+  const activePostItReels = postItReels.filter(task => {
+    const delivery = task.delivery || deliveries.find(d => d.id === task.delivery_id);
+    if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
     if (task.original_user_id && !activeUserIds.has(task.original_user_id)) return false;
+    return true;
+  });
+
+  const filteredPostItReels = activePostItReels.filter(task => {
     // Apply mine/others filter
     if (bountyFilter === 'mine') {
       return task.original_user_id === user?.id;
@@ -242,7 +281,7 @@ export function ReelBacklog() {
   return (
     <div className="space-y-4 p-1 sm:p-4 pb-36">
       {/* NEW: Bounty Board / Post-its Marketplace */}
-      {postItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || isAdmin) && (
+      {activePostItReels.length > 0 && (user?.role === 'PHOTOGRAPHER' || isAdmin) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -257,8 +296,8 @@ export function ReelBacklog() {
 
           {/* V19: Mine / Others filter tabs with bounty ₹ totals */}
           {(() => {
-            const myReels = postItReels.filter(t => t.original_user_id === user?.id);
-            const othersReels = postItReels.filter(t => t.original_user_id !== user?.id && (!t.original_user_id || activeUserIds.has(t.original_user_id!)));
+            const myReels = activePostItReels.filter(t => t.original_user_id === user?.id);
+            const othersReels = activePostItReels.filter(t => t.original_user_id !== user?.id && (!t.original_user_id || activeUserIds.has(t.original_user_id!)));
             const myTotal = myReels.reduce((sum, t) => sum + (t.post_it_reward || 250), 0);
             const othersTotal = othersReels.reduce((sum, t) => sum + (t.post_it_reward || 250), 0);
             return (
