@@ -25,8 +25,9 @@ try {
     }
 
     // 4. Move Dist to Public
-    console.log('\n🚚 Moving built assets to public/crm...');
+    console.log('\n🚚 Moving built assets to public/crm & public/assets...');
     const distDir = path.join(CRM_DIR, 'dist');
+    const PUBLIC_ASSETS_DIR = path.join(__dirname, 'public', 'assets');
 
     // Helper to copy directory recursively
     function copyRecursiveSync(src, dest) {
@@ -36,7 +37,7 @@ try {
 
         if (isDirectory) {
             if (!fs.existsSync(dest)) {
-                fs.mkdirSync(dest);
+                fs.mkdirSync(dest, { recursive: true });
             }
             fs.readdirSync(src).forEach((childItemName) => {
                 copyRecursiveSync(
@@ -50,9 +51,12 @@ try {
     }
 
     copyRecursiveSync(distDir, PUBLIC_CRM_DIR);
+    if (fs.existsSync(path.join(distDir, 'assets'))) {
+        copyRecursiveSync(path.join(distDir, 'assets'), PUBLIC_ASSETS_DIR);
+    }
 
     console.log('\n✅ CRM Build & Move Complete!');
-    console.log('👉 Verify at: ' + PUBLIC_CRM_DIR);
+    console.log('👉 Verified at: ' + PUBLIC_CRM_DIR + ' & ' + PUBLIC_ASSETS_DIR);
 
 } catch (error) {
     console.error('\n❌ Build Failed:', error);
