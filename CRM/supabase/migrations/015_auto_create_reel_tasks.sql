@@ -34,8 +34,8 @@ BEGIN
                     deadline_val := deadline_val + INTERVAL '1 day';
                 END IF;
                 
-                -- Determine task status (RESOLVED if reel_link is present)
-                IF NEW.reel_link IS NOT NULL THEN
+                -- Determine task status (RESOLVED if reel_link is present and non-empty)
+                IF NULLIF(TRIM(NEW.reel_link), '') IS NOT NULL THEN
                     task_status := 'RESOLVED';
                     
                     INSERT INTO public.reel_tasks (

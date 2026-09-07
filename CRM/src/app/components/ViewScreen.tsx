@@ -2679,8 +2679,12 @@ export function ViewScreen() {
         updated_at: new Date().toISOString()
       };
 
-      // Add reel_link if provided
+      // Add reel_link, is_invoice_billing, and shoot_description if provided
       (newDelivery as any).reel_link = newRowData.reel_link || '';
+      (newDelivery as any).is_invoice_billing = newRowData.is_invoice_billing || false;
+      if (newRowData.shoot_description) {
+        (newDelivery as any).shoot_description = newRowData.shoot_description;
+      }
 
       // V1 SPEC: Replace the placeholder row with the actual delivery
       // and update edit history for undo/redo  

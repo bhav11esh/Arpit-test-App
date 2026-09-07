@@ -8,5 +8,11 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/nightly-sync",
+      "schedule": "30 20 * * *"
+    }
   ]
 }
