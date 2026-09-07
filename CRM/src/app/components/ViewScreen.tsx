@@ -107,7 +107,8 @@ function FraudAuditShowroomCard({
   
   const deliveryFraudScreenshots = fraudScreenshots.filter(s => s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id));
   const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id);
-  const isValidPhotographerDoc = mainFraudScreenshot && typeof mainFraudScreenshot.file_url === 'string' && (mainFraudScreenshot.file_url.startsWith('http://') || mainFraudScreenshot.file_url.startsWith('https://') || mainFraudScreenshot.file_url.startsWith('data:'));
+  const [imageError, setImageError] = useState(false);
+  const isValidPhotographerDoc = !imageError && mainFraudScreenshot && typeof mainFraudScreenshot.file_url === 'string' && (mainFraudScreenshot.file_url.startsWith('http://') || mainFraudScreenshot.file_url.startsWith('https://') || mainFraudScreenshot.file_url.startsWith('data:'));
   const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
   const initialWitnessCount = callLogScreenshot && callLogScreenshot.type.startsWith('FRAUD_DETECTION:') ? callLogScreenshot.type.split(':')[1] || '' : '';
@@ -332,7 +333,7 @@ function FraudAuditShowroomCard({
                   className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
                   onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
                 >
-                  <img src={mainFraudScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="photographer proof" />
+                  <img src={mainFraudScreenshot.file_url} onError={() => setImageError(true)} className="max-h-full object-contain rounded-lg" alt="photographer proof" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
                     <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                       <Eye className="h-5 w-5" />
