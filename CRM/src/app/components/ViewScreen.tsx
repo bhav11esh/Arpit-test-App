@@ -102,13 +102,12 @@ function FraudAuditShowroomCard({
   const fraudScreenshots = screenshots.filter(s => 
     s.type.startsWith('FRAUD_DETECTION') && 
     !s.deleted_at && 
+    (s.user_id === selectedPhotographer || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id))) &&
     (s.showroom_code === showroomCode || (s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id)))
   );
   
   const deliveryFraudScreenshots = fraudScreenshots.filter(s => s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id));
-  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id);
-  const [imageError, setImageError] = useState(false);
-  const isValidPhotographerDoc = !imageError && mainFraudScreenshot && typeof mainFraudScreenshot.file_url === 'string' && (mainFraudScreenshot.file_url.startsWith('http://') || mainFraudScreenshot.file_url.startsWith('https://') || mainFraudScreenshot.file_url.startsWith('data:'));
+  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id && s.user_id === selectedPhotographer);
   const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
   const initialWitnessCount = callLogScreenshot && callLogScreenshot.type.startsWith('FRAUD_DETECTION:') ? callLogScreenshot.type.split(':')[1] || '' : '';
@@ -328,12 +327,12 @@ function FraudAuditShowroomCard({
           {isCustomerPaid && (
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase">Photographer Uploaded Document</label>
-              {isValidPhotographerDoc ? (
+              {mainFraudScreenshot && mainFraudScreenshot.file_url ? (
                 <div 
                   className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
                   onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
                 >
-                  <img src={mainFraudScreenshot.file_url} onError={() => setImageError(true)} className="max-h-full object-contain rounded-lg" alt="photographer proof" />
+                  <ImageWithFallback src={mainFraudScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="photographer proof" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
                     <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                       <Eye className="h-5 w-5" />
@@ -408,7 +407,7 @@ function FraudAuditShowroomCard({
                     className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
                     onClick={() => setZoomImageUrl(callLogScreenshot.file_url)}
                   >
-                    <img src={callLogScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="call log screenshot" />
+                    <ImageWithFallback src={callLogScreenshot.file_url} className="max-h-full object-contain rounded-lg" alt="call log screenshot" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
                       <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                         <Eye className="h-5 w-5" />
@@ -6176,7 +6175,7 @@ export function ViewScreen() {
                 <DialogDescription>Full size preview of the screenshot</DialogDescription>
               </DialogHeader>
               <div className="relative w-full h-full flex items-center justify-center p-4">
-                <img 
+                <ImageWithFallback 
                   src={zoomImageUrl || ''} 
                   alt="Screenshot Preview" 
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
