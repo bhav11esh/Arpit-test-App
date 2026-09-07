@@ -106,7 +106,8 @@ function FraudAuditShowroomCard({
   );
   
   const deliveryFraudScreenshots = fraudScreenshots.filter(s => s.delivery_id && showroomDeliveries.some(d => d.id === s.delivery_id));
-  const mainFraudScreenshot = fraudScreenshots.find(s => s.type.startsWith('FRAUD_DETECTION') && !s.delivery_id) || deliveryFraudScreenshots[0];
+  const mainFraudScreenshot = fraudScreenshots.find(s => s.type === 'FRAUD_DETECTION' && !s.delivery_id);
+  const isValidPhotographerDoc = mainFraudScreenshot && typeof mainFraudScreenshot.file_url === 'string' && (mainFraudScreenshot.file_url.startsWith('http://') || mainFraudScreenshot.file_url.startsWith('https://') || mainFraudScreenshot.file_url.startsWith('data:'));
   const callLogScreenshot = deliveryFraudScreenshots.length > 1 ? deliveryFraudScreenshots[1] : deliveryFraudScreenshots[0];
 
   const initialWitnessCount = callLogScreenshot && callLogScreenshot.type.startsWith('FRAUD_DETECTION:') ? callLogScreenshot.type.split(':')[1] || '' : '';
@@ -326,7 +327,7 @@ function FraudAuditShowroomCard({
           {isCustomerPaid && (
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase">Photographer Uploaded Document</label>
-              {mainFraudScreenshot ? (
+              {isValidPhotographerDoc ? (
                 <div 
                   className="flex flex-col items-center bg-slate-100 border border-slate-200 rounded-xl p-2 h-40 justify-center relative group cursor-pointer"
                   onClick={() => setZoomImageUrl(mainFraudScreenshot.file_url)}
@@ -1678,7 +1679,8 @@ export function ViewScreen() {
             
             if (!showAllTime && targetDeliveryDate) {
               const startOfDay = `${targetDeliveryDate}T00:00:00.000Z`;
-              const endOfDay = `${targetDeliveryDate}T23:59:59.999Z`;
+              const endDateStr = spreadSheetDate || targetDeliveryDate;
+              const endOfDay = `${endDateStr}T23:59:59.999Z`;
               showroomQuery = showroomQuery.gte('uploaded_at', startOfDay).lte('uploaded_at', endOfDay);
             } else {
               showroomQuery = showroomQuery.limit(500);
@@ -5241,21 +5243,7 @@ export function ViewScreen() {
                                   variant="outline"
                                   size="sm"
                                   className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
-                                  disabled={uniqueShowroomCodesForPhotographer.some(code => {
-                                    const showroomDeliveries = deliveries.filter(d => 
-                                      d.assigned_user_id === selectedPhotographer && 
-                                      d.date === spreadSheetDate && 
-                                      d.status === 'DONE' &&
-                                      getShowroomCode(d.showroom_code) === code
-                                    );
-                                    const hasScreenshot = screenshots.some(s => 
-                                      s.type.startsWith('FRAUD_DETECTION') && 
-                                      !s.deleted_at && 
-                                      s.delivery_id && 
-                                      showroomDeliveries.some(d => d.id === s.delivery_id)
-                                    );
-                                    return !hasScreenshot;
-                                  })}
+                                  disabled={false}
                                   onClick={async () => {
                                     if (!selectedPhotographer || !spreadSheetDate) return;
                                     try {
