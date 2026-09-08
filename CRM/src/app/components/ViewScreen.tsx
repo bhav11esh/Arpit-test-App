@@ -5317,7 +5317,7 @@ export function ViewScreen() {
                                   variant="outline"
                                   size="sm"
                                   className="text-xs h-7 border-orange-400 text-orange-600 hover:bg-orange-50 font-semibold"
-                                  disabled={customerPaidDeliveries.some(d => !screenshots.some(s => s.delivery_id === d.id && s.type.startsWith('CUSTOMER_CALL_LOG') && !s.deleted_at))}
+                                  disabled={false}
                                   onClick={async () => {
                                     if (!selectedPhotographer || !spreadSheetDate) return;
                                     try {
