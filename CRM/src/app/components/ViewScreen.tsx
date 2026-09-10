@@ -3350,6 +3350,7 @@ export function ViewScreen() {
                         <TableHead className="text-white font-bold">Reel Link</TableHead>
                         <TableHead className="text-white font-bold">Photographer Name</TableHead>
                         <TableHead className="text-white font-bold">Amount Received</TableHead>
+                        <TableHead className="text-white font-bold">Is Billed</TableHead>
                         <TableHead className="text-white font-bold">Phone Number</TableHead>
                         <TableHead className="text-white font-bold">Rapido Charge</TableHead>
                         <TableHead className="text-white font-bold">Source</TableHead>
@@ -3361,7 +3362,7 @@ export function ViewScreen() {
                     <TableBody>
                       {filteredDeliveries.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={isAdmin ? 12 : 11} className="h-40 text-center text-slate-500">
+                          <TableCell colSpan={isAdmin ? 13 : 12} className="h-40 text-center text-slate-500">
                             <div className="flex flex-col items-center justify-center gap-2 py-8">
                               <ClipboardCheck className="h-10 w-10 text-slate-300 animate-pulse" />
                               <p className="font-semibold text-slate-700">No deliveries found</p>
@@ -3622,6 +3623,53 @@ export function ViewScreen() {
                                   </div>
                                 )}
                               </TableCell>
+
+                              {/* Is Billed (Showroom Paid Content - Editable for Admin) */}
+                              <TableCell className="text-sm">
+                                {(() => {
+                                  const isDealerPaid = resolvedDealership?.paymentType === 'DEALER_PAID';
+                                  const isBilled = isDealerPaid || !!(delivery as any).is_invoice_billing;
+
+                                  if (isDealerPaid) {
+                                    return (
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-semibold text-[11px]" title="Dealership Paid Showroom (Always Billed)">
+                                        Showroom Billed (True)
+                                      </Badge>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={!isAdmin}
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!isAdmin) return;
+                                        const newBilledState = !isBilled;
+                                        try {
+                                          await deliveriesDb.updateDelivery(delivery.id, { is_invoice_billing: newBilledState }, supabase);
+                                          const updated = deliveries.map(d => d.id === delivery.id ? { ...d, is_invoice_billing: newBilledState } as any : d);
+                                          setDeliveries(updated);
+                                          toast.success(`Updated to ${newBilledState ? 'Showroom Billed (True)' : 'Customer Paid (False)'}`);
+                                        } catch (err) {
+                                          console.error('Failed to update is_billed state:', err);
+                                          toast.error('Failed to update is_billed status');
+                                        }
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                                        isBilled 
+                                          ? 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100 shadow-sm' 
+                                          : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                                      } ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                                      title={isAdmin ? `Click to toggle Is Billed state (Currently: ${isBilled ? 'True' : 'False'})` : `Is Billed: ${isBilled ? 'True' : 'False'}`}
+                                    >
+                                      <span className={`h-2 w-2 rounded-full ${isBilled ? 'bg-purple-600' : 'bg-slate-400'}`} />
+                                      {isBilled ? 'Showroom Billed (True)' : 'Customer Paid (False)'}
+                                    </button>
+                                  );
+                                })()}
+                              </TableCell>
+
                               {/* Phone Number (Editable for Admin) */}
                               <TableCell className="text-sm font-mono">
                                 {editingCell?.deliveryId === delivery.id && editingCell?.field === 'customer_phone' ? (
