@@ -218,15 +218,32 @@ export const getActiveUsersByCluster = async (clusterCode: string, supabaseClien
 // Admin only: Update user password
 export const adminUpdateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
   const { adminSupabase } = await import('../supabase');
-  if (!adminSupabase) {
-    throw new Error('Admin privileges required for this operation. Service role key not configured.');
+  if (adminSupabase) {
+    const { error } = await adminSupabase.auth.admin.updateUserById(userId, {
+      password: newPassword
+    });
+    if (!error) return;
   }
 
-  const { error } = await adminSupabase.auth.admin.updateUserById(userId, {
-    password: newPassword
+  // Fallback for browser production environment: Route via Vercel serverless proxy (/api/admin-auth)
+  const response = await fetch('/api/admin-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: `/users/${userId}`,
+      method: 'PUT',
+      body: { password: newPassword }
+    })
   });
 
-  if (error) throw error;
+  if (!response.ok) {
+    let errorMsg = 'Failed to update password';
+    try {
+      const errData = await response.json();
+      errorMsg = errData.msg || errData.error_description || errData.error || errData.message || errorMsg;
+    } catch {}
+    throw new Error(errorMsg);
+  }
 };
 
 // Update user's heartbeat (Last Active) and GPS status
