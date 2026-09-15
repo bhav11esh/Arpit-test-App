@@ -33,7 +33,9 @@ import {
   AlertTriangle,
   XCircle,
   FileCode,
-  Trash2
+  Trash2,
+  Phone,
+  Mail
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { InvoiceGenerator } from './InvoiceGenerator';
@@ -161,13 +163,20 @@ export function InvoiceDashboard() {
   };
 
   const filteredInvoices = invoices.filter(invoice => {
+    const dealer = dealerships.find(d => d.id === invoice.dealership_id);
     const dealerName = getDealerName(invoice.dealership_id).toLowerCase();
     const invNum = invoice.invoice_number.toLowerCase();
     const month = formatMonth(invoice.billing_month).toLowerCase();
+    const billingPhone = (dealer?.billing_phone || '').toLowerCase();
+    const billingEmail = (dealer?.billing_email || '').toLowerCase();
+    const billingCompany = (dealer?.billing_company_name || '').toLowerCase();
     
     const matchesSearch = dealerName.includes(searchTerm.toLowerCase()) || 
                           invNum.includes(searchTerm.toLowerCase()) ||
-                          month.includes(searchTerm.toLowerCase());
+                          month.includes(searchTerm.toLowerCase()) ||
+                          billingPhone.includes(searchTerm.toLowerCase()) ||
+                          billingEmail.includes(searchTerm.toLowerCase()) ||
+                          billingCompany.includes(searchTerm.toLowerCase());
                           
     const matchesStatus = statusFilter === 'ALL' || invoice.status === statusFilter;
     const matchesDealer = dealerFilter === 'ALL' || invoice.dealership_id === dealerFilter;
@@ -258,7 +267,7 @@ export function InvoiceDashboard() {
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
               <Input
-                placeholder="Search invoice number, showroom..."
+                placeholder="Search invoice number, showroom, phone or email..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9 bg-zinc-50 border-zinc-200 focus:bg-white text-sm"
@@ -324,6 +333,7 @@ export function InvoiceDashboard() {
                 <TableRow>
                   <TableHead className="font-semibold text-zinc-600 text-xs">Invoice Number</TableHead>
                   <TableHead className="font-semibold text-zinc-600 text-xs">Dealership</TableHead>
+                  <TableHead className="font-semibold text-zinc-600 text-xs">Contact Info</TableHead>
                   <TableHead className="font-semibold text-zinc-600 text-xs">Billing Period</TableHead>
                   <TableHead className="font-semibold text-zinc-600 text-xs">Invoice Date</TableHead>
                   <TableHead className="font-semibold text-zinc-600 text-xs text-right">Amount (₹)</TableHead>
@@ -332,40 +342,73 @@ export function InvoiceDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.map(invoice => (
-                  <TableRow key={invoice.id} className="hover:bg-zinc-50/50 transition-colors">
-                    <TableCell className="font-medium text-sm text-zinc-900">{invoice.invoice_number}</TableCell>
-                    <TableCell className="text-sm text-zinc-700">{getDealerName(invoice.dealership_id)}</TableCell>
-                    <TableCell className="text-sm text-zinc-600">{formatMonth(invoice.billing_month)}</TableCell>
-                    <TableCell className="text-sm text-zinc-500">
-                      {new Date(invoice.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </TableCell>
-                    <TableCell className="text-sm text-zinc-900 font-bold text-right">
-                      ₹{Number(invoice.total_amount).toLocaleString('en-IN')}
-                    </TableCell>
-                    <TableCell className="text-center">{getStatusBadge(invoice.status)}</TableCell>
-                    <TableCell className="text-right pr-6 space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedInvoice(invoice)}
-                        className="text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
-                        title="View / Print PDF"
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteInvoice(invoice)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        title="Delete Invoice"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredInvoices.map(invoice => {
+                  const dealer = dealerships.find(d => d.id === invoice.dealership_id);
+                  const phone = dealer?.billing_phone;
+                  const email = dealer?.billing_email;
+
+                  return (
+                    <TableRow key={invoice.id} className="hover:bg-zinc-50/50 transition-colors">
+                      <TableCell className="font-medium text-sm text-zinc-900">{invoice.invoice_number}</TableCell>
+                      <TableCell className="text-sm text-zinc-700 font-medium">{getDealerName(invoice.dealership_id)}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="space-y-1">
+                          {phone ? (
+                            <a
+                              href={`tel:${phone}`}
+                              className="flex items-center gap-1.5 text-zinc-900 font-semibold hover:text-blue-600 hover:underline"
+                              title="Click to call"
+                            >
+                              <Phone className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                              <span>{phone}</span>
+                            </a>
+                          ) : null}
+                          {email ? (
+                            <a
+                              href={`mailto:${email}`}
+                              className="flex items-center gap-1.5 text-zinc-600 hover:text-blue-600 hover:underline truncate max-w-[200px]"
+                              title={email}
+                            >
+                              <Mail className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                              <span className="truncate">{email}</span>
+                            </a>
+                          ) : null}
+                          {!phone && !email && (
+                            <span className="text-zinc-400 italic">No contact info</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-zinc-600">{formatMonth(invoice.billing_month)}</TableCell>
+                      <TableCell className="text-sm text-zinc-500">
+                        {new Date(invoice.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </TableCell>
+                      <TableCell className="text-sm text-zinc-900 font-bold text-right">
+                        ₹{Number(invoice.total_amount).toLocaleString('en-IN')}
+                      </TableCell>
+                      <TableCell className="text-center">{getStatusBadge(invoice.status)}</TableCell>
+                      <TableCell className="text-right pr-6 space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedInvoice(invoice)}
+                          className="text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+                          title="View / Print PDF"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteInvoice(invoice)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          title="Delete Invoice"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
