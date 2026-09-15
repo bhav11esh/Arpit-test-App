@@ -2682,7 +2682,7 @@ export function ViewScreen() {
       };
 
       // Add reel_link, is_invoice_billing, and shoot_description if provided
-      (newDelivery as any).reel_link = newRowData.reel_link || '';
+      (newDelivery as any).reel_link = newRowData.reel_link && newRowData.reel_link.trim() !== '' ? newRowData.reel_link.trim() : null;
       (newDelivery as any).is_invoice_billing = newRowData.is_invoice_billing || false;
       if (newRowData.shoot_description) {
         (newDelivery as any).shoot_description = newRowData.shoot_description;
