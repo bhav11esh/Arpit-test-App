@@ -523,24 +523,34 @@ export function InvoicePreview({
               </div>
 
               {/* Billed To Details */}
-              <div className="grid grid-cols-2 gap-6 bg-zinc-50/70 p-4 rounded-xl border border-zinc-100 mb-5">
-                <div>
-                  <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Billed To</h3>
-                  <div className="space-y-1 text-xs text-zinc-800">
-                    <p className="font-extrabold text-zinc-950 text-sm">{dealer?.billing_company_name || dealer?.name}</p>
-                    <p className="text-zinc-600 leading-relaxed whitespace-pre-line">{dealer?.billing_address || 'No billing address configured'}</p>
-                    <p><span className="text-zinc-400 font-medium">State Name:</span> {dealer?.billing_state || 'Karnataka'}</p>
+              {(() => {
+                const savedContactStr = typeof window !== 'undefined' ? localStorage.getItem(`invoice_contact_${invoiceId}`) : null;
+                const savedContact = savedContactStr ? JSON.parse(savedContactStr) : {};
+                const contactPhone = savedContact.phone || dealer?.billing_phone;
+                const contactEmail = savedContact.email || dealer?.billing_email;
+                const companyName = savedContact.company_name || dealer?.billing_company_name || dealer?.name;
+
+                return (
+                  <div className="grid grid-cols-2 gap-6 bg-zinc-50/70 p-4 rounded-xl border border-zinc-100 mb-5">
+                    <div>
+                      <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Billed To</h3>
+                      <div className="space-y-1 text-xs text-zinc-800">
+                        <p className="font-extrabold text-zinc-950 text-sm">{companyName}</p>
+                        <p className="text-zinc-600 leading-relaxed whitespace-pre-line">{dealer?.billing_address || 'No billing address configured'}</p>
+                        <p><span className="text-zinc-400 font-medium">State Name:</span> {dealer?.billing_state || 'Karnataka'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-l border-zinc-200/60 pl-6">
+                      <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Contact Details</h3>
+                      <div className="space-y-1 text-xs text-zinc-700 mt-2">
+                        {contactEmail && <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-zinc-400" /> {contactEmail}</p>}
+                        {contactPhone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-zinc-400" /> {contactPhone}</p>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="border-l border-zinc-200/60 pl-6">
-                  <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Contact Details</h3>
-                  <div className="space-y-1 text-xs text-zinc-700 mt-2">
-                    {dealer?.billing_email && <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-zinc-400" /> {dealer.billing_email}</p>}
-                    {dealer?.billing_phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-zinc-400" /> {dealer.billing_phone}</p>}
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Table Loader */}
               {loading ? (

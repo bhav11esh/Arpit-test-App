@@ -35,7 +35,8 @@ import {
   FileCode,
   Trash2,
   Phone,
-  Mail
+  Mail,
+  Edit
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { InvoiceGenerator } from './InvoiceGenerator';
@@ -344,15 +345,36 @@ export function InvoiceDashboard() {
               <TableBody>
                 {filteredInvoices.map(invoice => {
                   const dealer = dealerships.find(d => d.id === invoice.dealership_id);
-                  const phone = dealer?.billing_phone;
-                  const email = dealer?.billing_email;
+                  const savedContactStr = typeof window !== 'undefined' ? localStorage.getItem(`invoice_contact_${invoice.id}`) : null;
+                  const savedContact = savedContactStr ? JSON.parse(savedContactStr) : {};
+                  
+                  const phone = savedContact.phone || dealer?.billing_phone;
+                  const email = savedContact.email || dealer?.billing_email;
+                  const isCustom = Boolean(savedContact.phone || savedContact.email);
+
+                  const handleEditContact = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    const newPhone = window.prompt(`Edit Contact Phone for Invoice #${invoice.invoice_number}:`, phone || '');
+                    if (newPhone === null) return;
+                    const newEmail = window.prompt(`Edit Contact Email for Invoice #${invoice.invoice_number}:`, email || '');
+                    if (newEmail === null) return;
+
+                    const updated = {
+                      phone: newPhone.trim(),
+                      email: newEmail.trim(),
+                      company_name: savedContact.company_name || dealer?.billing_company_name || dealer?.name
+                    };
+                    localStorage.setItem(`invoice_contact_${invoice.id}`, JSON.stringify(updated));
+                    toast.success(`Contact info updated for Invoice #${invoice.invoice_number}`);
+                    fetchInvoices();
+                  };
 
                   return (
                     <TableRow key={invoice.id} className="hover:bg-zinc-50/50 transition-colors">
                       <TableCell className="font-medium text-sm text-zinc-900">{invoice.invoice_number}</TableCell>
                       <TableCell className="text-sm text-zinc-700 font-medium">{getDealerName(invoice.dealership_id)}</TableCell>
                       <TableCell className="text-xs">
-                        <div className="space-y-1">
+                        <div className="space-y-1 group relative pr-6">
                           {phone ? (
                             <a
                               href={`tel:${phone}`}
@@ -366,7 +388,7 @@ export function InvoiceDashboard() {
                           {email ? (
                             <a
                               href={`mailto:${email}`}
-                              className="flex items-center gap-1.5 text-zinc-600 hover:text-blue-600 hover:underline truncate max-w-[200px]"
+                              className="flex items-center gap-1.5 text-zinc-600 hover:text-blue-600 hover:underline truncate max-w-[180px]"
                               title={email}
                             >
                               <Mail className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
@@ -376,6 +398,16 @@ export function InvoiceDashboard() {
                           {!phone && !email && (
                             <span className="text-zinc-400 italic">No contact info</span>
                           )}
+                          
+                          {/* Quick Edit Contact Icon */}
+                          <button
+                            onClick={handleEditContact}
+                            className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-200/60 transition-colors inline-flex items-center gap-1 mt-1 text-[10px]"
+                            title="Override contact info for this invoice"
+                          >
+                            <Edit className="h-3 w-3" />
+                            <span className="text-[10px] underline">Edit</span>
+                          </button>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-zinc-600">{formatMonth(invoice.billing_month)}</TableCell>
