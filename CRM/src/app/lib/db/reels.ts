@@ -216,3 +216,33 @@ export const relinquishPostIt = async (taskId: string, userId: string, supabaseC
   });
   if (error) throw error;
 };
+
+// Admin assign a post-it bounty reel to a photographer
+export const assignPostItByAdmin = async (
+  taskId: string,
+  targetUserId: string,
+  supabaseClient: SupabaseClient<Database> = supabase
+): Promise<void> => {
+  const claimDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  // 1. Update reel task to move out of post-it pool into target user's queue
+  const { data: task, error } = await (supabaseClient.from('reel_tasks') as any)
+    .update({
+      is_post_it: false,
+      assigned_user_id: targetUserId,
+      claim_deadline: claimDeadline,
+      reassigned_reason: 'ADMIN_ASSIGNED'
+    })
+    .eq('id', taskId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // 2. Sync delivery assigned_user_id
+  if (task && task.delivery_id) {
+    await (supabaseClient.from('deliveries') as any)
+      .update({ assigned_user_id: targetUserId })
+      .eq('id', task.delivery_id);
+  }
+};

@@ -50,6 +50,9 @@ export function ReelBacklog() {
   const [relinquishing, setRelinquishing] = useState<string | null>(null);
   const [bountyFilter, setBountyFilter] = useState<'mine' | 'others'>('others');
   const [isResolving, setIsResolving] = useState(false);
+  const [assignDialogOpenTaskId, setAssignDialogOpenTaskId] = useState<string | null>(null);
+  const [selectedPhotographerForAssign, setSelectedPhotographerForAssign] = useState<string>('');
+  const [isAssigningBounty, setIsAssigningBounty] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -132,6 +135,42 @@ export function ReelBacklog() {
       toast.error(error.message || 'Failed to unassign bounty');
     } finally {
       setRelinquishing(null);
+    }
+  };
+
+  const getEligiblePhotographersForTask = (task: ReelTask & { delivery?: Delivery }) => {
+    const originalShooterId = task.original_user_id || task.delivery?.assigned_user_id;
+    const failedClaimants = Array.isArray(task.failed_claimants) ? task.failed_claimants : [];
+
+    return allUsers.filter(u => {
+      if (!u.active) return false;
+      // Exclude original shooter who breached 4-day deadline
+      if (originalShooterId && u.id === originalShooterId) return false;
+      // Exclude photographers who previously claimed but failed within 24 hours
+      if (failedClaimants.includes(u.id)) return false;
+      return true;
+    });
+  };
+
+  const handleAdminAssignBounty = async (taskId: string) => {
+    if (!selectedPhotographerForAssign) {
+      toast.error('Please select a photographer');
+      return;
+    }
+    setIsAssigningBounty(true);
+    try {
+      const client = supabase;
+      const targetUser = allUsers.find(u => u.id === selectedPhotographerForAssign);
+      await reelsDb.assignPostItByAdmin(taskId, selectedPhotographerForAssign, client);
+      toast.success(`Bounty assigned to ${targetUser?.name || 'photographer'}!`);
+      setAssignDialogOpenTaskId(null);
+      setSelectedPhotographerForAssign('');
+      loadData();
+    } catch (error: any) {
+      console.error('Failed to assign bounty:', error);
+      toast.error(error.message || 'Failed to assign bounty');
+    } finally {
+      setIsAssigningBounty(false);
     }
   };
 
@@ -418,78 +457,158 @@ export function ReelBacklog() {
                         </div>
                       )}
 
-                      {/* V19: Only show CLAIM BOUNTY on "others" tab — photographer can't claim their own bounty */}
-                      {user?.role === 'PHOTOGRAPHER' && (
-                        bountyFilter === 'others' ? (
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleClaimPostIt(task.id)}
-                            disabled={claiming === task.id}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9"
-                          >
-                            {claiming === task.id ? 'CLAIMING...' : 'CLAIM BOUNTY'}
-                          </Button>
-                        ) : (
-                          <div className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100 uppercase tracking-wider">
-                            ⚠️ Penalty on you
-                          </div>
-                        )
+                      {/* Photographers: CLAIM BOUNTY is discontinued. Show penalty tag if it's their own failed shoot */}
+                      {user?.role === 'PHOTOGRAPHER' && bountyFilter === 'mine' && (
+                        <div className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100 uppercase tracking-wider">
+                          ⚠️ Penalty on you
+                        </div>
                       )}
 
-                      {/* V1 ADMIN: Admin can resolve bounty reels directly */}
+                      {/* ADMIN: Admin can assign bounty to eligible photographer or resolve directly */}
                       {isAdmin && (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9" onClick={() => {
-                              setSelectedTask(task);
-                              setReelLinkInput(task.reel_link || '');
-                            }}>
-                              <Film className="h-3.5 w-3.5 mr-2" />
-                              Resolve
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Resolve Bounty Task</DialogTitle>
-                              <DialogDescription>
-                                Add the reel link for {delivery.delivery_name} to resolve this bounty
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label>Reel Link</Label>
-                                <Input
-                                  type="url"
-                                  placeholder="https://drive.google.com/..."
-                                  value={reelLinkInput}
-                                  onChange={(e) => setReelLinkInput(e.target.value)}
-                                  disabled={isResolving}
-                                />
+                        <div className="flex items-center gap-2">
+                          {/* ASSIGN BOUNTY BUTTON & DIALOG */}
+                          <Dialog 
+                            open={assignDialogOpenTaskId === task.id} 
+                            onOpenChange={(open) => {
+                              if (!open) {
+                                setAssignDialogOpenTaskId(null);
+                                setSelectedPhotographerForAssign('');
+                              }
+                            }}
+                          >
+                            <DialogTrigger asChild>
+                              <Button 
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] px-3.5 rounded-xl shadow-lg shadow-blue-200 border-b-4 border-blue-800 active:border-b-0 active:mt-1 transition-all h-9 flex items-center gap-1.5"
+                                onClick={() => {
+                                  setAssignDialogOpenTaskId(task.id);
+                                  setSelectedPhotographerForAssign('');
+                                }}
+                              >
+                                <UserCheck className="h-3.5 w-3.5" />
+                                Assign
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Assign Bounty Reel</DialogTitle>
+                                <DialogDescription>
+                                  Select an eligible photographer to assign this bounty ({delivery.delivery_name}). They will receive 24 hours to upload the reel.
+                                </DialogDescription>
+                              </DialogHeader>
+
+                              {(() => {
+                                const eligibleList = getEligiblePhotographersForTask(task);
+                                if (eligibleList.length === 0) {
+                                  return (
+                                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium space-y-1">
+                                      <div className="font-bold flex items-center gap-1.5">
+                                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                                        No Eligible Photographers Available
+                                      </div>
+                                      <p className="text-[11px] text-amber-700 leading-normal">
+                                        All active photographers have either shot this delivery originally or previously failed to resolve this bounty within 24 hours.
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="space-y-4 py-2">
+                                    <div className="space-y-2">
+                                      <Label className="text-xs font-bold text-gray-700">Assign To Photographer</Label>
+                                      <Select value={selectedPhotographerForAssign} onValueChange={setSelectedPhotographerForAssign}>
+                                        <SelectTrigger className="w-full h-10">
+                                          <SelectValue placeholder="Select an eligible photographer..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {eligibleList.map(p => (
+                                            <SelectItem key={p.id} value={p.id}>
+                                              {p.name} ({p.role})
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              <DialogFooter>
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    setAssignDialogOpenTaskId(null);
+                                    setSelectedPhotographerForAssign('');
+                                  }} 
+                                  disabled={isAssigningBounty}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button 
+                                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold" 
+                                  onClick={() => handleAdminAssignBounty(task.id)} 
+                                  disabled={isAssigningBounty || !selectedPhotographerForAssign || getEligiblePhotographersForTask(task).length === 0}
+                                >
+                                  {isAssigningBounty ? 'Assigning...' : 'Confirm Assignment'}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+
+                          {/* RESOLVE BUTTON & DIALOG */}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-4 rounded-xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:mt-1 transition-all h-9 flex items-center gap-1.5" onClick={() => {
+                                setSelectedTask(task);
+                                setReelLinkInput(task.reel_link || '');
+                              }}>
+                                <Film className="h-3.5 w-3.5" />
+                                Resolve
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Resolve Bounty Task</DialogTitle>
+                                <DialogDescription>
+                                  Add the reel link for {delivery.delivery_name} to resolve this bounty
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label>Reel Link</Label>
+                                  <Input
+                                    type="url"
+                                    placeholder="https://drive.google.com/..."
+                                    value={reelLinkInput}
+                                    onChange={(e) => setReelLinkInput(e.target.value)}
+                                    disabled={isResolving}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => {
-                                setSelectedTask(null);
-                                setReelLinkInput('');
-                              }} disabled={isResolving}>
-                                Cancel
-                              </Button>
-                              <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
-                                {isResolving ? (
-                                  <>
-                                    <span className="animate-spin mr-2">⏳</span>
-                                    Resolving...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Resolve
-                                  </>
-                                )}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => {
+                                  setSelectedTask(null);
+                                  setReelLinkInput('');
+                                }} disabled={isResolving}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={() => handleResolve(task.id)} disabled={isResolving}>
+                                  {isResolving ? (
+                                    <>
+                                      <span className="animate-spin mr-2">⏳</span>
+                                      Resolving...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-4 w-4 mr-2" />
+                                      Resolve
+                                    </>
+                                  )}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                       )}
                     </div>
                   </CardContent>
