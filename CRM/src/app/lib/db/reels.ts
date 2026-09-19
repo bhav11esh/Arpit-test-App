@@ -238,11 +238,4 @@ export const assignPostItByAdmin = async (
     .single();
 
   if (error) throw error;
-
-  // 2. Sync delivery assigned_user_id
-  if (task && task.delivery_id) {
-    await (supabaseClient.from('deliveries') as any)
-      .update({ assigned_user_id: targetUserId })
-      .eq('id', task.delivery_id);
-  }
 };
