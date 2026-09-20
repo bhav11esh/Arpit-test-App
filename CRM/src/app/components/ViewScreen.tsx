@@ -5697,6 +5697,8 @@ export function ViewScreen() {
                           </div>
                         </div>
                       </div>
+                    </>
+                  )}
 
                   {/* Task 4: Deliveries Verification Cards */}
                   <div className={`space-y-4 ${activeAuditTab === 'deliveries' ? '' : 'hidden'}`}>
@@ -6126,7 +6128,17 @@ export function ViewScreen() {
                                         </Button>
                                       </div>
                                     )}
-                                  </div>                  {/* Task 5: SENT Invoices Follow-up */}
+                                  </div>
+                                )}
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Task 5: SENT Invoices Follow-up */}
                   <div className={`space-y-4 ${activeAuditTab === 'invoices' ? '' : 'hidden'}`}>
                     <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
                       <span className="flex items-center gap-2">
@@ -6394,6 +6406,8 @@ export function ViewScreen() {
                               ? 'bg-green-600 hover:bg-green-700 text-white'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           }`}
+                        >
+                          Send Update for Audit Tasks today
                         </Button>
                       )}
                     </div>
