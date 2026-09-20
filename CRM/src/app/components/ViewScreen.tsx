@@ -576,8 +576,12 @@ export function ViewScreen() {
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryViewMode, setGalleryViewMode] = useState<'single' | 'grid'>('single');
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
-  const [activeAuditTab, setActiveAuditTab] = useState<'bounty' | 'standup' | 'witness' | 'customer' | 'deliveries'>('bounty');
+  const [activeAuditTab, setActiveAuditTab] = useState<'bounty' | 'standup' | 'witness' | 'customer' | 'deliveries' | 'invoices'>('bounty');
   const [loading, setLoading] = useState(true);
+  const [sentInvoices, setSentInvoices] = useState<any[]>([]);
+  const [sentInvoiceLogsMap, setSentInvoiceLogsMap] = useState<Record<string, string>>({});
+  const [invoiceCallLogFiles, setInvoiceCallLogFiles] = useState<Record<string, File>>({});
+  const [uploadingInvoiceCallLogs, setUploadingInvoiceCallLogs] = useState<Record<string, boolean>>({});
 
   // V1 SPEC: Gallery filters
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
@@ -810,7 +814,13 @@ export function ViewScreen() {
       const { data: logs, error } = await client
         .from('log_events')
         .select('*')
-        .in('type', ['ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN', 'ADMIN_DAILY_AUDIT_UPDATE_SENT', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
+        .in('type', [
+          'ADMIN_AUDIT_HANDOVER_TO_SUPER_ADMIN', 
+          'ADMIN_DAILY_AUDIT_UPDATE_SENT', 
+          'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED',
+          'ADMIN_AUDIT_BOUNTY_BOARD_VERIFIED',
+          'INVOICE_SENT_CALL_LOG_VERIFIED'
+        ])
         .gte('created_at', start)
         .lte('created_at', end);
 
@@ -827,8 +837,32 @@ export function ViewScreen() {
         le.metadata?.date === spreadSheetDate
       );
 
+      const isBountyVerifiedLog = (logs || []).some(le =>
+        le.type === 'ADMIN_AUDIT_BOUNTY_BOARD_VERIFIED' &&
+        le.metadata?.date === spreadSheetDate
+      );
+
       setHandoverLogs(handovers);
       setAdminUpdateSent(updateSent);
+      if (isBountyVerifiedLog) {
+        setBountyBoardVerified(true);
+      }
+
+      // Fetch SENT invoices and map call log screenshot verifications for spreadSheetDate
+      try {
+        const { data: invs } = await client.from('invoices').select('*').eq('status', 'SENT');
+        setSentInvoices(invs || []);
+
+        const verifiedMap: Record<string, string> = {};
+        (logs || []).forEach(le => {
+          if (le.type === 'INVOICE_SENT_CALL_LOG_VERIFIED' && le.metadata?.date === spreadSheetDate && le.metadata?.invoice_id) {
+            verifiedMap[le.metadata.invoice_id] = le.metadata.call_log_screenshot_url;
+          }
+        });
+        setSentInvoiceLogsMap(verifiedMap);
+      } catch (e) {
+        console.error('Failed to load SENT invoices or call log map:', e);
+      }
 
       // Fetch missed-send-update closed tasks for this date
       const closedIds = new Set<string>(
@@ -903,6 +937,12 @@ export function ViewScreen() {
       setBountyBoardCount(unclaimed.length);
       if (unclaimed.length === 0) {
         setBountyBoardVerified(true);
+        await client.from('log_events').insert({
+          type: 'ADMIN_AUDIT_BOUNTY_BOARD_VERIFIED',
+          actor_user_id: user.id,
+          target_id: user.id,
+          metadata: { date: spreadSheetDate }
+        });
         toast.success('Bounty board verification passed! No unclaimed bounties found.');
       } else {
         setBountyBoardVerified(false);
@@ -913,6 +953,47 @@ export function ViewScreen() {
       toast.error('Failed to verify bounty board');
     } finally {
       setVerifyingBountyBoard(false);
+    }
+  };
+
+  const handleUploadInvoiceCallLog = async (inv: any) => {
+    const file = invoiceCallLogFiles[inv.id];
+    if (!file) {
+      toast.error('Please select a call log screenshot first');
+      return;
+    }
+    setUploadingInvoiceCallLogs(prev => ({ ...prev, [inv.id]: true }));
+    try {
+      const client = supabase;
+      const check = await checkDuplicateAndGetPath(file, 'invoice_call_logs', `${inv.id}_${spreadSheetDate}`, client);
+      if (check.isDuplicate) {
+        toast.error('Duplicate call log screenshot detected!');
+        setUploadingInvoiceCallLogs(prev => ({ ...prev, [inv.id]: false }));
+        return;
+      }
+      const url = await screenshotsDb.uploadScreenshotFile(file, check.path, client);
+      
+      const { error } = await client.from('log_events').insert({
+        type: 'INVOICE_SENT_CALL_LOG_VERIFIED',
+        actor_user_id: user.id,
+        target_id: inv.id,
+        metadata: {
+          invoice_id: inv.id,
+          invoice_number: inv.invoice_number,
+          date: spreadSheetDate,
+          call_log_screenshot_url: url
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success(`Follow-up call log saved for Invoice #${inv.invoice_number}`);
+      fetchHandoverAndSentLogs();
+    } catch (err: any) {
+      console.error('Failed to upload invoice call log:', err);
+      toast.error('Failed to upload call log screenshot');
+    } finally {
+      setUploadingInvoiceCallLogs(prev => ({ ...prev, [inv.id]: false }));
     }
   };
 
@@ -4943,6 +5024,16 @@ export function ViewScreen() {
                     >
                       Deliveries checklist (Task 4)
                     </button>
+                    <button
+                      onClick={() => setActiveAuditTab('invoices')}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        activeAuditTab === 'invoices'
+                          ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      SENT Invoices Follow-up (Task 5)
+                    </button>
                   </div>
 
                   {/* Task 1: Bounty Board Clearance */}
@@ -6035,17 +6126,138 @@ export function ViewScreen() {
                                         </Button>
                                       </div>
                                     )}
-                                  </div>
-                                )}
-                              </CardContent>
-                            )}
-                          </Card>
-                        );
-                      })
-                    )}
+                                  </div>                  {/* Task 5: SENT Invoices Follow-up */}
+                  <div className={`space-y-4 ${activeAuditTab === 'invoices' ? '' : 'hidden'}`}>
+                    <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-indigo-600" />
+                        Task 5: SENT Invoices Follow-up Audit Task (Daily Call Log Follow-up)
+                      </span>
+                      {sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id]) ? (
+                        <Badge className="bg-green-100 text-green-800 border-green-200 font-semibold text-[10px]">
+                          ✅ Task Clear
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-indigo-600 bg-indigo-50 border-indigo-200 text-[10px]">
+                          Pending Verification ({sentInvoices.filter(i => !sentInvoiceLogsMap[i.id]).length} remaining)
+                        </Badge>
+                      )}
+                    </h3>
+
+                    <Card className="border-l-4 border-l-indigo-600">
+                      <CardContent className="py-5 space-y-4">
+                        <p className="text-xs text-gray-600">
+                          Mandatory daily follow-up call task for all invoices currently marked as <b>SENT</b> in the Invoice Dashboard. Uploading an individual call log screenshot for each SENT invoice is required to clear this audit task type for the day.
+                        </p>
+
+                        {sentInvoices.length === 0 ? (
+                          <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-300 px-4 py-3 text-xs font-semibold text-green-800">
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                            ✅ No SENT invoices pending follow-up. Invoices Audit Task is clear!
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-4">
+                            {sentInvoices.map(inv => {
+                              const dealershipObj = dealerships.find(d => d.id === inv.dealership_id);
+                              const dealerName = dealershipObj ? dealershipObj.name : 'Unknown Dealership';
+                              const dealerPhone = dealershipObj?.phone_number || 'No contact phone';
+                              const isVerified = !!sentInvoiceLogsMap[inv.id];
+                              const verifiedUrl = sentInvoiceLogsMap[inv.id];
+
+                              return (
+                                <Card key={inv.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isVerified ? 'border-l-green-600 bg-white' : 'border-l-indigo-500 bg-indigo-50/10'}`}>
+                                  <CardHeader className="py-3 px-4 flex flex-row items-center justify-between select-none">
+                                    <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-indigo-600" />
+                                        <span className="text-slate-800">Invoice #{inv.invoice_number}</span>
+                                        <span className="text-xs font-normal text-slate-500">({dealerName})</span>
+                                      </div>
+                                      <div>
+                                        {isVerified ? (
+                                          <Badge className="bg-green-100 text-green-800 border-green-200 font-semibold text-[10px]">
+                                            ✅ Call Log Verified
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-indigo-600 bg-indigo-50 border-indigo-200 text-[10px]">
+                                            Follow-up Pending
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-3 pt-1 text-xs">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                      <div>
+                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Billing Period</span>
+                                        <span className="font-semibold text-slate-700">{inv.billing_month || 'N/A'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Invoice Date</span>
+                                        <span className="font-semibold text-slate-700">{inv.invoice_date}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Amount</span>
+                                        <span className="font-mono font-bold text-slate-900">₹{inv.total_amount?.toLocaleString('en-IN')}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Contact Phone</span>
+                                        <span className="font-mono font-semibold text-indigo-700">{dealerPhone}</span>
+                                      </div>
+                                    </div>
+
+                                    {isVerified ? (
+                                      <div className="flex items-center justify-between bg-green-50/60 p-2.5 rounded-lg border border-green-200">
+                                        <span className="text-green-800 font-semibold text-xs flex items-center gap-1.5">
+                                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                          Follow-up call log uploaded for {spreadSheetDate}
+                                        </span>
+                                        <a
+                                          href={verifiedUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                                        >
+                                          <Eye className="h-3.5 w-3.5" /> View Screenshot
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2 border-t pt-2">
+                                        <label className="text-[11px] font-bold text-gray-700 block">
+                                          Upload Follow-up Call Log Screenshot *
+                                        </label>
+                                        <div className="flex gap-2 items-center">
+                                          <Input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                setInvoiceCallLogFiles(prev => ({ ...prev, [inv.id]: file }));
+                                              }
+                                            }}
+                                            className="h-8 text-xs bg-white flex-1"
+                                          />
+                                          <Button
+                                            size="sm"
+                                            disabled={!invoiceCallLogFiles[inv.id] || uploadingInvoiceCallLogs[inv.id]}
+                                            onClick={() => handleUploadInvoiceCallLog(inv)}
+                                            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                                          >
+                                            {uploadingInvoiceCallLogs[inv.id] ? 'Uploading...' : 'Save Call Log'}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
-                    </>
-                  )}
 
                   {/* Missed Send Update Task — shown inline if this photographer missed update or had 0 deliveries */}
                   {(() => {
@@ -6154,6 +6366,11 @@ export function ViewScreen() {
                               toast.error('Please verify the Bounty Board clearance first');
                               return;
                             }
+                            const isSentInvoicesCleared = sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id]);
+                            if (!isSentInvoicesCleared) {
+                              toast.error('Please complete all SENT invoice follow-up call log audits first');
+                              return;
+                            }
                             if (missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))) {
                               toast.error('Close all Missed Send Update audit tasks first');
                               return;
@@ -6161,7 +6378,7 @@ export function ViewScreen() {
                             try {
                               await supabase.from('log_events').insert({
                                 type: 'ADMIN_DAILY_AUDIT_UPDATE_SENT',
-                                user_id: user.id,
+                                actor_user_id: user.id,
                                 target_id: user.id,
                                 metadata: { date: spreadSheetDate }
                               });
@@ -6171,14 +6388,12 @@ export function ViewScreen() {
                               toast.error('Failed to send update');
                             }
                           }}
-                          disabled={!allPhotographersCleared || !bountyBoardVerified || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
+                          disabled={!allPhotographersCleared || !bountyBoardVerified || !(sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id])) || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
                           className={`w-full h-11 font-bold text-sm ${
-                            allPhotographersCleared && bountyBoardVerified && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
+                            allPhotographersCleared && bountyBoardVerified && (sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id])) && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
                               ? 'bg-green-600 hover:bg-green-700 text-white'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           }`}
-                        >
-                          Send Update for Audit Tasks today
                         </Button>
                       )}
                     </div>
