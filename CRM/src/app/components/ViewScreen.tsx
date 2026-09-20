@@ -6172,7 +6172,12 @@ export function ViewScreen() {
                             {sentInvoices.map(inv => {
                               const dealershipObj = dealerships.find(d => d.id === inv.dealership_id);
                               const dealerName = dealershipObj ? dealershipObj.name : 'Unknown Dealership';
-                              const dealerPhone = dealershipObj?.phone_number || 'No contact phone';
+                              
+                              const savedContactStr = typeof window !== 'undefined' ? localStorage.getItem(`invoice_contact_${inv.id}`) : null;
+                              const savedContact = savedContactStr ? JSON.parse(savedContactStr) : {};
+
+                              const dealerPhone = savedContact.phone || dealershipObj?.billing_phone || dealershipObj?.phone_number || 'No contact phone';
+                              const dealerEmail = savedContact.email || dealershipObj?.billing_email || '';
                               const isVerified = !!sentInvoiceLogsMap[inv.id];
                               const verifiedUrl = sentInvoiceLogsMap[inv.id];
 
@@ -6213,8 +6218,11 @@ export function ViewScreen() {
                                         <span className="font-mono font-bold text-slate-900">₹{inv.total_amount?.toLocaleString('en-IN')}</span>
                                       </div>
                                       <div>
-                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Contact Phone</span>
-                                        <span className="font-mono font-semibold text-indigo-700">{dealerPhone}</span>
+                                        <span className="text-slate-400 text-[10px] block font-bold uppercase">Contact Info</span>
+                                        <div className="flex flex-col">
+                                          <span className="font-mono font-semibold text-indigo-700 select-all">{dealerPhone}</span>
+                                          {dealerEmail && <span className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]">{dealerEmail}</span>}
+                                        </div>
                                       </div>
                                     </div>
 
