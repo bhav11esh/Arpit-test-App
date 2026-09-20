@@ -576,7 +576,7 @@ export function ViewScreen() {
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryViewMode, setGalleryViewMode] = useState<'single' | 'grid'>('single');
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
-  const [activeAuditTab, setActiveAuditTab] = useState<'standup' | 'witness' | 'customer' | 'deliveries'>('standup');
+  const [activeAuditTab, setActiveAuditTab] = useState<'bounty' | 'standup' | 'witness' | 'customer' | 'deliveries'>('bounty');
   const [loading, setLoading] = useState(true);
 
   // V1 SPEC: Gallery filters
@@ -4885,6 +4885,16 @@ export function ViewScreen() {
                   {/* TABS SELECTOR BAR FOR MOBILE & DESKTOP AUDITS */}
                   <div className="flex border border-slate-200/60 overflow-x-auto scrollbar-hide py-1 gap-2 bg-slate-50/80 backdrop-blur-sm p-1.5 rounded-xl shadow-sm">
                     <button
+                      onClick={() => setActiveAuditTab('bounty')}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                        activeAuditTab === 'bounty'
+                          ? 'bg-white text-purple-700 shadow-sm border border-slate-200/50 font-extrabold'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Bounty Board Clearance (Task 1)
+                    </button>
+                    <button
                       onClick={() => setActiveAuditTab('standup')}
                       className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs whitespace-nowrap transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
                         activeAuditTab === 'standup'
@@ -4892,7 +4902,7 @@ export function ViewScreen() {
                           : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      Morning Standups (Task 1)
+                      Morning Standups (Task 2)
                     </button>
                     <button
                       onClick={() => setActiveAuditTab('witness')}
@@ -4905,7 +4915,7 @@ export function ViewScreen() {
                           : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      Witness Audits (Task 2A)
+                      Witness Audits (Task 3A)
                     </button>
                     <button
                       onClick={() => setActiveAuditTab('customer')}
@@ -4918,7 +4928,7 @@ export function ViewScreen() {
                           : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      Customer Confirms (Task 2B)
+                      Customer Confirms (Task 3B)
                     </button>
                     <button
                       onClick={() => setActiveAuditTab('deliveries')}
@@ -4931,17 +4941,52 @@ export function ViewScreen() {
                           : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      Deliveries checklist (Task 3)
+                      Deliveries checklist (Task 4)
                     </button>
                   </div>
+
+                  {/* Task 1: Bounty Board Clearance */}
+                  <div className={`space-y-4 ${activeAuditTab === 'bounty' ? '' : 'hidden'}`}>
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-purple-600" />
+                      Task 1: Bounty Board Clearance
+                    </h3>
+                    <Card className="border-l-4 border-l-purple-600">
+                      <CardContent className="py-5 space-y-3">
+                        <p className="text-xs text-gray-600">
+                          Verify that there are no unresolved, unclaimed bounty reels pending in the Reel Backlog bounty board. Click the button below to check live.
+                        </p>
+                        {bountyBoardCount !== null && (
+                          bountyBoardVerified ? (
+                            <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-300 px-4 py-2 text-xs font-semibold text-green-800">
+                              <ShieldCheck className="h-4 w-4 text-green-600" />
+                              ✅ Bounty board is clear — no unclaimed pending reels found.
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 rounded-md bg-red-50 border border-red-300 px-4 py-2 text-xs font-semibold text-red-800">
+                              <Clock className="h-4 w-4 text-red-600" />
+                              ❌ {bountyBoardCount} unclaimed bounty reel{bountyBoardCount !== 1 ? 's' : ''} still pending. Please resolve before sending update.
+                            </div>
+                          )
+                        )}
+                        <Button
+                          onClick={handleVerifyBountyBoard}
+                          disabled={verifyingBountyBoard || bountyBoardVerified}
+                          className="h-9 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs"
+                        >
+                          {verifyingBountyBoard ? 'Verifying...' : bountyBoardVerified ? '✅ Verified' : 'Verify Bounty Board'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
                   
-                  {/* Task 1: Morning Standup Call Card */}
+                  {/* Task 2: Morning Standup Call Card */}
                   <Card className={`border-l-4 border-l-blue-500 ${activeAuditTab === 'standup' ? '' : 'hidden'}`}>
                     <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-t-xl select-none" onClick={() => setCollapsedTask1Card(!collapsedTask1Card)}>
                       <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
                         <span className="flex items-center gap-2">
                           <Clock className="h-4.5 w-4.5 text-blue-500" />
-                          Task 1: Morning Standup Call Verification
+                          Task 2: Morning Standup Call Verification
                         </span>
                         <div className="flex items-center gap-2.5">
                           {currentStandupCall ? (
@@ -5271,20 +5316,20 @@ export function ViewScreen() {
 
                   {showTask2And3 && (
                     <>
-                      {/* Task 2: Fraud Detection Audits */}
+                      {/* Task 3: Fraud Detection Audits */}
                       <div className={`space-y-6 ${(activeAuditTab === 'witness' || activeAuditTab === 'customer') ? '' : 'hidden'}`}>
                         <div className="space-y-4">
                           <h3 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b pb-2">
                             <ShieldCheck className="h-5 w-5 text-amber-600" />
-                            Task 2: Fraud Detection Audits
+                            Task 3: Fraud Detection Audits
                           </h3>
 
-                          {/* Task 2A: Dealership Witness Call Audits */}
+                          {/* Task 3A: Dealership Witness Call Audits */}
                           <div className={`space-y-4 ${activeAuditTab === 'witness' ? '' : 'hidden'}`}>
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
-                                Task 2A: Dealership Witness Call Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
+                                Task 3A: Dealership Witness Call Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
                               {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2A') && uniqueShowroomCodesForPhotographer.length > 0 && (
                                 <Button
@@ -5304,7 +5349,7 @@ export function ViewScreen() {
                                           task_type: 'FRAUD_2A'
                                         }
                                       });
-                                      toast.success('Task 2A handed over to Super Admin');
+                                      toast.success('Task 3A handed over to Super Admin');
                                       fetchHandoverAndSentLogs();
                                     } catch (e) {
                                       toast.error('Failed to handover');
@@ -5353,12 +5398,12 @@ export function ViewScreen() {
                             )}
                           </div>
 
-                          {/* Task 2B: Customer Payment Fraud Audits */}
+                          {/* Task 3B: Customer Payment Fraud Audits */}
                           <div className={`space-y-4 border-t pt-4 mt-6 ${activeAuditTab === 'customer' ? '' : 'hidden'}`}>
                             <div className="flex justify-between items-center">
                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldAlert className="h-4.5 w-4.5 text-orange-500" />
-                                Task 2B: Customer Payment Fraud Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
+                                Task 3B: Customer Payment Fraud Audits (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                               </h4>
                               {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'FRAUD_2B') && customerPaidDeliveries.length > 0 && (
                                 <Button
@@ -5378,7 +5423,7 @@ export function ViewScreen() {
                                           task_type: 'FRAUD_2B'
                                         }
                                       });
-                                      toast.success('Task 2B handed over to Super Admin');
+                                      toast.success('Task 3B handed over to Super Admin');
                                       fetchHandoverAndSentLogs();
                                     } catch (e) {
                                       toast.error('Failed to handover');
@@ -5562,12 +5607,12 @@ export function ViewScreen() {
                         </div>
                       </div>
 
-                  {/* Task 3: Deliveries Verification Cards */}
+                  {/* Task 4: Deliveries Verification Cards */}
                   <div className={`space-y-4 ${activeAuditTab === 'deliveries' ? '' : 'hidden'}`}>
                     <h3 className="text-base font-bold text-gray-900 flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-green-600" />
-                        Task 3: Deliveries Verification checklist (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
+                        Task 4: Deliveries Verification checklist (for {formatDateForSheet(getYesterdayDateString(spreadSheetDate))})
                       </span>
                       {isAdmin && !handoverLogs.some(l => l.target_id === selectedPhotographer && l.metadata?.task_type === 'DELIVERIES') && (
                         <div className="flex items-center gap-2">
@@ -5613,7 +5658,7 @@ export function ViewScreen() {
                                     call_log_screenshot_url: task3CallLogUrl
                                   }
                                 });
-                                toast.success('Task 3 handed over to Super Admin');
+                                toast.success('Task 4 handed over to Super Admin');
                                 fetchHandoverAndSentLogs();
                               } catch (e) {
                                 toast.error('Failed to handover');
@@ -6090,39 +6135,6 @@ export function ViewScreen() {
                     );
                   })()}
 
-                  {/* Task 4: Bounty Board Clearance */}
-                  <div className="space-y-4">
-                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-purple-600" />
-                      Task 4: Bounty Board Clearance
-                    </h3>
-                    <Card className="border-l-4 border-l-purple-600">
-                      <CardContent className="py-5 space-y-3">
-                        <p className="text-xs text-gray-600">
-                          Verify that there are no unresolved, unclaimed bounty reels pending in the Reel Backlog bounty board. Click the button below to check live.
-                        </p>
-                        {bountyBoardCount !== null && (
-                          bountyBoardVerified ? (
-                            <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-300 px-4 py-2 text-xs font-semibold text-green-800">
-                              <ShieldCheck className="h-4 w-4 text-green-600" />
-                              ✅ Bounty board is clear — no unclaimed pending reels found.
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 rounded-md bg-red-50 border border-red-300 px-4 py-2 text-xs font-semibold text-red-800">
-                              <Clock className="h-4 w-4 text-red-600" />
-                              ❌ {bountyBoardCount} unclaimed bounty reel{bountyBoardCount !== 1 ? 's' : ''} still pending. Please resolve before sending update.
-                            </div>
-                          )
-                        )}
-                        <Button
-                          onClick={handleVerifyBountyBoard}
-                          disabled={verifyingBountyBoard || bountyBoardVerified}
-                          className="h-9 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs"
-                        >
-                          {verifyingBountyBoard ? 'Verifying...' : bountyBoardVerified ? '✅ Verified' : 'Verify Bounty Board'}
-                        </Button>
-                      </CardContent>
-                    </Card>
                   </div>
 
                   {/* Send Update for Audit Tasks today */}
