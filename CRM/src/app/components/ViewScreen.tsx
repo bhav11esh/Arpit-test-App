@@ -6135,8 +6135,6 @@ export function ViewScreen() {
                     );
                   })()}
 
-                  </div>
-
                   {/* Send Update for Audit Tasks today */}
                   {isAdmin && (
                     <div className="pt-2">
