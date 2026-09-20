@@ -5698,10 +5698,14 @@ export function ViewScreen() {
                           }));
                         };
 
-                        // Check status
+                        // Grab screenshots
+                        const paymentScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PAYMENT' && !s.deleted_at);
+                        const platformScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
+                        const rapidoScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'RAPIDO' && !s.deleted_at);
+
                         const isCustomerPaid = d.payment_type === 'CUSTOMER_PAID';
                         const photographerObj = allUsers.find(p => p.id === selectedPhotographer);
-                        const is15PercentModel = photographerObj && getPhotographerRawPayoutModel(selectedPhotographer, d.date) === 'PERCENTAGE_15_DAILY';
+                        const is15PercentModel = (photographerObj && getPhotographerRawPayoutModel(selectedPhotographer, d.date) === 'PERCENTAGE_15_DAILY') || !!platformScr;
                         const hasRapido = d.rapido_charge != null && d.rapido_charge > 0;
 
                         const isCustomerPayVerified = !isCustomerPaid || (!!d.payment_screenshot_date && !!d.payment_screenshot_time && !!d.payment_screenshot_amount);
@@ -5709,11 +5713,6 @@ export function ViewScreen() {
                         const isRapidoVerified = !hasRapido || (!!d.rapido_screenshot_date && !!d.rapido_screenshot_time && !!d.rapido_screenshot_amount);
 
                         const isDeliveryAudited = isCustomerPayVerified && isPlatformPayVerified && isRapidoVerified;
-
-                        // Grab screenshots
-                        const paymentScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PAYMENT' && !s.deleted_at);
-                        const platformScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'PLATFORM_PAYMENT' && !s.deleted_at);
-                        const rapidoScr = screenshots.find(s => s.delivery_id === d.id && s.type === 'RAPIDO' && !s.deleted_at);
 
                         const isCollapsed = collapsedTask3Cards[d.id] ?? isDeliveryAudited;
                         const expectedPlatformAmount = Math.max(0, Math.round((Number(d.received_amount || 0) - Number(d.rapido_charge || 0)) * 0.15));
