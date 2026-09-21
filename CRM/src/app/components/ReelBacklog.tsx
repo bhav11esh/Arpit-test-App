@@ -927,8 +927,8 @@ export function ReelBacklog() {
                         </div>
                         <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] px-2 py-0">Resolved</Badge>
                       </div>
-                      {/* V18.3: Show bounty amount if it was a post-it task */}
-                      {task.post_it_reward && (
+                      {/* V18.3: Show bounty amount if it was a bounty task resolved by a different photographer */}
+                      {task.post_it_reward && task.original_user_id && task.assigned_user_id !== task.original_user_id && (
                         <div className="flex items-center gap-1.5 mt-2 bg-emerald-600 text-white w-fit px-2.5 py-1 rounded-full text-[10px] font-black shadow-sm">
                           <Trophy className="h-3 w-3" />
                           <span>+₹{task.post_it_reward} EARNED</span>
