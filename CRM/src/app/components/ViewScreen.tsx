@@ -991,19 +991,22 @@ export function ViewScreen() {
       const client = supabase;
       const { data, error } = await client
         .from('reel_tasks')
-        .select('*')
+        .select('*, delivery:deliveries(*)')
         .eq('is_post_it', true)
         .eq('status', 'PENDING');
         
       if (error) throw error;
       
-      // Unclaimed: assigned_user_id === original_user_id or null, and original user is active
       const activeUserIds = new Set(allUsers.filter(u => u.active).map(u => u.id));
       const unclaimed = (data || []).filter(t => {
+        const delivery = t.delivery;
+        if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
+        if (t.original_user_id && !activeUserIds.has(t.original_user_id)) return false;
+        if (!t.is_post_it || t.claim_deadline) return false;
         const isUnclaimed = t.assigned_user_id === t.original_user_id || !t.assigned_user_id;
-        const isOriginalUserActive = !t.original_user_id || activeUserIds.has(t.original_user_id);
-        return isUnclaimed && isOriginalUserActive;
+        return isUnclaimed;
       });
+
       
       setBountyBoardCount(unclaimed.length);
       if (unclaimed.length === 0) {
