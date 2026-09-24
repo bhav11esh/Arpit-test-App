@@ -143,7 +143,7 @@ export function ReelBacklog() {
     const failedClaimants = Array.isArray(task.failed_claimants) ? task.failed_claimants : [];
 
     return allUsers.filter(u => {
-      if (!u.active) return false;
+      if (!u.active || u.role !== 'PHOTOGRAPHER') return false;
       // Exclude original shooter who breached 4-day deadline
       if (originalShooterId && u.id === originalShooterId) return false;
       // Exclude photographers who previously claimed but failed within 24 hours
