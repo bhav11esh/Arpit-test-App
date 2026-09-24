@@ -296,6 +296,7 @@ export function ReelBacklog() {
     const delivery = task.delivery || deliveries.find(d => d.id === task.delivery_id);
     if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
     if (task.original_user_id && !activeUserIds.has(task.original_user_id)) return false;
+    if (!task.is_post_it || task.claim_deadline) return false;
     return true;
   });
 
