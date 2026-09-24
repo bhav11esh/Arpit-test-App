@@ -491,7 +491,7 @@ function FraudAuditShowroomCard({
 export function ViewScreen() {
   const { user } = useAuth();
   const { dealerships, clusters, mappings, photographers, allUsers } = useConfig();
-  const { isPhotographerOnLeave, leaves, isFullDayLeave } = useLeave();
+  const { isPhotographerOnLeave, leaves, isFullDayLeave, addLeave, refreshLeaves } = useLeave();
   const navigate = useNavigate();
 
   const isDealershipActive = (showroomCode?: string | null): boolean => {
@@ -5343,13 +5343,35 @@ export function ViewScreen() {
                               {standupForm.status === 'LEAVE' && (
                                 <div className="mt-2">
                                   {leaves.some(l => l.photographerId === selectedPhotographer && l.date === spreadSheetDate) ? (
-                                    <div className="p-2.5 bg-green-50 border border-green-200 text-green-700 rounded text-xs font-semibold">
-                                      CRM Check: Leave record is verified for today.
+                                    <div className="p-2.5 bg-green-50 border border-green-200 text-green-700 rounded text-xs font-semibold flex items-center justify-between">
+                                      <span>CRM Check: Leave record is verified for today.</span>
                                     </div>
                                   ) : (
-                                    <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded text-xs font-semibold flex items-center gap-1.5">
-                                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                                      Leave is not applied in CRM! Cannot submit standup as absent.
+                                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
+                                      <div className="flex items-center gap-1.5">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+                                        <span>Leave is not applied in CRM for {spreadSheetDate}! Cannot submit standup as absent.</span>
+                                      </div>
+                                      {isAdmin && (
+                                        <Button
+                                          size="sm"
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              await addLeave(selectedPhotographer, spreadSheetDate, 'FIRST_HALF', 'ADMIN');
+                                              await addLeave(selectedPhotographer, spreadSheetDate, 'SECOND_HALF', 'ADMIN');
+                                              await refreshLeaves();
+                                              toast.success(`Applied Full Day Leave for ${selectedPhotographerObj?.name || 'Photographer'} on ${spreadSheetDate}`);
+                                            } catch (err: any) {
+                                              console.error('Failed to quick-apply leave:', err);
+                                              toast.error(err.message || 'Failed to apply leave');
+                                            }
+                                          }}
+                                          className="h-7 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 rounded-md shrink-0 shadow-sm"
+                                        >
+                                          + Apply Leave in CRM for {spreadSheetDate}
+                                        </Button>
+                                      )}
                                     </div>
                                   )}
                                 </div>
