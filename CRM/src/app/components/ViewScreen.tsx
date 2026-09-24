@@ -51,6 +51,29 @@ const getYesterdayDateString = (dateStr: string): string => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const getTomorrowDateStr = (dateStr: string): string => {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  dateObj.setDate(dateObj.getDate() + 1);
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const getRelativeDateStr = (dateStr: string, addDays: number): string => {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  dateObj.setDate(dateObj.getDate() + addDays);
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+
 
 interface FraudAuditShowroomCardProps {
   showroomCode: string;
@@ -582,6 +605,19 @@ export function ViewScreen() {
   const [sentInvoiceLogsMap, setSentInvoiceLogsMap] = useState<Record<string, string>>({});
   const [invoiceCallLogFiles, setInvoiceCallLogFiles] = useState<Record<string, File>>({});
   const [uploadingInvoiceCallLogs, setUploadingInvoiceCallLogs] = useState<Record<string, boolean>>({});
+  const [sentInvoiceFollowupDatesMap, setSentInvoiceFollowupDatesMap] = useState<Record<string, { next_followup_date: string; logged_date: string }>>({});
+  const [followupDateModalOpen, setFollowupDateModalOpen] = useState(false);
+  const [selectedInvoiceForDate, setSelectedInvoiceForDate] = useState<any | null>(null);
+  const [customFollowupDateInput, setCustomFollowupDateInput] = useState<string>('');
+
+  const isInvoiceResolvedForDate = (invId: string) => {
+    const isVerifiedToday = !!sentInvoiceLogsMap[invId];
+    const followupData = sentInvoiceFollowupDatesMap[invId];
+    const nextDate = followupData?.next_followup_date;
+    const isSnoozed = !!(nextDate && nextDate > spreadSheetDate);
+    return isVerifiedToday || isSnoozed;
+  };
+
 
   // V1 SPEC: Gallery filters
   const [selectedPhotographer, setSelectedPhotographer] = useState<string>('all');
@@ -848,18 +884,53 @@ export function ViewScreen() {
         setBountyBoardVerified(true);
       }
 
-      // Fetch SENT invoices and map call log screenshot verifications for spreadSheetDate
+      // Fetch SENT invoices and map call log screenshot verifications & next follow-up dates
       try {
         const { data: invs } = await client.from('invoices').select('*').eq('status', 'SENT');
         setSentInvoices(invs || []);
 
         const verifiedMap: Record<string, string> = {};
-        (logs || []).forEach(le => {
-          if (le.type === 'INVOICE_SENT_CALL_LOG_VERIFIED' && le.metadata?.date === spreadSheetDate && le.metadata?.invoice_id) {
-            verifiedMap[le.metadata.invoice_id] = le.metadata.call_log_screenshot_url;
+        const datesMap: Record<string, { next_followup_date: string; logged_date: string }> = {};
+
+        // 1. Fetch all follow-up date logs (including past dates so snoozes persist correctly)
+        const { data: followupLogs } = await client
+          .from('log_events')
+          .select('*')
+          .in('type', ['INVOICE_SENT_CALL_LOG_VERIFIED', 'INVOICE_FOLLOWUP_DATE_SET'])
+          .order('created_at', { ascending: true });
+
+        (followupLogs || []).forEach(le => {
+          const invId = le.metadata?.invoice_id || le.target_id;
+          if (!invId) return;
+
+          if (le.type === 'INVOICE_SENT_CALL_LOG_VERIFIED' && le.metadata?.date === spreadSheetDate) {
+            verifiedMap[invId] = le.metadata.call_log_screenshot_url;
+          }
+
+          const nextDate = le.metadata?.next_followup_date;
+          const loggedDate = le.metadata?.date || le.metadata?.logged_date || (le.created_at ? le.created_at.split('T')[0] : '');
+          if (nextDate) {
+            datesMap[invId] = { next_followup_date: nextDate, logged_date: loggedDate };
           }
         });
+
+        // 2. Check localStorage fallbacks for any SENT invoice missing in log_events
+        (invs || []).forEach(inv => {
+          if (!datesMap[inv.id] && typeof window !== 'undefined') {
+            const stored = localStorage.getItem(`invoice_next_followup_${inv.id}`);
+            if (stored) {
+              try {
+                const parsed = JSON.parse(stored);
+                if (parsed?.next_followup_date) {
+                  datesMap[inv.id] = { next_followup_date: parsed.next_followup_date, logged_date: parsed.logged_date || '' };
+                }
+              } catch (e) {}
+            }
+          }
+        });
+
         setSentInvoiceLogsMap(verifiedMap);
+        setSentInvoiceFollowupDatesMap(datesMap);
       } catch (e) {
         console.error('Failed to load SENT invoices or call log map:', e);
       }
@@ -956,6 +1027,50 @@ export function ViewScreen() {
     }
   };
 
+  const handleSaveNextFollowupDate = async (inv: any, nextDate: string) => {
+    if (!inv || !nextDate) {
+      toast.error('Please select a valid follow-up date');
+      return;
+    }
+    try {
+      const client = supabase;
+      const { error } = await client.from('log_events').insert({
+        type: 'INVOICE_FOLLOWUP_DATE_SET',
+        actor_user_id: user.id,
+        target_id: inv.id,
+        metadata: {
+          invoice_id: inv.id,
+          invoice_number: inv.invoice_number,
+          logged_date: spreadSheetDate,
+          next_followup_date: nextDate
+        }
+      });
+
+      if (error) throw error;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`invoice_next_followup_${inv.id}`, JSON.stringify({
+          next_followup_date: nextDate,
+          logged_date: spreadSheetDate,
+          updated_at: new Date().toISOString()
+        }));
+      }
+
+      setSentInvoiceFollowupDatesMap(prev => ({
+        ...prev,
+        [inv.id]: { next_followup_date: nextDate, logged_date: spreadSheetDate }
+      }));
+
+      toast.success(`Next follow-up date for Invoice #${inv.invoice_number} set to ${nextDate}`);
+      setFollowupDateModalOpen(false);
+      setSelectedInvoiceForDate(null);
+      fetchHandoverAndSentLogs();
+    } catch (err: any) {
+      console.error('Failed to save follow-up date:', err);
+      toast.error('Failed to save follow-up date');
+    }
+  };
+
   const handleUploadInvoiceCallLog = async (inv: any) => {
     const file = invoiceCallLogFiles[inv.id];
     if (!file) {
@@ -973,6 +1088,10 @@ export function ViewScreen() {
       }
       const url = await screenshotsDb.uploadScreenshotFile(file, check.path, client);
       
+      const existingNextDate = sentInvoiceFollowupDatesMap[inv.id]?.next_followup_date;
+      const defaultTomorrow = getTomorrowDateStr(spreadSheetDate);
+      const targetNextFollowupDate = (existingNextDate && existingNextDate > spreadSheetDate) ? existingNextDate : defaultTomorrow;
+
       const { error } = await client.from('log_events').insert({
         type: 'INVOICE_SENT_CALL_LOG_VERIFIED',
         actor_user_id: user.id,
@@ -981,11 +1100,20 @@ export function ViewScreen() {
           invoice_id: inv.id,
           invoice_number: inv.invoice_number,
           date: spreadSheetDate,
-          call_log_screenshot_url: url
+          call_log_screenshot_url: url,
+          next_followup_date: targetNextFollowupDate
         }
       });
 
       if (error) throw error;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`invoice_next_followup_${inv.id}`, JSON.stringify({
+          next_followup_date: targetNextFollowupDate,
+          logged_date: spreadSheetDate,
+          updated_at: new Date().toISOString()
+        }));
+      }
 
       toast.success(`Follow-up call log saved for Invoice #${inv.invoice_number}`);
       fetchHandoverAndSentLogs();

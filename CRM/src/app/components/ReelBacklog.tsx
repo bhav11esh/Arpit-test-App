@@ -382,7 +382,10 @@ export function ReelBacklog() {
               const delivery = task.delivery;
               if (!delivery) return null;
               
-              const shooter = allUsers.find(u => u.id === task.original_user_id);
+              const shooter = allUsers.find(u => u.id === (delivery?.assigned_user_id || task.original_user_id));
+              const assignedEditor = (task.assigned_user_id && task.assigned_user_id !== shooter?.id)
+                ? allUsers.find(u => u.id === task.assigned_user_id)
+                : null;
               
               return (
                 <Card key={task.id} className="relative overflow-hidden border-2 border-orange-100 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-orange-50/20">
@@ -438,24 +441,45 @@ export function ReelBacklog() {
                     )}
 
                     <div className="flex items-center justify-between mt-1">
-                      {shooter && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="size-6 rounded-full bg-orange-100 flex items-center justify-center text-[10px] font-bold text-orange-600 border border-orange-200">
-                            {shooter.name.charAt(0)}
-                          </div>
-                          <div className="text-[10px] leading-tight">
-                            <div className="text-gray-400 font-bold uppercase tracking-tighter text-[8px]">Shooter</div>
-                            <div className="text-gray-700 font-bold flex items-center gap-1">
-                              {shooter.name}
-                              {shooter.phone_number && (
-                                <a href={`tel:${shooter.phone_number}`} className="text-orange-500 hover:text-orange-600">
-                                  <Phone className="h-2.5 w-2.5" />
-                                </a>
-                              )}
+                      <div className="flex items-center gap-4">
+                        {shooter && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="size-6 rounded-full bg-orange-100 flex items-center justify-center text-[10px] font-bold text-orange-600 border border-orange-200">
+                              {shooter.name.charAt(0)}
+                            </div>
+                            <div className="text-[10px] leading-tight">
+                              <div className="text-gray-400 font-bold uppercase tracking-tighter text-[8px]">Shooter</div>
+                              <div className="text-gray-700 font-bold flex items-center gap-1">
+                                {shooter.name}
+                                {shooter.phone_number && (
+                                  <a href={`tel:${shooter.phone_number}`} className="text-orange-500 hover:text-orange-600">
+                                    <Phone className="h-2.5 w-2.5" />
+                                  </a>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+
+                        {assignedEditor && (
+                          <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200">
+                            <div className="size-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600 border border-blue-200">
+                              {assignedEditor.name.charAt(0)}
+                            </div>
+                            <div className="text-[10px] leading-tight">
+                              <div className="text-blue-500 font-bold uppercase tracking-tighter text-[8px]">Assigned Editor</div>
+                              <div className="text-blue-900 font-bold flex items-center gap-1">
+                                {assignedEditor.name}
+                                {assignedEditor.phone_number && (
+                                  <a href={`tel:${assignedEditor.phone_number}`} className="text-blue-500 hover:text-blue-600">
+                                    <Phone className="h-2.5 w-2.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Photographers: CLAIM BOUNTY is discontinued. Show penalty tag if it's their own failed shoot */}
                       {user?.role === 'PHOTOGRAPHER' && bountyFilter === 'mine' && (
