@@ -308,3 +308,25 @@ export function isEmergencyLeave(date: string, half: 'FIRST_HALF' | 'SECOND_HALF
 
   return appliedDate > deadline;
 }
+
+/**
+ * Normalize any date string (YYYY-MM-DD, DD-MM-YYYY, YYYY/MM/DD, DD/MM/YYYY) to standard YYYY-MM-DD format
+ */
+export function normalizeDateStr(dateStr: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  // If DD-MM-YYYY or DD/MM/YYYY format (e.g. 24-09-2026 or 24/09/2026)
+  const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, day, month, year] = ddmmyyyyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  // If YYYY-MM-DD or YYYY/MM/DD format (e.g. 2026-09-24 or 2026/09/24)
+  const yyyymmddMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const [, year, month, day] = yyyymmddMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return trimmed;
+}
+

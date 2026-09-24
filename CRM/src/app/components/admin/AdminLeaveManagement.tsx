@@ -27,6 +27,8 @@ import { Badge } from '../ui/badge';
 import type { LeaveHalf, CityWeekoff } from '../../types';
 import { getCityWeekoffs } from '../../lib/db/leaves';
 import { format } from 'date-fns';
+import { normalizeDateStr } from '../../lib/utils';
+
 
 type ViewMode = 'ALL' | 'BY_PHOTOGRAPHER' | 'BY_DATE';
 
@@ -109,7 +111,8 @@ export function AdminLeaveManagement() {
       }
     }
 
-    const [year, month, day] = formDate.split('-').map(Number);
+    const normalizedFormDate = normalizeDateStr(formDate);
+    const [year, month, day] = normalizedFormDate.split('-').map(Number);
     const localDate = new Date(year, month - 1, day);
     const dayOfWeek = localDate.getDay();
 
@@ -119,7 +122,7 @@ export function AdminLeaveManagement() {
     }
 
     try {
-      addLeave(formPhotographerId, formDate, formHalf, 'ADMIN');
+      addLeave(formPhotographerId, normalizedFormDate, formHalf, 'ADMIN');
       toast.success('Leave added successfully');
       handleCloseDialog();
     } catch (error) {
@@ -158,8 +161,13 @@ export function AdminLeaveManagement() {
 
   const formatLeaveDate = (dateStr: string) => {
     try {
-      const date = new Date(dateStr);
-      return format(date, 'dd MMM yyyy');
+      const normalized = normalizeDateStr(dateStr);
+      const [year, month, day] = normalized.split('-').map(Number);
+      if (year && month && day) {
+        const date = new Date(year, month - 1, day);
+        return format(date, 'dd MMM yyyy');
+      }
+      return dateStr;
     } catch {
       return dateStr;
     }
@@ -175,13 +183,15 @@ export function AdminLeaveManagement() {
       return leave.photographerId === filterPhotographerId;
     }
     if (viewMode === 'BY_DATE' && filterDate) {
-      return leave.date === filterDate;
+      return normalizeDateStr(leave.date) === normalizeDateStr(filterDate);
     }
     return true;
   }).sort((a, b) => {
     // Sort by date DESC, photographer, then half
-    if (a.date !== b.date) {
-      return b.date.localeCompare(a.date);
+    const normA = normalizeDateStr(a.date);
+    const normB = normalizeDateStr(b.date);
+    if (normA !== normB) {
+      return normB.localeCompare(normA);
     }
     if (a.photographerId !== b.photographerId) {
       return a.photographerId.localeCompare(b.photographerId);

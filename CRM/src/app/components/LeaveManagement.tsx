@@ -14,7 +14,8 @@ import * as leavesDb from '../lib/db/leaves';
 import * as usersDb from '../lib/db/users';
 import type { Database } from '../lib/types/database.types';
 import type { Leave, CityWeekoff } from '../types';
-import { getOperationalDateString, getLocalDateString, isEmergencyLeave } from '../lib/utils';
+import { getOperationalDateString, getLocalDateString, isEmergencyLeave, normalizeDateStr } from '../lib/utils';
+
 
 // type Leave = Database['public']['Tables']['leaves']['Row']; (Removed raw row usage)
 
@@ -220,14 +221,17 @@ export function LeaveManagement({ photographerId }: LeaveManagementProps) {
     // Helper to format date
     const formatDate = (dateStr: string) => {
         // Manually parse YYYY-MM-DD to avoid timezone shift in display
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-
-        return date.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            weekday: 'short'
-        });
+        const normalized = normalizeDateStr(dateStr);
+        const [year, month, day] = normalized.split('-').map(Number);
+        if (year && month && day) {
+            const date = new Date(year, month - 1, day);
+            return date.toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                weekday: 'short'
+            });
+        }
+        return dateStr;
     };
 
     return (

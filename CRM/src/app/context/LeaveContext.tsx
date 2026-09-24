@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Leave, LeaveHalf, LeaveAppliedBy } from '../types';
 import * as leavesDb from '../lib/db/leaves';
+import { normalizeDateStr } from '../lib/utils';
+
 
 interface LeaveContextType {
   leaves: Leave[];
@@ -82,31 +84,34 @@ export function LeaveProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getLeavesByDate = (date: string) => {
+    const targetDate = normalizeDateStr(date);
     return leaves
-      .filter(leave => leave.date === date)
+      .filter(leave => normalizeDateStr(leave.date) === targetDate)
       .sort((a, b) => a.photographerId.localeCompare(b.photographerId));
   };
 
   const isPhotographerOnLeave = (photographerId: string, date: string, half: LeaveHalf) => {
+    const targetDate = normalizeDateStr(date);
     return leaves.some(
       leave =>
         leave.photographerId === photographerId &&
-        leave.date === date &&
+        normalizeDateStr(leave.date) === targetDate &&
         leave.half === half
     );
   };
 
   const isFullDayLeave = (photographerId: string, date: string) => {
+    const targetDate = normalizeDateStr(date);
     const firstHalfExists = leaves.some(
       leave =>
         leave.photographerId === photographerId &&
-        leave.date === date &&
+        normalizeDateStr(leave.date) === targetDate &&
         leave.half === 'FIRST_HALF'
     );
     const secondHalfExists = leaves.some(
       leave =>
         leave.photographerId === photographerId &&
-        leave.date === date &&
+        normalizeDateStr(leave.date) === targetDate &&
         leave.half === 'SECOND_HALF'
     );
     return firstHalfExists && secondHalfExists;
