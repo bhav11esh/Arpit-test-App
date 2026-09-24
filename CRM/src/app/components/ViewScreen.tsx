@@ -6559,7 +6559,11 @@ export function ViewScreen() {
                             if (pendingInvs.length > 0) {
                               pendingReasons.push(`Task 5: Invoice follow-ups pending for Invoice #${pendingInvs.map(i => i.invoice_number).join(', #')}.`);
                             }
-                            const unclosedMissed = missedSendUpdateData.filter(p => !missedUpdateClosedPhotographers.has(p.photographerId));
+                            const unclosedMissed = missedSendUpdateData.filter(p => {
+                              const isClosed = missedUpdateClosedPhotographers.has(p.photographerId);
+                              const isHandedOver = handoverLogs.some(l => l.target_id === p.photographerId && l.metadata?.task_type === 'MISSED_UPDATE');
+                              return !isClosed && !isHandedOver;
+                            });
                             if (unclosedMissed.length > 0) {
                               pendingReasons.push(`Missed Send Update tasks pending: ${unclosedMissed.map(p => p.name).join(', ')}.`);
                             }
@@ -6581,47 +6585,59 @@ export function ViewScreen() {
                             );
                           })()}
 
-                          <Button
-                            onClick={async () => {
-                              if (!allPhotographersCleared) {
-                                toast.error('Complete or hand over all photographer audit tasks first');
-                                return;
-                              }
-                              if (!bountyBoardVerified) {
-                                toast.error('Please verify the Bounty Board clearance first');
-                                return;
-                              }
-                              const isSentInvoicesCleared = sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id));
-                              if (!isSentInvoicesCleared) {
-                                toast.error('Please complete all SENT invoice follow-up call log audits first');
-                                return;
-                              }
-                              if (missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))) {
-                                toast.error('Close all Missed Send Update audit tasks first');
-                                return;
-                              }
-                              try {
-                                await supabase.from('log_events').insert({
-                                  type: 'ADMIN_DAILY_AUDIT_UPDATE_SENT',
-                                  actor_user_id: user.id,
-                                  target_id: user.id,
-                                  metadata: { date: spreadSheetDate }
-                                });
-                                setAdminUpdateSent(true);
-                                toast.success('Audit update sent for today!');
-                              } catch (e) {
-                                toast.error('Failed to send update');
-                              }
-                            }}
-                            disabled={!allPhotographersCleared || !bountyBoardVerified || !(sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id))) || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
-                            className={`w-full h-11 font-bold text-sm ${
-                              allPhotographersCleared && bountyBoardVerified && (sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id))) && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                            }`}
-                          >
-                            Send Update for Audit Tasks today
-                          </Button>
+                          {(() => {
+                            const isMissedUpdatePending = missedSendUpdateData.some(p => {
+                              const isClosed = missedUpdateClosedPhotographers.has(p.photographerId);
+                              const isHandedOver = handoverLogs.some(l => l.target_id === p.photographerId && l.metadata?.task_type === 'MISSED_UPDATE');
+                              return !isClosed && !isHandedOver;
+                            });
+                            const isSentInvoicesCleared = sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id));
+                            const isReadyToSend = allPhotographersCleared && bountyBoardVerified && isSentInvoicesCleared && !isMissedUpdatePending;
+
+                            return (
+                              <Button
+                                onClick={async () => {
+                                  if (!allPhotographersCleared) {
+                                    toast.error('Complete or hand over all photographer audit tasks first');
+                                    return;
+                                  }
+                                  if (!bountyBoardVerified) {
+                                    toast.error('Please verify the Bounty Board clearance first');
+                                    return;
+                                  }
+                                  if (!isSentInvoicesCleared) {
+                                    toast.error('Please complete all SENT invoice follow-up call log audits first');
+                                    return;
+                                  }
+                                  if (isMissedUpdatePending) {
+                                    toast.error('Close or hand over all Missed Send Update audit tasks first');
+                                    return;
+                                  }
+                                  try {
+                                    const db = adminSupabase || supabase;
+                                    await db.from('log_events').insert({
+                                      type: 'ADMIN_DAILY_AUDIT_UPDATE_SENT',
+                                      actor_user_id: user.id,
+                                      target_id: user.id,
+                                      metadata: { date: spreadSheetDate }
+                                    });
+                                    setAdminUpdateSent(true);
+                                    toast.success('Audit update sent for today!');
+                                  } catch (e) {
+                                    toast.error('Failed to send update');
+                                  }
+                                }}
+                                disabled={!isReadyToSend}
+                                className={`w-full h-11 font-bold text-sm ${
+                                  isReadyToSend
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                }`}
+                              >
+                                Send Update for Audit Tasks today
+                              </Button>
+                            );
+                          })()}
                         </>
                       )}
                     </div>
