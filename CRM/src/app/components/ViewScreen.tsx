@@ -6290,13 +6290,13 @@ export function ViewScreen() {
                         <FileText className="h-5 w-5 text-indigo-600" />
                         Task 5: SENT Invoices Follow-up Audit Task (Daily Call Log Follow-up)
                       </span>
-                      {sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id]) ? (
+                      {sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id)) ? (
                         <Badge className="bg-green-100 text-green-800 border-green-200 font-semibold text-[10px]">
                           ✅ Task Clear
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-indigo-600 bg-indigo-50 border-indigo-200 text-[10px]">
-                          Pending Verification ({sentInvoices.filter(i => !sentInvoiceLogsMap[i.id]).length} remaining)
+                          Pending Verification ({sentInvoices.filter(i => !isInvoiceResolvedForDate(i.id)).length} remaining)
                         </Badge>
                       )}
                     </h3>
@@ -6531,7 +6531,7 @@ export function ViewScreen() {
                               toast.error('Please verify the Bounty Board clearance first');
                               return;
                             }
-                            const isSentInvoicesCleared = sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id]);
+                            const isSentInvoicesCleared = sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id));
                             if (!isSentInvoicesCleared) {
                               toast.error('Please complete all SENT invoice follow-up call log audits first');
                               return;
@@ -6553,9 +6553,9 @@ export function ViewScreen() {
                               toast.error('Failed to send update');
                             }
                           }}
-                          disabled={!allPhotographersCleared || !bountyBoardVerified || !(sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id])) || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
+                          disabled={!allPhotographersCleared || !bountyBoardVerified || !(sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id))) || missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))}
                           className={`w-full h-11 font-bold text-sm ${
-                            allPhotographersCleared && bountyBoardVerified && (sentInvoices.length === 0 || sentInvoices.every(inv => !!sentInvoiceLogsMap[inv.id])) && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
+                            allPhotographersCleared && bountyBoardVerified && (sentInvoices.length === 0 || sentInvoices.every(inv => isInvoiceResolvedForDate(inv.id))) && !missedSendUpdateData.some(p => !missedUpdateClosedPhotographers.has(p.photographerId))
                               ? 'bg-green-600 hover:bg-green-700 text-white'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           }`}
