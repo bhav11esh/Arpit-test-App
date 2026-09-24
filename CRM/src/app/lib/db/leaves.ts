@@ -19,11 +19,13 @@ const rowToLeave = (row: LeaveRow): Leave => ({
   convertedToWorkingDay: row.converted_to_working_day
 });
 
+const dbClient = () => adminSupabase || supabase;
+
 /**
  * Get all leaves (used by LeaveContext)
  */
 export async function getAllLeaves(): Promise<Leave[]> {
-  const { data, error } = await supabase
+  const { data, error } = await dbClient()
     .from('leaves')
     .select('*')
     .order('date', { ascending: true });
@@ -40,7 +42,7 @@ export async function getAllLeaves(): Promise<Leave[]> {
  * Get leaves for a specific date (used by HomeScreen to optimize polling)
  */
 export async function getLeavesByDate(date: string): Promise<Leave[]> {
-  const { data, error } = await supabase
+  const { data, error } = await dbClient()
     .from('leaves')
     .select('*')
     .eq('date', date);
@@ -57,7 +59,7 @@ export async function getLeavesByDate(date: string): Promise<Leave[]> {
  * Get leaves for a specific photographer (used by LeaveManagement and context)
  */
 export async function getLeaves(photographerId: string, startDate?: string, endDate?: string): Promise<Leave[]> {
-  let query = supabase
+  let query = dbClient()
     .from('leaves')
     .select('*')
     .eq('photographer_id', photographerId)
@@ -85,7 +87,7 @@ export async function getLeaves(photographerId: string, startDate?: string, endD
  * Get all leaves for a specific date range (admin audit)
  */
 export async function getLeavesByDateRange(startDate: string, endDate: string): Promise<Leave[]> {
-  const { data, error } = await supabase
+  const { data, error } = await dbClient()
     .from('leaves')
     .select('*')
     .gte('date', startDate)
@@ -108,7 +110,7 @@ export async function isPhotographerOnLeave(
   date: string,
   half: LeaveHalf
 ): Promise<boolean> {
-  const { count, error } = await supabase
+  const { count, error } = await dbClient()
     .from('leaves')
     .select('*', { count: 'exact', head: true })
     .eq('photographer_id', photographerId)
@@ -145,8 +147,10 @@ export async function createLeave(leaveData: {
  * SIDE EFFECT: Auto-unassign PRIMARY deliveries
  */
 export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
+  const client = dbClient();
+
   // 1. Create leave record (Upsert with ignoreDuplicates to handle race conditions/stale state)
-  const { data: insertedData, error } = await (supabase.from('leaves') as any)
+  const { data: insertedData, error } = await (client.from('leaves') as any)
     .upsert(leaveData, { onConflict: 'photographer_id, date, half', ignoreDuplicates: true })
     .select();
 
@@ -159,7 +163,7 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
 
   // If ignoreDuplicates triggered, no row is returned. fetch the existing one.
   if (!leaveRecord) {
-    const { data: existingData, error: fetchError } = await (supabase.from('leaves') as any)
+    const { data: existingData, error: fetchError } = await (client.from('leaves') as any)
       .select('*')
       .eq('photographer_id', leaveData.photographer_id)
       .eq('date', leaveData.date)
@@ -173,9 +177,6 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
   }
 
   // 2. V1 SPEC (EXPANDED): Auto-unassign based on leave status
-  // V1 FIX: Use Admin client for selecting to bypass RLS issues in background logic
-  const client = supabase;
-
   // Fetch all leaves for this user+date to check for Full Day status
   const { data: allDayLeaves, error: leavesFetchError } = await (client.from('leaves') as any)
     .select('*')
@@ -216,8 +217,7 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
       .map((d: any) => d.id);
 
     if (idsToUnassign.length > 0) {
-      const updateClient = supabase;
-      const { error: unassignError } = await (updateClient
+      const { error: unassignError } = await (client
         .from('deliveries') as any)
         .update({
           status: 'UNASSIGNED',
@@ -241,7 +241,7 @@ export async function applyLeave(leaveData: LeaveInsert): Promise<Leave> {
  * Delete leave (Admin only)
  */
 export async function deleteLeave(leaveId: string): Promise<void> {
-  const client = supabase;
+  const client = dbClient();
 
   const { error } = await (client.from('leaves') as any)
     .delete()
