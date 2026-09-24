@@ -494,6 +494,20 @@ export function ViewScreen() {
   const { isPhotographerOnLeave, leaves, isFullDayLeave } = useLeave();
   const navigate = useNavigate();
 
+  const isDealershipActive = (showroomCode?: string | null): boolean => {
+    if (!showroomCode || dealerships.length === 0) return true;
+    const matchingDealer = dealerships.find(d => 
+      getShowroomCode(d.name) === showroomCode ||
+      d.name.toUpperCase() === showroomCode.toUpperCase() ||
+      d.id === showroomCode ||
+      d.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_') === showroomCode.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+    );
+    if (matchingDealer) {
+      return matchingDealer.active !== false;
+    }
+    return true;
+  };
+
   // Helper to determine payout model for a photographer on a given date
   const getPhotographerPayoutModel = (photographerId: string | undefined, dateStr: string | undefined): string => {
     if (!photographerId || !dateStr) return 'Percentage Based (10/30/50)';
