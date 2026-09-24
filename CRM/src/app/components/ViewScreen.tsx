@@ -1411,7 +1411,8 @@ export function ViewScreen() {
         return;
       }
       const count = parseInt(enteredCounts[targetId]);
-      const { error } = await supabase.from('log_events').insert({
+      const db = adminSupabase || supabase;
+      const { error } = await db.from('log_events').insert({
         type: 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED',
         actor_user_id: user?.id,
         target_id: targetId,
@@ -1626,7 +1627,8 @@ export function ViewScreen() {
       const start = new Date(year, month - 1, day - 1, 0, 0, 0);
       const end = new Date(year, month - 1, day + 2, 23, 59, 59);
       
-      const { data: logs, error: logsError } = await supabase
+      const db = adminSupabase || supabase;
+      const { data: logs, error: logsError } = await db
         .from('log_events')
         .select('*')
         .in('type', ['SEND_UPDATE_COMPLETED', 'ADMIN_AUDIT_MISSED_SEND_UPDATE_COMPLETED'])
@@ -1650,7 +1652,7 @@ export function ViewScreen() {
       );
       
       // 3. Fetch leaves for dateStr
-      const { data: leaves, error: leavesError } = await supabase
+      const { data: leaves, error: leavesError } = await db
         .from('leaves')
         .select('*')
         .eq('date', dateStr);
@@ -1658,7 +1660,7 @@ export function ViewScreen() {
       if (leavesError) throw leavesError;
 
       // 4. Fetch all deliveries for dateStr
-      const { data: dayDeliveriesRaw, error: deliveriesError } = await supabase
+      const { data: dayDeliveriesRaw, error: deliveriesError } = await db
         .from('deliveries')
         .select('*')
         .eq('date', dateStr)
