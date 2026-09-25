@@ -6375,9 +6375,11 @@ export function ViewScreen() {
                               const dealerEmail = savedContact.email || dealershipObj?.billing_email || '';
                               const isVerified = !!sentInvoiceLogsMap[inv.id];
                               const verifiedUrl = sentInvoiceLogsMap[inv.id];
-
+                              const followupData = sentInvoiceFollowupDatesMap[inv.id];
+                              const nextFollowupDate = followupData?.next_followup_date || getTomorrowDateStr(spreadSheetDate);
+                              const isSnoozed = !isVerified && !!(nextFollowupDate && nextFollowupDate > spreadSheetDate);
                               return (
-                                <Card key={inv.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isVerified ? 'border-l-green-600 bg-white' : 'border-l-indigo-500 bg-indigo-50/10'}`}>
+                                <Card key={inv.id} className={`border border-slate-100 rounded-xl border-l-4 transition-all duration-200 ${isVerified ? "border-l-green-600 bg-white" : isSnoozed ? "border-l-indigo-400 bg-indigo-50/20" : "border-l-amber-500 bg-amber-50/10"}`}>
                                   <CardHeader className="py-3 px-4 flex flex-row items-center justify-between select-none">
                                     <CardTitle className="text-sm font-bold flex items-center justify-between w-full">
                                       <div className="flex items-center gap-2">
@@ -6478,6 +6480,16 @@ export function ViewScreen() {
                                             </Button>
                                           )}
                                         </div>
+                                      </div>
+                                    ) : isSnoozed ? (
+                                      <div className="flex items-center justify-between bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-200 text-xs text-indigo-900 font-medium">
+                                        <span className="flex items-center gap-1.5 font-semibold text-indigo-800">
+                                          <Calendar className="h-4 w-4 text-indigo-600" />
+                                          Follow-up not required for {spreadSheetDate}. Scheduled for {nextFollowupDate}.
+                                        </span>
+                                        <span className="text-[11px] bg-white px-2 py-0.5 rounded border border-indigo-200 font-bold text-indigo-700">
+                                          Task Clear Today
+                                        </span>
                                       </div>
                                     ) : (
                                       <div className="space-y-2 border-t pt-2">
