@@ -623,6 +623,7 @@ export function ViewScreen() {
   const [followupDateModalOpen, setFollowupDateModalOpen] = useState(false);
   const [selectedInvoiceForDate, setSelectedInvoiceForDate] = useState<any | null>(null);
   const [customFollowupDateInput, setCustomFollowupDateInput] = useState<string>('');
+  const [customFollowupDateInputMap, setCustomFollowupDateInputMap] = useState<Record<string, string>>({});
 
   const isInvoiceResolvedForDate = (invId: string) => {
     const isVerifiedToday = !!sentInvoiceLogsMap[invId];
@@ -1139,6 +1140,31 @@ export function ViewScreen() {
       toast.error('Failed to upload call log screenshot');
     } finally {
       setUploadingInvoiceCallLogs(prev => ({ ...prev, [inv.id]: false }));
+    }
+  };
+
+  const handleDeleteInvoiceCallLog = async (inv: any) => {
+    try {
+      const client = adminSupabase || supabase;
+      const { error } = await client
+        .from('log_events')
+        .delete()
+        .eq('type', 'INVOICE_SENT_CALL_LOG_VERIFIED')
+        .eq('target_id', inv.id);
+
+      if (error) throw error;
+
+      setSentInvoiceLogsMap(prev => {
+        const copy = { ...prev };
+        delete copy[inv.id];
+        return copy;
+      });
+
+      toast.success(`Call log screenshot for Invoice #${inv.invoice_number} deleted`);
+      fetchHandoverAndSentLogs();
+    } catch (err: any) {
+      console.error('Failed to delete invoice call log screenshot:', err);
+      toast.error('Failed to delete screenshot');
     }
   };
 
@@ -6395,20 +6421,63 @@ export function ViewScreen() {
                                       </div>
                                     </div>
 
+                                    {/* Next Follow-up Date Control Row */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 text-xs my-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
+                                        <span className="font-semibold text-slate-700">Next Follow-up Date:</span>
+                                        <span className="font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                                          {sentInvoiceFollowupDatesMap[inv.id]?.next_followup_date || getTomorrowDateStr(spreadSheetDate)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="date"
+                                          className="h-7 w-36 text-xs bg-white border-slate-300"
+                                          value={customFollowupDateInputMap[inv.id] || sentInvoiceFollowupDatesMap[inv.id]?.next_followup_date || getTomorrowDateStr(spreadSheetDate)}
+                                          onChange={(e) => setCustomFollowupDateInputMap(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                                        />
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 px-2.5 text-xs font-semibold text-indigo-700 border-indigo-300 bg-white hover:bg-indigo-50"
+                                          onClick={() => {
+                                            const targetDate = customFollowupDateInputMap[inv.id] || getTomorrowDateStr(spreadSheetDate);
+                                            handleSaveNextFollowupDate(inv, targetDate);
+                                          }}
+                                        >
+                                          Set Date
+                                        </Button>
+                                      </div>
+                                    </div>
+
                                     {isVerified ? (
                                       <div className="flex items-center justify-between bg-green-50/60 p-2.5 rounded-lg border border-green-200">
                                         <span className="text-green-800 font-semibold text-xs flex items-center gap-1.5">
                                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                                           Follow-up call log uploaded for {spreadSheetDate}
                                         </span>
-                                        <a
-                                          href={verifiedUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                                        >
-                                          <Eye className="h-3.5 w-3.5" /> View Screenshot
-                                        </a>
+                                        <div className="flex items-center gap-2">
+                                          <a
+                                            href={verifiedUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                                          >
+                                            <Eye className="h-3.5 w-3.5" /> View Screenshot
+                                          </a>
+                                          {isAdmin && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleDeleteInvoiceCallLog(inv)}
+                                              className="h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold flex items-center gap-1"
+                                              title="Delete screenshot to re-upload"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
                                     ) : (
                                       <div className="space-y-2 border-t pt-2">
