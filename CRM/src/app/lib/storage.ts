@@ -72,6 +72,65 @@ export const validateScreenshotFile = (file: File): { valid: boolean; error?: st
   return { valid: true };
 };
 
+// Helper to compress image client-side before upload
+export const compressImage = (file: File, maxDim = 1400, quality = 0.75): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.size < 200 * 1024) {
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
 // Upload screenshot file
 export const uploadScreenshot = async (
   file: File,
@@ -85,20 +144,28 @@ export const uploadScreenshot = async (
     throw new Error(validation.error);
   }
 
+  // Compress main image client-side
+  let fileToUpload = file;
+  try {
+    fileToUpload = await compressImage(file);
+  } catch (err) {
+    console.warn('Image compression failed, using original file:', err);
+  }
+
   // Generate file paths
   const timestamp = Date.now();
-  const fileExt = file.name.split('.').pop();
+  const fileExt = 'jpg';
   const fileName = `${deliveryId}/${userId}/${timestamp}.${fileExt}`;
   const thumbnailFileName = `${deliveryId}/${userId}/${timestamp}_thumb.jpg`;
 
   try {
     // Generate thumbnail
-    const thumbnailFile = await generateThumbnail(file);
+    const thumbnailFile = await generateThumbnail(fileToUpload);
 
     // Upload main file
     const { data: fileData, error: fileError } = await supabase.storage
       .from(SCREENSHOT_BUCKET)
-      .upload(fileName, file, {
+      .upload(fileName, fileToUpload, {
         cacheControl: '3600',
         upsert: false,
       });
