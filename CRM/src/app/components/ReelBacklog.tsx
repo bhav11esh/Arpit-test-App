@@ -271,7 +271,8 @@ export function ReelBacklog() {
   };
 
   const pendingTasks = reelTasks.filter(t => {
-    if (t.status !== 'PENDING' || t.is_post_it) return false;
+    if (t.status !== 'PENDING') return false;
+    if (t.is_post_it && !t.claim_deadline) return false;
     const delivery = deliveries.find(d => d.id === t.delivery_id);
     if (delivery && !isDealershipActive(delivery.showroom_code)) return false;
     return true;
@@ -708,7 +709,15 @@ export function ReelBacklog() {
                           </div>
                         )}
                       </div>
-                      <Badge className="bg-amber-50 text-amber-600 border-amber-100 text-[10px] px-2 py-0">Pending</Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {task.is_post_it && (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                            <Trophy className="h-3 w-3 text-emerald-600" />
+                            Bounty (+₹{task.post_it_reward || 500})
+                          </Badge>
+                        )}
+                        <Badge className="bg-amber-50 text-amber-600 border-amber-100 text-[10px] px-2 py-0">Pending</Badge>
+                      </div>
                     </div>
                     {/* V18.3: Show 24h deadline countdown for claimed post-its */}
                     {task.claim_deadline && (
