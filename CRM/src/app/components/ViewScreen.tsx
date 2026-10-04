@@ -977,7 +977,7 @@ export function ViewScreen() {
   };
 
   useEffect(() => {
-    if ((viewMode === 'audit' || viewMode === 'call_logs') && spreadSheetDate && user) {
+    if ((viewMode === 'spreadsheet' || viewMode === 'audit' || viewMode === 'call_logs') && spreadSheetDate && user) {
       fetchHandoverAndSentLogs();
       const yesterdayDateStr = getYesterdayDateString(spreadSheetDate);
       fetchMissedSendUpdateData(yesterdayDateStr);
