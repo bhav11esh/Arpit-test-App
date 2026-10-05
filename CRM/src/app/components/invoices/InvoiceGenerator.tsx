@@ -54,7 +54,18 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
   const [lineItems, setLineItems] = useState<GroupedLineItem[]>([]);
   const [deliveriesToLink, setDeliveriesToLink] = useState<string[]>([]);
   
-  const selectedDealer = dealerships.find(d => d.id === selectedDealerId);
+  const resolveDealer = (id: string) => {
+    if (!id) return null;
+    let d = dealerships.find(deal => deal.id === id);
+    if (d) return d;
+    d = dealerships.find(deal => (deal as any).code === id || (deal as any).showroom_code === id);
+    if (d) return d;
+    d = dealerships.find(deal => deal.name === id || deal.name.toLowerCase() === id.toLowerCase());
+    if (d) return d;
+    return null;
+  };
+
+  const selectedDealer = resolveDealer(selectedDealerId);
 
   // Generate Year/Month options (last 12 months)
   const getMonthOptions = () => {
@@ -101,7 +112,12 @@ export function InvoiceGenerator({ onClose }: InvoiceGeneratorProps) {
 
     setLoading(true);
     try {
-      const dealer = dealerships.find(d => d.id === selectedDealerId)!;
+      const dealer = resolveDealer(selectedDealerId);
+      if (!dealer) {
+        toast.error('Dealership configuration not found.');
+        setLoading(false);
+        return;
+      }
       const targetCode = getShowroomCode(dealer.name);
 
       // Fetch all DONE deliveries

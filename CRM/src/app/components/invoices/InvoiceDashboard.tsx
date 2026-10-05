@@ -136,8 +136,61 @@ export function InvoiceDashboard() {
   };
 
   // Helper mapping functions
-  const getDealerName = (id: string) => {
-    const d = dealerships.find(deal => deal.id === id);
+  const resolveDealer = (id: string, invoiceId?: string) => {
+    if (!id) return null;
+
+    // 1. Check saved contact override in localStorage
+    if (invoiceId && typeof window !== 'undefined') {
+      const savedStr = localStorage.getItem(`invoice_contact_${invoiceId}`);
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          if (parsed.company_name) {
+            const matchByName = dealerships.find(d => d.name === parsed.company_name || d.billing_company_name === parsed.company_name);
+            if (matchByName) {
+              return { ...matchByName, name: parsed.company_name, billing_phone: parsed.phone || matchByName.billing_phone, billing_email: parsed.email || matchByName.billing_email };
+            }
+            return {
+              id: id,
+              name: parsed.company_name,
+              paymentType: 'DEALER_PAID',
+              billing_company_name: parsed.company_name,
+              billing_phone: parsed.phone,
+              billing_email: parsed.email
+            } as any;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // 2. Match by ID
+    let d = dealerships.find(deal => deal.id === id);
+    if (d) return d;
+
+    // 3. Match by code or showroom_code
+    d = dealerships.find(deal => (deal as any).code === id || (deal as any).showroom_code === id);
+    if (d) return d;
+
+    // 4. Match by name or billing_company_name
+    d = dealerships.find(deal => deal.name === id || deal.name.toLowerCase() === id.toLowerCase() || (deal.billing_company_name && deal.billing_company_name.toLowerCase() === id.toLowerCase()));
+    if (d) return d;
+
+    // 5. Fallback: if id is a readable name/code (not a raw UUID)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid && id !== 'undefined' && id !== 'null' && id.length > 0) {
+      return {
+        id: id,
+        name: id,
+        paymentType: 'DEALER_PAID',
+        billing_company_name: id
+      } as any;
+    }
+
+    return null;
+  };
+
+  const getDealerName = (id: string, invoice?: Invoice) => {
+    const d = resolveDealer(id, invoice?.id);
     return d ? d.name : 'Unknown Dealership';
   };
 
@@ -164,8 +217,8 @@ export function InvoiceDashboard() {
   };
 
   const filteredInvoices = invoices.filter(invoice => {
-    const dealer = dealerships.find(d => d.id === invoice.dealership_id);
-    const dealerName = getDealerName(invoice.dealership_id).toLowerCase();
+    const dealer = resolveDealer(invoice.dealership_id, invoice.id);
+    const dealerName = getDealerName(invoice.dealership_id, invoice).toLowerCase();
     const invNum = invoice.invoice_number.toLowerCase();
     const month = formatMonth(invoice.billing_month).toLowerCase();
     const billingPhone = (dealer?.billing_phone || '').toLowerCase();
@@ -344,35 +397,38 @@ export function InvoiceDashboard() {
               </TableHeader>
               <TableBody>
                 {filteredInvoices.map(invoice => {
-                  const dealer = dealerships.find(d => d.id === invoice.dealership_id);
+                  const dealer = resolveDealer(invoice.dealership_id, invoice.id);
                   const savedContactStr = typeof window !== 'undefined' ? localStorage.getItem(`invoice_contact_${invoice.id}`) : null;
                   const savedContact = savedContactStr ? JSON.parse(savedContactStr) : {};
                   
                   const phone = savedContact.phone || dealer?.billing_phone;
                   const email = savedContact.email || dealer?.billing_email;
-                  const isCustom = Boolean(savedContact.phone || savedContact.email);
+                  const isCustom = Boolean(savedContact.phone || savedContact.email || savedContact.company_name);
 
                   const handleEditContact = (e: React.MouseEvent) => {
                     e.stopPropagation();
+                    const currentName = getDealerName(invoice.dealership_id, invoice);
+                    const newName = window.prompt(`Edit Dealership / Company Name for Invoice #${invoice.invoice_number}:`, currentName === 'Unknown Dealership' ? '' : currentName);
+                    if (newName === null) return;
                     const newPhone = window.prompt(`Edit Contact Phone for Invoice #${invoice.invoice_number}:`, phone || '');
                     if (newPhone === null) return;
                     const newEmail = window.prompt(`Edit Contact Email for Invoice #${invoice.invoice_number}:`, email || '');
                     if (newEmail === null) return;
 
                     const updated = {
+                      company_name: newName.trim() || currentName,
                       phone: newPhone.trim(),
-                      email: newEmail.trim(),
-                      company_name: savedContact.company_name || dealer?.billing_company_name || dealer?.name
+                      email: newEmail.trim()
                     };
                     localStorage.setItem(`invoice_contact_${invoice.id}`, JSON.stringify(updated));
-                    toast.success(`Contact info updated for Invoice #${invoice.invoice_number}`);
+                    toast.success(`Contact & Dealership info updated for Invoice #${invoice.invoice_number}`);
                     fetchInvoices();
                   };
 
                   return (
                     <TableRow key={invoice.id} className="hover:bg-zinc-50/50 transition-colors">
                       <TableCell className="font-medium text-sm text-zinc-900">{invoice.invoice_number}</TableCell>
-                      <TableCell className="text-sm text-zinc-700 font-medium">{getDealerName(invoice.dealership_id)}</TableCell>
+                      <TableCell className="text-sm text-zinc-700 font-medium">{getDealerName(invoice.dealership_id, invoice)}</TableCell>
                       <TableCell className="text-xs">
                         <div className="space-y-1 group relative pr-6">
                           {phone ? (

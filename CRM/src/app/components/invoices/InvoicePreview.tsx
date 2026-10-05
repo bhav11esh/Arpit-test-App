@@ -79,7 +79,55 @@ export function InvoicePreview({
   const [loading, setLoading] = useState(true);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
-  const dealer = dealerships.find(d => d.id === dealershipId);
+  const resolveDealer = (id: string, invId?: string) => {
+    if (!id) return null;
+
+    if (invId && typeof window !== 'undefined') {
+      const savedStr = localStorage.getItem(`invoice_contact_${invId}`);
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          if (parsed.company_name) {
+            const matchByName = dealerships.find(d => d.name === parsed.company_name || d.billing_company_name === parsed.company_name);
+            if (matchByName) {
+              return { ...matchByName, name: parsed.company_name, billing_phone: parsed.phone || matchByName.billing_phone, billing_email: parsed.email || matchByName.billing_email };
+            }
+            return {
+              id: id,
+              name: parsed.company_name,
+              paymentType: 'DEALER_PAID',
+              billing_company_name: parsed.company_name,
+              billing_phone: parsed.phone,
+              billing_email: parsed.email
+            } as any;
+          }
+        } catch (e) {}
+      }
+    }
+
+    let d = dealerships.find(deal => deal.id === id);
+    if (d) return d;
+
+    d = dealerships.find(deal => (deal as any).code === id || (deal as any).showroom_code === id);
+    if (d) return d;
+
+    d = dealerships.find(deal => deal.name === id || deal.name.toLowerCase() === id.toLowerCase() || (deal.billing_company_name && deal.billing_company_name.toLowerCase() === id.toLowerCase()));
+    if (d) return d;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid && id !== 'undefined' && id !== 'null' && id.length > 0) {
+      return {
+        id: id,
+        name: id,
+        paymentType: 'DEALER_PAID',
+        billing_company_name: id
+      } as any;
+    }
+
+    return null;
+  };
+
+  const dealer = resolveDealer(dealershipId, invoiceId);
 
   useEffect(() => {
     const fetchInvoiceItems = async () => {
