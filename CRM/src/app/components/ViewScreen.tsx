@@ -1218,6 +1218,11 @@ export function ViewScreen() {
     if (!standupCall) return false;
     if (standupCall.status === 'LEAVE') return true;
 
+    // Fix: Photographer CANNOT be Done if Missed Send Update task is still unresolved!
+    const missedEntry = missedSendUpdateData.find(m => m.photographerId === photographerId);
+    const isMissedUpdateClosed = !missedEntry || missedUpdateClosedPhotographers.has(photographerId);
+    if (!isMissedUpdateClosed) return false;
+
     const doneDeliveries = photographerDeliveries.filter(d => d.status === 'DONE');
     const uniqueShowrooms = Array.from(new Set(doneDeliveries.map(d => getShowroomCode(d.showroom_code))));
     
